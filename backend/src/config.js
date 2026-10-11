@@ -22,6 +22,8 @@ export const config = {
 
   // Kenyan time (HH:MM) when every owner is sent their unpaid fares.
   payoutDailyAt: env.PAYOUT_DAILY_AT ?? '21:00',
+  // Kenyan time (HH:MM) of the nightly money check; the office is alerted if anything doesn't add up.
+  moneyCheckDailyAt: env.MONEY_CHECK_DAILY_AT ?? '23:00',
 
   // Who moves the M-Pesa money: 'daraja' (Safaricom directly, needs your own Paybill/Till)
   // or 'intasend' (IntaSend's licensed account collects and pays out for you).
@@ -66,3 +68,4 @@ if (!['sandbox', 'production', 'mock'].includes(config.mpesa.mode)) throw new Er
 if (!['daraja', 'intasend'].includes(config.paymentProvider)) throw new Error('PAYMENT_PROVIDER must be daraja or intasend');
 if (!['sandbox', 'live'].includes(config.intasend.mode)) throw new Error('INTASEND_MODE must be sandbox or live');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.payoutDailyAt)) throw new Error('PAYOUT_DAILY_AT must be HH:MM, e.g. 21:00');
+if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.moneyCheckDailyAt)) throw new Error('MONEY_CHECK_DAILY_AT must be HH:MM, e.g. 23:00');

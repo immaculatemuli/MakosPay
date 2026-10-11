@@ -11,6 +11,7 @@ export default function ConductorLayout() {
   return (
     <Stack screenOptions={stackOptions}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
       <Stack.Screen name="change-route" options={{ title: 'Change route' }} />
       <Stack.Screen name="report" options={{ title: 'Report a problem' }} />
       <Stack.Screen name="reports" options={{ title: 'My reports' }} />

@@ -1,7 +1,10 @@
 // Reconciliation: checks that the money recorded in FarePay adds up, so mistakes or tampering show.
 // It only reads. "Test" money (test credit, M-Pesa sandbox/mock) is reported separately from real money.
-import { isRealMoney } from '../config.js';
+import { config, isRealMoney } from '../config.js';
 import { db } from '../db.js';
+import { audit } from './audit.js';
+import { runDaily } from './jobs.js';
+import { notifyOffice } from './notifications.js';
 import { owedByOwner } from './payouts.js';
 
 const one = (sql, ...params) => db.prepare(sql).get(...params).n;
@@ -101,4 +104,24 @@ export function reconcile() {
   ];
 
   return { checked_at: new Date().toISOString(), all_ok: checks.every((c) => c.ok), checks, totals };
+}
+
+/** The nightly check: records the result in the audit log and alerts the office only if something doesn't add up. */
+export function nightlyMoneyCheck() {
+  const result = reconcile();
+  const failed = result.checks.filter((c) => !c.ok);
+  audit(null, 'money_check.nightly', null, null, { all_ok: result.all_ok, failed: failed.map((c) => c.name) });
+  if (failed.length > 0) {
+    notifyOffice({
+      kind: 'money_check.failed',
+      title: `Money check: ${failed.length} problem${failed.length === 1 ? '' : 's'} found`,
+      body: `${failed.map((c) => c.name).join('; ')}. Open Money check and the Audit log to see what is out.`,
+      target: 'money-check',
+    });
+  }
+  return result;
+}
+
+export function startNightlyMoneyCheck() {
+  runDaily('money_check', config.moneyCheckDailyAt, () => nightlyMoneyCheck());
 }

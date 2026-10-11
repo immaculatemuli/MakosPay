@@ -2,8 +2,9 @@
 import { z } from 'zod';
 import { db, insertId, NOW, tx } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
-import { nairobiDayRange } from '../util.js';
+import { nairobiDayRange, nairobiToday } from '../util.js';
 import { id, kes, name } from '../validate.js';
+import { kesText, notify, prettyDate } from './notifications.js';
 
 // Removed stops are only kept for past trips, so routes always list their current stops.
 const stopsOf = (routeId) =>
@@ -155,7 +156,32 @@ export function scheduleFareChange(stopId, { cash_fare, app_fare, effective_date
     );
   });
   applyDueFareChanges();
+  notifyFareChange(stop, { cash_fare, app_fare, effective_date });
   return getFareChange(id);
+}
+
+/** Tells passengers who use this route (saved one of its stops, or paid on it in the last 60 days) about a new fare. */
+function notifyFareChange(stop, { cash_fare, app_fare, effective_date }) {
+  if (cash_fare === stop.cash_fare && app_fare === stop.app_fare) return;
+  const route = db.prepare('SELECT name, is_active FROM routes WHERE id = ?').get(stop.route_id);
+  if (!route?.is_active) return;
+  const since = new Date(Date.now() - 60 * 86_400_000).toISOString();
+  const passengers = db
+    .prepare(
+      `SELECT u.id FROM users u
+       WHERE u.role = 'passenger' AND u.is_active = 1 AND u.id IN (
+         SELECT ss.user_id FROM saved_stops ss JOIN route_stops s ON s.id = ss.stop_id WHERE s.route_id = ?
+         UNION SELECT t.passenger_id FROM trips t WHERE t.route_id = ? AND t.created_at >= ?)`,
+    )
+    .all(stop.route_id, stop.route_id, since)
+    .map((u) => u.id);
+  const when = effective_date <= nairobiToday() ? 'from today' : `from ${prettyDate(effective_date)}`;
+  notify(passengers, {
+    kind: 'fare.changed',
+    title: `New fare to ${stop.name} (${route.name})`,
+    body: `FarePay fare ${kesText(stop.app_fare)} → ${kesText(app_fare)} (cash ${kesText(stop.cash_fare)} → ${kesText(cash_fare)}), ${when}.`,
+    target: 'fare-changes',
+  });
 }
 
 /** Cancels a fare change that hasn't taken effect yet. */

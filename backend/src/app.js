@@ -6,6 +6,7 @@ import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import crewRoutes from './routes/crew.js';
 import mpesaRoutes from './routes/mpesa.js';
+import notificationRoutes from './routes/notifications.js';
 import passengerRoutes from './routes/passenger.js';
 import platformRoutes from './routes/platform.js';
 
@@ -23,6 +24,7 @@ export function createApp() {
   app.use('/passenger', authenticate, requireRole('passenger'), passengerRoutes);
   // Conductors and drivers. '/conductor' is the older address, kept for apps installed before drivers existed.
   app.use(['/crew', '/conductor'], authenticate, requireRole('conductor', 'driver'), auditChanges, crewRoutes);
+  app.use('/notifications', authenticate, notificationRoutes);
   app.use('/mpesa', mpesaRoutes);
 
   app.use((_req, _res, next) => next(new HttpError(404, 'NOT_FOUND', 'Endpoint not found')));

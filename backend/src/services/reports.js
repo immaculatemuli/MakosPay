@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { db, insertId, NOW } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
+import { notify, notifyOffice } from './notifications.js';
 
 export const CATEGORIES = ['payment_problem', 'wrong_fare', 'duplicate_charge', 'wrong_route', 'other'];
 const MAX_PER_DAY = 10;
@@ -40,12 +41,21 @@ export function fileReport(user, { category, trip_id, message }, { vehicleId } =
   const id = insertId(
     db.prepare('INSERT INTO reports (reporter_id, category, trip_id, message) VALUES (?, ?, ?, ?)').run(user.id, category, trip_id ?? null, message),
   );
+  notifyOffice({
+    kind: 'report.new',
+    title: `New problem report from ${ROLE_WORD[user.role] ?? ''} ${user.name}`.replace(/\s+/g, ' '),
+    body: message.length > 140 ? `${message.slice(0, 140)}…` : message,
+    target: 'reports',
+  });
   return getReport(id);
 }
 
-/** The office moves a report along and (optionally) answers the reporter. */
+const ROLE_WORD = { passenger: 'passenger', conductor: 'conductor', driver: 'driver' };
+const STATUS_WORD = { open: 'reopened', in_progress: 'being looked into', resolved: 'resolved' };
+
+/** The office moves a report along and (optionally) answers the reporter, who is told about it. */
 export function updateReport(reportId, officeUserId, { status, office_note }) {
-  const existing = db.prepare('SELECT id FROM reports WHERE id = ?').get(reportId);
+  const existing = db.prepare('SELECT id, reporter_id, status FROM reports WHERE id = ?').get(reportId);
   if (!existing) throw notFound('Report');
   db.prepare(`UPDATE reports SET status = ?, office_note = COALESCE(?, office_note), handled_by = ?, updated_at = ${NOW} WHERE id = ?`).run(
     status,
@@ -53,5 +63,13 @@ export function updateReport(reportId, officeUserId, { status, office_note }) {
     officeUserId,
     reportId,
   );
+  if (office_note || status !== existing.status) {
+    notify([existing.reporter_id], {
+      kind: 'report.updated',
+      title: office_note ? 'The SACCO office replied to your report' : `Your report is ${STATUS_WORD[status]}`,
+      body: office_note ? `${office_note}${status !== existing.status ? ` (now ${STATUS_WORD[status]})` : ''}` : null,
+      target: 'reports',
+    });
+  }
   return getReport(reportId);
 }

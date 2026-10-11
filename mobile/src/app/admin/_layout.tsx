@@ -12,6 +12,7 @@ export default function AdminLayout() {
   return (
     <Stack screenOptions={stackOptions}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
       <Stack.Screen name="route-form" options={{ title: 'Route' }} />
       <Stack.Screen name="vehicle/[id]" options={{ title: 'Vehicle' }} />
       <Stack.Screen name="vehicle-form" options={{ title: 'Vehicle details' }} />

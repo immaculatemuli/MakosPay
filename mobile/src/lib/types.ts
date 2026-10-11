@@ -228,6 +228,17 @@ export interface Reconciliation {
   };
 }
 
+/** A message under the bell. `target` says which screen it is about (see lib/notifications). */
+export interface AppNotification {
+  id: number;
+  kind: string;
+  title: string;
+  body: string | null;
+  target: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
 /** The office dashboard: collections over the last 7 or 30 days (refunded fares not counted). */
 export interface DashboardTotals {
   payments: number;

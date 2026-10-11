@@ -1,6 +1,7 @@
 import { db, insertId, NOW, tx } from '../db.js';
 import { HttpError } from '../errors.js';
 import { parseQr, randomCode } from '../util.js';
+import { kesText, notify } from './notifications.js';
 import { applyDueFareChanges, getRoute, getStop, requireActiveStop } from './routes.js';
 import { getBalance, postWalletEntry } from './wallet.js';
 
@@ -115,6 +116,12 @@ export function refundTrip(tripId, reason) {
     if (trip.payout_id) {
       db.prepare('INSERT INTO owner_deductions (owner_phone, amount, trip_id) VALUES (?, ?, ?)').run(trip.owner_phone, trip.fare, trip.id);
     }
+    notify([trip.passenger_id], {
+      kind: 'fare.refunded',
+      title: `${kesText(trip.fare)} refunded to your wallet`,
+      body: `Ticket ${trip.ticket_code}${trip.stop_name ? ` to ${trip.stop_name}` : ''}. Reason: ${reason}`,
+      target: 'trips',
+    });
     return getTrip(tripId);
   });
 }

@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { db, insertId, NOW, tx } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from './mpesa.js';
+import { kesText, notify } from './notifications.js';
 import { checkFare, findTrip, getTrip, recordTrip } from './trips.js';
 import { getBalance, postWalletEntry } from './wallet.js';
 
@@ -15,6 +16,17 @@ export const getPayment = (id) => db.prepare('SELECT * FROM mpesa_payments WHERE
 
 // Wallet reference until the M-Pesa receipt number is known.
 const placeholderRef = (paymentId) => `MPESA-${paymentId}`;
+
+/** Tells the passenger an M-Pesa payment didn't go through (they may have closed the app while waiting). */
+function notifyTopupFailed(payment, reason) {
+  const fare = payment.purpose === 'fare';
+  notify([payment.user_id], {
+    kind: fare ? 'fare_mpesa.failed' : 'topup.failed',
+    title: fare ? `M-Pesa fare payment of ${kesText(payment.amount)} not completed` : `Top-up of ${kesText(payment.amount)} not completed`,
+    body: `${reason}. No money was taken${fare ? ' and no ticket was issued' : ''}. You can try again.`,
+    target: fare ? 'trips' : 'wallet',
+  });
+}
 
 function requireMpesa() {
   if (!mpesa.isConfigured.stk) throw new HttpError(503, 'MPESA_NOT_CONFIGURED', 'M-Pesa payments are not set up yet. Please try again later.');
@@ -125,10 +137,9 @@ export function handleStkCallback(body) {
     if (payment.status !== 'pending') return;
 
     if (!success) {
-      db.prepare(`UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW} WHERE id = ?`).run(
-        String(cb.ResultDesc ?? 'Payment not completed'),
-        payment.id,
-      );
+      const reason = String(cb.ResultDesc ?? 'Payment not completed');
+      db.prepare(`UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW} WHERE id = ?`).run(reason, payment.id);
+      notifyTopupFailed(payment, reason);
       return;
     }
 
@@ -146,6 +157,12 @@ export function handleStkCallback(body) {
         amount: payment.amount,
         reference: receipt ?? placeholderRef(payment.id),
         description: 'M-Pesa top-up',
+      });
+      notify([payment.user_id], {
+        kind: 'topup.completed',
+        title: `${kesText(payment.amount)} added to your wallet`,
+        body: `${receipt ? `M-Pesa receipt ${receipt}. ` : ''}Your balance is now ${kesText(getBalance(payment.user_id))}.`,
+        target: 'wallet',
       });
     }
   });
@@ -189,10 +206,13 @@ export async function reconcilePendingPayments({ expireAfterMs = config.mpesa.pe
   for (const payment of db.prepare("SELECT * FROM mpesa_payments WHERE status = 'pending'").all()) {
     const current = await refreshPayment(payment);
     if (current.status === 'pending' && Date.now() - Date.parse(current.created_at) > expireAfterMs) {
-      db.prepare(
-        `UPDATE mpesa_payments SET status = 'failed', result_desc = 'No answer from M-Pesa (expired)', completed_at = ${NOW}
-         WHERE id = ? AND status = 'pending'`,
-      ).run(current.id);
+      const expired = db
+        .prepare(
+          `UPDATE mpesa_payments SET status = 'failed', result_desc = 'No answer from M-Pesa (expired)', completed_at = ${NOW}
+           WHERE id = ? AND status = 'pending'`,
+        )
+        .run(current.id);
+      if (expired.changes) notifyTopupFailed(current, 'No answer from M-Pesa');
     }
   }
 }

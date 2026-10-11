@@ -1,11 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
+import { HeaderActions } from '@/components/AccountButton';
 import { tabOptions } from '@/components/navigation';
 
 /** Passenger tabs, as in the brief: Home, Pay, Wallet, Trips, Profile. */
 export default function PassengerTabs() {
   return (
-    <Tabs screenOptions={tabOptions}>
+    <Tabs screenOptions={{ ...tabOptions, headerRight: () => <HeaderActions /> }}>
       <Tabs.Screen
         name="index"
         options={{ title: 'FarePay', tabBarLabel: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" color={color} size={size} /> }}

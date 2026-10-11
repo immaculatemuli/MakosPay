@@ -11,6 +11,7 @@ export default function PassengerLayout() {
   return (
     <Stack screenOptions={stackOptions}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
       <Stack.Screen name="choose-route" options={{ title: 'Choose your route' }} />
       <Stack.Screen name="scan" options={{ title: 'Scan the QR code' }} />
       <Stack.Screen name="pay" options={{ title: 'Confirm payment' }} />

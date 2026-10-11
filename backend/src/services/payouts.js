@@ -7,7 +7,9 @@ import { db, insertId, NOW, tx } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import { nairobiToday } from '../util.js';
 import { audit } from './audit.js';
+import { runDaily } from './jobs.js';
 import * as mpesa from './mpesa.js';
+import { kesText, notifyOffice } from './notifications.js';
 
 export const getPayout = (id) => db.prepare('SELECT * FROM payouts WHERE id = ?').get(id);
 
@@ -116,7 +118,7 @@ export async function createPayout(ownerPhone, adminId, { manual = false } = {})
       if (mpesa.isMock) handleB2cResult(mpesa.mockB2cResult({ originatorConversationId: payout.conversation_id }));
     } catch (err) {
       if (err.rejected) {
-        failPayout(payout.id, `M-Pesa refused the payment: ${err.message}`);
+        failAndAlert(payout, `M-Pesa refused the payment: ${err.message}`);
       } else {
         // Network problem: M-Pesa may still have sent the money, so don't put the fares back automatically.
         db.prepare('UPDATE payouts SET result_desc = ? WHERE id = ?').run(`Result unknown (${err.message}). Check the M-Pesa statement.`, payout.id);
@@ -152,6 +154,17 @@ export function failPayout(payoutId, reason) {
   });
 }
 
+/** An automatic payout failed (not one the office marked failed itself): fail it and tell the office. */
+function failAndAlert(payout, reason) {
+  failPayout(payout.id, reason);
+  notifyOffice({
+    kind: 'payout.failed',
+    title: `Payout to ${payout.owner_name} failed`,
+    body: `${kesText(payout.amount)} did not reach the owner: ${reason}. The fares will be in the next payout, or send it yourself.`,
+    target: `payout:${payout.id}`,
+  });
+}
+
 /** M-Pesa's answer to a payout (Safaricom's callback, or IntaSend's status). Safe to receive more than once. */
 export function handleB2cResult(body) {
   const result = body?.Result;
@@ -160,7 +173,7 @@ export function handleB2cResult(body) {
   if (!payout || payout.status !== 'processing') return;
   const ok = Number(result.ResultCode) === 0;
   if (ok) completePayout(payout.id, String(result.TransactionID));
-  else failPayout(payout.id, String(result.ResultDesc ?? 'M-Pesa payment failed'));
+  else failAndAlert(payout, String(result.ResultDesc ?? 'M-Pesa payment failed'));
   audit(null, ok ? 'payout.confirmed' : 'payout.failed', 'payouts', payout.id, { amount: payout.amount, result: result.ResultDesc ?? null, reference: ok ? String(result.TransactionID) : null });
 }
 
@@ -198,23 +211,29 @@ export async function payEveryone(adminId = null) {
 
 /** Runs payEveryone once a day after PAYOUT_DAILY_AT (Kenyan time), remembering the last run across restarts. */
 export function startDailyPayouts() {
-  const [hh, mm] = config.payoutDailyAt.split(':').map(Number);
-  let running = false;
-  setInterval(async () => {
-    const now = new Date(Date.now() + 3 * 60 * 60 * 1000); // Kenya is UTC+3
-    const due = now.getUTCHours() * 60 + now.getUTCMinutes() >= hh * 60 + mm;
-    const today = nairobiToday();
-    if (running || !due || db.prepare("SELECT last_run FROM job_runs WHERE name = 'daily_payouts'").get()?.last_run === today) return;
-    running = true;
-    try {
-      db.prepare("INSERT INTO job_runs (name, last_run) VALUES ('daily_payouts', ?) ON CONFLICT(name) DO UPDATE SET last_run = excluded.last_run").run(today);
-      const paid = await payEveryone();
-      audit(null, 'payout.daily_run', 'payouts', null, { date: today, payouts: paid.map((p) => ({ id: p.id, owner: p.owner_name, amount: p.amount, status: p.status })) });
-      console.log(`[payouts] daily payouts for ${today}: ${paid.length} owner(s)`);
-    } catch (err) {
-      console.error('[payouts] daily payouts failed:', err.message);
-    } finally {
-      running = false;
-    }
-  }, 60_000);
+  runDaily('daily_payouts', config.payoutDailyAt, dailyPayoutRun);
+}
+
+/** The daily run: pay every owner, record it, and tell the office what happened (and what's left for them to do). */
+export async function dailyPayoutRun(today = nairobiToday()) {
+  const paid = await payEveryone();
+  audit(null, 'payout.daily_run', 'payouts', null, { date: today, payouts: paid.map((p) => ({ id: p.id, owner: p.owner_name, amount: p.amount, status: p.status })) });
+  console.log(`[payouts] daily payouts for ${today}: ${paid.length} owner(s)`);
+  if (paid.length === 0) return paid;
+
+  const count = (status) => paid.filter((p) => p.status === status);
+  const total = (list) => kesText(list.reduce((sum, p) => sum + p.amount, 0));
+  const [sent, manual, failed] = [count('completed').concat(count('processing')), count('manual'), count('failed')];
+  const lines = [
+    sent.length && `${sent.length} sent by M-Pesa (${total(sent)}).`,
+    manual.length && `${manual.length} for you to send yourself (${total(manual)}): send the money, then record the M-Pesa code.`,
+    failed.length && `${failed.length} failed (${total(failed)}): the fares will be in the next payout.`,
+  ].filter(Boolean);
+  notifyOffice({
+    kind: 'payout.daily',
+    title: manual.length ? `${manual.length} owner payout${manual.length === 1 ? '' : 's'} waiting for you to send` : `Daily payouts: ${paid.length} owner${paid.length === 1 ? '' : 's'}`,
+    body: lines.join(' '),
+    target: 'payouts',
+  });
+  return paid;
 }

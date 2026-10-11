@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { isConfigured, isMock, providerLabel } from './services/mpesa.js';
 import { reconcilePendingPayments } from './services/payments.js';
 import { reconcileProcessingPayouts, startDailyPayouts } from './services/payouts.js';
+import { startNightlyMoneyCheck } from './services/reconciliation.js';
 import { applyDueFareChanges } from './services/routes.js';
 
 /** Runs fn on a timer in the background, never two runs at once. */
@@ -45,6 +46,9 @@ createApp().listen(config.port, '0.0.0.0', () => {
   }
   // Owners are owed money either way: the daily run creates the payouts (automatic or for the office to send).
   startDailyPayouts();
+  // Every night the books are checked; the office is alerted only if something doesn't add up.
+  startNightlyMoneyCheck();
+  console.log(`  Money check runs every night at ${config.moneyCheckDailyAt} (Kenyan time)`);
   // Fare changes scheduled for a date take effect on their own (they are also applied before any fare is charged).
   every(60_000, 'fare changes', () => applyDueFareChanges());
 });
