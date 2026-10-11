@@ -13,12 +13,15 @@
     "dev": "node --watch --env-file-if-exists=.env src/server.js",
     "create-admin": "node --env-file-if-exists=.env scripts/create-admin.js",
     "backup": "node --env-file-if-exists=.env scripts/backup.js",
-    "test": "node --test"
+    "test": "node --test",
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.js",
+    "test:pg": "node --env-file-if-exists=.env --test \"pg-tests/**/*.js\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "zod": "^3.25.76"
   }
