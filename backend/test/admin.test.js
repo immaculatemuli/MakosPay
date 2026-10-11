@@ -151,6 +151,7 @@ test('home dashboard counts what is set up', async () => {
     passengers: 1,
     today: { payments: 0, total: 0, by_vehicle: [] },
     owed_to_owners: 0,
+    open_reports: 0,
   });
 });
 

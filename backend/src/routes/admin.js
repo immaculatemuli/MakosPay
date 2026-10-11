@@ -8,6 +8,7 @@ import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
 import { completePayout, createPayout, failPayout, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
 import { createRoute, getRoute, listRoutes, stopsSchema, updateRoute } from '../services/routes.js';
+import { REPORT_SELECT, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
 import { createUser, resetPassword } from '../services/users.js';
 import { nairobiDayRange, nairobiToday, newQrToken } from '../util.js';
@@ -38,6 +39,7 @@ router.get('/summary', (_req, res) => {
     passengers: count("SELECT COUNT(*) AS n FROM users WHERE role = 'passenger'"),
     today: daySummary(from, to),
     owed_to_owners: owedByOwner().reduce((sum, o) => sum + o.amount, 0),
+    open_reports: count("SELECT COUNT(*) AS n FROM reports WHERE status != 'resolved'"),
   });
 });
 
@@ -70,6 +72,22 @@ router.get('/payments', (req, res) => {
 router.post('/payments/:id/refund', (req, res) => {
   const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
   res.json(refundTrip(parse(id, req.params.id), reason));
+});
+
+// ---------- Problem reports ----------
+
+// Reports, newest first; ?status=open|in_progress|resolved to filter.
+router.get('/reports', (req, res) => {
+  const { status } = parse(z.object({ status: z.enum(['open', 'in_progress', 'resolved']).optional() }), req.query);
+  res.json(db.prepare(`${REPORT_SELECT} WHERE (? IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 200`).all(status ?? null, status ?? null));
+});
+
+router.patch('/reports/:id', (req, res) => {
+  const body = parse(
+    z.object({ status: z.enum(['open', 'in_progress', 'resolved']), office_note: z.string().trim().min(2).max(1000).optional() }),
+    req.body,
+  );
+  res.json(updateReport(parse(id, req.params.id), req.user.id, body));
 });
 
 // ---------- Owner payouts ----------

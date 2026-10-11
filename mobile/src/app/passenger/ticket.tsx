@@ -46,6 +46,14 @@ export default function Ticket() {
       </Card>
       <View style={{ height: 8 }} />
       <Button title="Done" onPress={done} />
+      {!!p.id && (
+        <Button
+          title="Report a problem with this payment"
+          variant="secondary"
+          icon="chatbox-ellipses-outline"
+          onPress={() => router.push({ pathname: '/passenger/report', params: { trip_id: p.id, ticket: p.code, plate: p.plate } })}
+        />
+      )}
     </Screen>
   );
 }

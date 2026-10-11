@@ -226,6 +226,32 @@ CREATE TABLE IF NOT EXISTS owner_deductions (
 );
 `);
 
+db.exec(`
+-- Drop-off stops a passenger saved for quick choosing.
+CREATE TABLE IF NOT EXISTS saved_stops (
+  user_id    INTEGER NOT NULL REFERENCES users(id),
+  stop_id    INTEGER NOT NULL REFERENCES route_stops(id),
+  created_at TEXT NOT NULL DEFAULT (${NOW}),
+  PRIMARY KEY (user_id, stop_id)
+);
+
+-- Problems reported by passengers (and later crew): payment issues, wrong fare, charged twice...
+CREATE TABLE IF NOT EXISTS reports (
+  id          INTEGER PRIMARY KEY,
+  reporter_id INTEGER NOT NULL REFERENCES users(id),
+  category    TEXT NOT NULL CHECK (category IN ('payment_problem', 'wrong_fare', 'duplicate_charge', 'wrong_route', 'other')),
+  trip_id     INTEGER REFERENCES trips(id),
+  message     TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved')),
+  office_note TEXT,                              -- the SACCO office's answer, shown to the reporter
+  handled_by  INTEGER REFERENCES users(id),
+  created_at  TEXT NOT NULL DEFAULT (${NOW}),
+  updated_at  TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, id);
+CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id, id);
+`);
+
 // Each vehicle can have one driver (as well as one conductor).
 if (!hasColumn('vehicles', 'driver_id')) {
   db.exec('ALTER TABLE vehicles ADD COLUMN driver_id INTEGER REFERENCES users(id)');

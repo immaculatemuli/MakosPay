@@ -24,6 +24,7 @@ export default function AdminLayout() {
       <Stack.Screen name="staff" options={{ title: 'Office staff' }} />
       <Stack.Screen name="staff-form" options={{ title: 'New office account' }} />
       <Stack.Screen name="platform" options={{ title: 'Platform' }} />
+      <Stack.Screen name="reports" options={{ title: 'Problem reports' }} />
       <Stack.Screen name="account" options={{ title: 'My account' }} />
     </Stack>
   );

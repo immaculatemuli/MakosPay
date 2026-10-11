@@ -5,13 +5,22 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Badge, colors, Empty, ErrorBox, Loading, Muted, Screen } from '@/components/ui';
 import { saveChosenStop, useChosenStop } from '@/lib/chosenRoute';
 import { kes } from '@/lib/format';
-import type { PublicRoute, Stop } from '@/lib/types';
+import { api } from '@/lib/api';
+import type { PassengerSummary, PublicRoute, Stop } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
-/** Pick a route, then the stop where you'll get off. */
+/** Pick a route, then the stop where you'll get off. The star saves a drop-off for one-tap choosing on Home and Pay. */
 export default function ChooseRoute() {
   const routes = useApi<PublicRoute[]>('/passenger/routes');
   const current = useChosenStop();
+  const summary = useApi<PassengerSummary>('/passenger/summary');
+  const savedIds = new Set((summary.data?.saved ?? []).map((s) => s.stop_id));
+
+  const toggleSaved = async (stopId: number) => {
+    if (savedIds.has(stopId)) await api(`/passenger/saved-stops/${stopId}`, { method: 'DELETE' }).catch(() => {});
+    else await api('/passenger/saved-stops', { method: 'POST', body: { stop_id: stopId } }).catch(() => {});
+    await summary.reload();
+  };
   const [open, setOpen] = useState<number | null>(null);
   if (routes.loading && !routes.data) return <Loading />;
   const openId = open ?? current?.route_id ?? null;
@@ -25,7 +34,7 @@ export default function ChooseRoute() {
     <Screen refreshing={routes.refreshing} onRefresh={routes.refresh}>
       {routes.error && <ErrorBox message={routes.error} onRetry={routes.reload} />}
       {routes.data?.length === 0 && <Empty text="No routes yet." />}
-      <Muted>Tap your route, then where you'll get off.</Muted>
+      <Muted>Tap your route, then where you'll get off. Tap ☆ to save a drop-off.</Muted>
       <View style={{ height: 10 }} />
       {routes.data?.map((r) => {
         const expanded = openId === r.id;
@@ -53,6 +62,9 @@ export default function ChooseRoute() {
                       <Text style={styles.fare}>{kes(s.app_fare)}</Text>
                       {s.you_save > 0 && <Badge text={`Save ${kes(s.you_save)}`} tone="success" />}
                     </View>
+                    <Pressable onPress={() => toggleSaved(s.id)} hitSlop={10} style={{ marginLeft: 14 }} accessibilityLabel={savedIds.has(s.id) ? 'Remove from saved' : 'Save this drop-off'}>
+                      <Ionicons name={savedIds.has(s.id) ? 'star' : 'star-outline'} size={22} color={savedIds.has(s.id) ? '#D97706' : colors.muted} />
+                    </Pressable>
                   </Pressable>
                 );
               })}

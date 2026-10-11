@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import type { Trip } from './types';
 
 export type TicketParams = {
+  id: string;
   code: string;
   route: string;
   stop: string;
@@ -17,6 +18,7 @@ export type TicketParams = {
 /** Opens the ticket for a trip (after paying, or from payment history). */
 export function openTicket(trip: Trip, walletBalance?: number, replace = false) {
   const params: TicketParams = {
+    id: String(trip.id),
     code: trip.ticket_code,
     route: trip.route_name,
     stop: trip.stop_name ?? '',

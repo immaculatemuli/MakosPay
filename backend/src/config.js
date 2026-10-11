@@ -9,6 +9,9 @@ export const config = {
   jwtExpiresIn: env.JWT_EXPIRES_IN ?? '30d',
   dbPath: env.DB_PATH ?? './data/farepay.db',
 
+  // The SACCO this FarePay runs for (one SACCO for now), shown to passengers.
+  saccoName: env.SACCO_NAME || 'Your SACCO',
+
   // Text inside each vehicle's QR sticker, followed by the vehicle's secret token.
   qrPrefix: env.QR_PREFIX ?? 'farepay://pay?v=',
 

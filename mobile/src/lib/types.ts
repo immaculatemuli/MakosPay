@@ -180,6 +180,56 @@ export interface Payout extends PayoutDestination {
   completed_at: string | null;
 }
 
+/** A drop-off stop with its route, for "saved" and "frequent" lists. */
+export interface StopChoice {
+  stop_id: number;
+  stop_name: string;
+  cash_fare: number;
+  app_fare: number;
+  you_save: number;
+  route_id: number;
+  route_name: string;
+  origin: string;
+}
+
+/** What the passenger home screen shows, worked out on the server from verified payments. */
+export interface PassengerSummary {
+  sacco_name: string;
+  balance: number;
+  this_month: { trips: number; saved: number; spent: number };
+  since_joining: { trips: number; saved: number; spent: number; joined_at: string };
+  frequent: StopChoice[];
+  saved: StopChoice[];
+}
+
+export type ReportCategory = 'payment_problem' | 'wrong_fare' | 'duplicate_charge' | 'wrong_route' | 'other';
+
+export const REPORT_CATEGORY_LABEL: Record<ReportCategory, string> = {
+  payment_problem: 'Payment problem',
+  wrong_fare: 'Wrong fare',
+  duplicate_charge: 'Charged twice',
+  wrong_route: 'Wrong route',
+  other: 'Something else',
+};
+
+export interface ProblemReport {
+  id: number;
+  category: ReportCategory;
+  message: string;
+  status: 'open' | 'in_progress' | 'resolved';
+  office_note: string | null;
+  trip_id: number | null;
+  ticket_code: string | null;
+  plate: string | null;
+  fare: number | null;
+  reporter_name: string;
+  reporter_phone?: string;
+  reporter_role?: Role;
+  handled_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** An M-Pesa PIN prompt sent to the passenger: a wallet top-up or one fare. */
 export interface MpesaPayment {
   id: number;

@@ -1,60 +1,76 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
-import { Badge, Button, colors, Empty, ErrorBox, List, ListRow, Loading, Screen, SectionTitle } from '@/components/ui';
+import { WhereGoing } from '@/components/WhereGoing';
+import { Badge, colors, Empty, ErrorBox, List, ListRow, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useChosenStop } from '@/lib/chosenRoute';
 import { dateTime, kes } from '@/lib/format';
-import type { Paged, Trip } from '@/lib/types';
-import { useApi } from '@/lib/useApi';
 import { openTicket } from '@/lib/ticket';
+import type { Paged, PassengerSummary, Trip } from '@/lib/types';
+import { useApi } from '@/lib/useApi';
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Passenger home: balance, Add money / Pay fare, savings, where they're going, recent payments. */
 export default function PassengerHome() {
   const { user } = useAuth();
-  const wallet = useApi<{ balance: number }>('/passenger/wallet');
+  const summary = useApi<PassengerSummary>('/passenger/summary');
   const recent = useApi<Paged<Trip>>('/passenger/trips?limit=3');
-  const chosen = useChosenStop();
+  const [pickKey, setPickKey] = useState(0);
+  const chosen = useChosenStop(pickKey);
 
-  if (wallet.loading && !wallet.data) return <Loading />;
+  if (summary.loading && !summary.data) return <Loading />;
+  const s = summary.data;
   const refresh = () => {
-    wallet.refresh();
+    summary.refresh();
     recent.refresh();
   };
+  const joined = s ? new Date(s.since_joining.joined_at) : null;
 
   return (
-    <Screen refreshing={wallet.refreshing} onRefresh={refresh}>
-      <Hero name={user?.name}>
+    <Screen refreshing={summary.refreshing} onRefresh={refresh}>
+      <Hero name={user?.name} subtitle={s?.sacco_name}>
         <Text style={styles.balanceLabel}>Wallet balance</Text>
-        <Text style={styles.balance}>{wallet.data ? kes(wallet.data.balance) : '—'}</Text>
+        <Text style={styles.balance}>{s ? kes(s.balance) : '—'}</Text>
         <View style={styles.heroButtons}>
           <Pressable style={({ pressed }) => [styles.heroButton, styles.heroButtonSolid, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/topup')}>
             <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-            <Text style={[styles.heroButtonText, { color: colors.primary }]}>Top up</Text>
+            <Text style={[styles.heroButtonText, { color: colors.primary }]}>Add money</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [styles.heroButton, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/wallet')}>
-            <Ionicons name="time-outline" size={18} color="#fff" />
-            <Text style={styles.heroButtonText}>History</Text>
+          <Pressable style={({ pressed }) => [styles.heroButton, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/scan')}>
+            <Ionicons name="qr-code-outline" size={18} color="#fff" />
+            <Text style={styles.heroButtonText}>Pay fare</Text>
           </Pressable>
         </View>
       </Hero>
-      {wallet.error && <ErrorBox message={wallet.error} onRetry={wallet.reload} />}
+      {summary.error && <ErrorBox message={summary.error} onRetry={summary.reload} />}
+
+      {s && (
+        <View style={styles.stats}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{kes(s.this_month.saved)}</Text>
+            <Text style={styles.statLabel}>Saved this month</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{kes(s.since_joining.saved)}</Text>
+            <Text style={styles.statLabel}>Saved since {joined ? `${MONTHS[joined.getMonth()]} ${joined.getFullYear()}` : 'joining'}</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{s.this_month.trips}</Text>
+            <Text style={styles.statLabel}>Trips this month</Text>
+          </View>
+        </View>
+      )}
+      {s && s.since_joining.trips === 0 && <Muted>Member Fare is lower than the cash fare. Your savings show here after your first trip.</Muted>}
 
       <SectionTitle>Where are you going?</SectionTitle>
-      <Pressable style={({ pressed }) => [styles.routeCard, pressed && { opacity: 0.7 }]} onPress={() => router.push('/passenger/choose-route')}>
-        <Ionicons name="map-outline" size={24} color={colors.primary} />
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.routeName}>{chosen ? `Get off at ${chosen.stop_name}` : 'Choose your route and drop-off'}</Text>
-          <Text style={styles.routeHint}>{chosen ? `${chosen.route_name} · tap to change` : 'Your fare depends on where you get off'}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-      </Pressable>
+      <WhereGoing chosen={chosen} saved={s?.saved ?? []} frequent={s?.frequent ?? []} onChosen={() => setPickKey((k) => k + 1)} />
 
-      <View style={{ height: 6 }} />
-      <Button title="Scan to pay" icon="qr-code-outline" onPress={() => router.push('/passenger/scan')} />
-
-      <SectionTitle>Recent payments</SectionTitle>
-      {recent.data?.items.length === 0 && <Empty text="No payments yet. Scan the QR code inside the vehicle to pay." />}
+      <SectionTitle>Recent trips</SectionTitle>
+      {recent.data?.items.length === 0 && <Empty text="No trips yet. Scan the QR code inside the vehicle to pay." />}
       {!!recent.data?.items.length && (
         <List>
           {recent.data.items.map((t) => (
@@ -64,7 +80,7 @@ export default function PassengerHome() {
               title={`${t.plate} · to ${t.stop_name ?? t.route_name}`}
               subtitle={dateTime(t.created_at)}
               right={kes(t.fare)}
-              rightSub={t.status === 'refunded' ? <Badge text="Refunded" tone="danger" /> : undefined}
+              rightSub={t.status === 'refunded' ? <Badge text="Refunded" tone="danger" /> : t.saved > 0 ? <Badge text={`Saved ${kes(t.saved)}`} tone="success" /> : undefined}
               onPress={() => openTicket(t)}
             />
           ))}
@@ -90,16 +106,15 @@ const styles = StyleSheet.create({
   },
   heroButtonSolid: { backgroundColor: '#fff', borderColor: '#fff' },
   heroButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  routeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  stats: { flexDirection: 'row', gap: 8, marginBottom: 6 },
+  stat: {
+    flex: 1,
     backgroundColor: colors.card,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 10,
+    borderRadius: 12,
+    padding: 12,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  routeName: { fontSize: 17, fontWeight: '700', color: colors.text },
-  routeHint: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  statValue: { fontSize: 17, fontWeight: '800', color: colors.primaryDark },
+  statLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
 });

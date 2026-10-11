@@ -18,6 +18,7 @@ interface Summary {
   passengers: number;
   today: DaySummary;
   owed_to_owners: number;
+  open_reports: number;
 }
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -77,6 +78,14 @@ export default function AdminHome() {
 
       {summary.error && <ErrorBox message={summary.error} onRetry={summary.reload} />}
       {nextStep && <Notice>{nextStep}</Notice>}
+      {!!s?.open_reports && (
+        <ListRow
+          icon="chatbox-ellipses-outline"
+          title={`${s.open_reports} problem report${s.open_reports === 1 ? '' : 's'} waiting`}
+          subtitle="Tap to read and reply"
+          onPress={() => router.push('/admin/reports')}
+        />
+      )}
 
       {s && (
         <View style={styles.tiles}>
@@ -93,6 +102,7 @@ export default function AdminHome() {
         <ListRow icon="add-circle-outline" title="Add vehicle" subtitle="Plate, owner's M-Pesa number, QR sticker" onPress={() => router.push('/admin/vehicle-form')} />
         <ListRow icon="person-add-outline" title="Add conductor" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'conductor' } })} />
         <ListRow icon="car-outline" title="Add driver" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'driver' } })} />
+        <ListRow icon="chatbox-ellipses-outline" title="Problem reports" subtitle="From passengers" onPress={() => router.push('/admin/reports')} />
         <ListRow icon="briefcase-outline" title="Office staff" subtitle="Other SACCO office accounts" onPress={() => router.push('/admin/staff')} />
         {user?.role === 'platform_admin' && (
           <ListRow icon="shield-checkmark-outline" title="Platform" subtitle="Payment setup and platform admins" onPress={() => router.push('/admin/platform')} />

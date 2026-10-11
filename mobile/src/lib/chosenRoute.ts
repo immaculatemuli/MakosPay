@@ -17,8 +17,11 @@ export async function saveChosenStop(choice: ChosenStop) {
   await SecureStore.setItemAsync(KEY, JSON.stringify(choice));
 }
 
-/** The chosen route and drop-off, re-read whenever the screen comes into focus. `undefined` while loading. */
-export function useChosenStop() {
+/**
+ * The chosen route and drop-off, re-read whenever the screen comes into focus, or when `refreshKey`
+ * changes (e.g. after a quick-pick chip saved a new choice). `undefined` while loading.
+ */
+export function useChosenStop(refreshKey = 0) {
   const [choice, setChoice] = useState<ChosenStop | null | undefined>(undefined);
   useFocusEffect(
     useCallback(() => {
@@ -28,7 +31,7 @@ export function useChosenStop() {
           setChoice(parsed?.stop_id ? parsed : null); // ignore the older route-only format
         })
         .catch(() => setChoice(null));
-    }, []),
+    }, [refreshKey]),
   );
   return choice;
 }
