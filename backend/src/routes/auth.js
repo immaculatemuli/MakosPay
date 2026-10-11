@@ -51,6 +51,18 @@ router.post('/web/login', async (req, res) => {
   res.json({ user });
 });
 
+// Who is signed in on this browser, if anyone: { user } or { user: null }. (Not an error when nobody is, so
+// opening the dashboard before signing in leaves no errors in the browser.)
+router.get('/web/session', async (req, res) => {
+  try {
+    await authenticate(req, res, () => {});
+  } catch (err) {
+    if (err.status === 401) return res.json({ user: null });
+    throw err;
+  }
+  res.json({ user: req.user });
+});
+
 router.post('/web/logout', (req, res) => {
   checkWebRequest(req);
   clearOfficeCookie(req, res);

@@ -57,6 +57,11 @@ sudo cp -r /opt/farepay-src/. /opt/farepay/ && sudo chown -R farepay:farepay /op
 cd /opt/farepay/backend
 sudo -u farepay yarn install --frozen-lockfile --production
 sudo -u farepay mkdir -p data
+
+# The SACCO office web dashboard (served by the backend at https://<your-address>/office/)
+cd /opt/farepay/admin-web
+sudo -u farepay yarn install --frozen-lockfile
+sudo -u farepay yarn build
 ```
 
 ## 3. Settings

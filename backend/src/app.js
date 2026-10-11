@@ -1,4 +1,6 @@
 import express from 'express';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { authenticate, requireRole } from './auth.js';
 import { config } from './config.js';
 import { db } from './database.js';
@@ -11,6 +13,30 @@ import mpesaRoutes from './routes/mpesa.js';
 import notificationRoutes from './routes/notifications.js';
 import passengerRoutes from './routes/passenger.js';
 import platformRoutes from './routes/platform.js';
+
+// Dashboard pages may load only their own scripts, styles and data from FarePay (plus the QR picture,
+// which arrives as data), and may not be shown inside other websites.
+const OFFICE_CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; " +
+  "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+
+function serveOfficeDashboard(app) {
+  const dir = config.officeWebDir;
+  if (!existsSync(join(dir, 'index.html'))) return; // not built (e.g. on a server that only runs the API)
+  const page = (_req, res) => res.sendFile(join(dir, 'index.html'));
+  // Express treats /office and /office/ alike: only the one without the slash is redirected.
+  app.get('/office', (req, res, next) => (req.originalUrl.split('?')[0] === '/office' ? res.redirect(301, '/office/') : next()));
+  app.use(
+    '/office',
+    (_req, res, next) => {
+      res.set('Content-Security-Policy', OFFICE_CSP);
+      next();
+    },
+    express.static(dir, { index: 'index.html', redirect: false }),
+    // Any other address under /office/ is a screen of the dashboard (e.g. /office/vehicles/3).
+    (req, res, next) => (req.method === 'GET' ? page(req, res) : next()),
+  );
+}
 
 export function createApp() {
   const app = express();
@@ -55,6 +81,9 @@ export function createApp() {
     next();
   }, mpesaRoutes);
   app.use('/mpesa', mpesaRoutes);
+
+  // The office web dashboard (admin-web, built with `yarn build`), at the same address as the API.
+  serveOfficeDashboard(app);
 
   app.use((_req, _res, next) => next(new HttpError(404, 'NOT_FOUND', 'Endpoint not found')));
 

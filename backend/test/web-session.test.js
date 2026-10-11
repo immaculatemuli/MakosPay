@@ -44,6 +44,15 @@ test('the office signs in on the web: an HttpOnly, SameSite=Strict cookie for 12
   s.cookie = asCookie(set);
 });
 
+test('the dashboard can ask who is signed in without an error when nobody is', async () => {
+  const nobody = await request('GET', '/auth/web/session');
+  assert.equal(nobody.status, 200);
+  assert.deepEqual(nobody.body, { user: null });
+  const office = await request('GET', '/auth/web/session', { headers: { cookie: s.cookie } });
+  assert.equal(office.body.user.name, 'Office');
+  assert.equal((await request('GET', '/auth/web/session', { headers: { cookie: 'farepay_office=not-a-real-sign-in' } })).body.user, null);
+});
+
 test('the cookie opens the office screens (reading needs nothing else)', async () => {
   assert.equal((await request('GET', '/auth/me', { headers: { cookie: s.cookie } })).body.user.name, 'Office');
   assert.equal((await request('GET', '/admin/summary', { headers: { cookie: s.cookie } })).status, 200);

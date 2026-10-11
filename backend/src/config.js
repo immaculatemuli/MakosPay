@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 const env = process.env;
 
 const num = (value, fallback) => (value === undefined || value === '' ? fallback : Number(value));
@@ -9,6 +11,8 @@ export const config = {
   jwtExpiresIn: env.JWT_EXPIRES_IN ?? '30d',
   // How long an office web-dashboard sign-in lasts (the phone app's lasts JWT_EXPIRES_IN).
   webSessionHours: num(env.WEB_SESSION_HOURS, 12),
+  // The built office dashboard (admin-web/dist), served at /office/ when it exists.
+  officeWebDir: env.OFFICE_WEB_DIR || fileURLToPath(new URL('../../admin-web/dist', import.meta.url)),
   dbPath: env.DB_PATH ?? './data/farepay.db',
   // Which database the app uses: 'sqlite' (DB_PATH, today) or 'postgres' (DATABASE_URL, being prepared).
   dbEngine: env.DB_ENGINE ?? 'sqlite',
