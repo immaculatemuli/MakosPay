@@ -1,0 +1,86 @@
+// Step 1: accounts. Passengers sign up; everyone logs in with phone + password and gets their role.
+import assert from 'node:assert/strict';
+import { after, before, test } from 'node:test';
+
+process.env.DB_PATH = ':memory:';
+process.env.JWT_SECRET = 'test';
+
+const { createApp } = await import('../src/app.js');
+const { createUser } = await import('../src/services/users.js');
+
+let server;
+let base;
+const api = async (method, path, { token, body } = {}) => {
+  const res = await fetch(base + path, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
+    body: body && JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json() };
+};
+
+before(async () => {
+  server = createApp().listen(0);
+  await new Promise((resolve) => server.once('listening', resolve));
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+after(() => server.close());
+
+test('a passenger signs up and is logged in straight away', async () => {
+  const res = await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722 222 222', password: 'pass123' } });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.user.role, 'passenger');
+  assert.equal(res.body.user.phone, '254722222222', 'phone stored in one standard format');
+  assert.ok(res.body.token);
+
+  const me = await api('GET', '/auth/me', { token: res.body.token });
+  assert.equal(me.body.user.name, 'Pat Passenger');
+});
+
+test('the same phone number cannot sign up twice', async () => {
+  const res = await api('POST', '/auth/register', { body: { name: 'Again', phone: '+254722222222', password: 'pass123' } });
+  assert.equal(res.status, 409);
+});
+
+test('bad sign-up details are refused with a clear message', async () => {
+  const res = await api('POST', '/auth/register', { body: { name: 'P', phone: '12345', password: '1' } });
+  assert.equal(res.status, 400);
+  assert.deepEqual(res.body.error.details.map((d) => d.field).sort(), ['name', 'password', 'phone']);
+});
+
+test('every kind of user logs in with phone and password and gets their role', async () => {
+  const people = [
+    ['admin', '0700000001'],
+    ['conductor', '0711000001'],
+  ];
+  for (const [role, phone] of people) {
+    await createUser({ name: `Test ${role}`, phone: `254${phone.slice(1)}`, password: 'secret1', role });
+    const res = await api('POST', '/auth/login', { body: { phone, password: 'secret1' } });
+    assert.equal(res.status, 200, role);
+    assert.equal(res.body.user.role, role);
+  }
+});
+
+test('only the three user types exist', async () => {
+  await assert.rejects(createUser({ name: 'Old Role', phone: '254711000009', password: 'secret1', role: 'driver' }));
+});
+
+test('wrong password and unknown numbers get the same answer', async () => {
+  const wrong = await api('POST', '/auth/login', { body: { phone: '0722222222', password: 'nope123' } });
+  const unknown = await api('POST', '/auth/login', { body: { phone: '0799999999', password: 'nope123' } });
+  assert.equal(wrong.status, 401);
+  assert.deepEqual(wrong.body, unknown.body);
+});
+
+test('a passenger can change their password', async () => {
+  const { token } = (await api('POST', '/auth/login', { body: { phone: '0722222222', password: 'pass123' } })).body;
+  const bad = await api('POST', '/auth/change-password', { token, body: { current_password: 'wrong', new_password: 'newpass1' } });
+  assert.equal(bad.status, 400);
+  const ok = await api('POST', '/auth/change-password', { token, body: { current_password: 'pass123', new_password: 'newpass1' } });
+  assert.equal(ok.status, 200);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722222222', password: 'newpass1' } })).status, 200);
+});
+
+test('without logging in you cannot see account details', async () => {
+  assert.equal((await api('GET', '/auth/me')).status, 401);
+});

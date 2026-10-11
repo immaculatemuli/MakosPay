@@ -1,0 +1,17 @@
+# Never commit secrets, data or installed packages.
+.env
+.env.*
+!.env.example
+node_modules/
+**/data/
+*.db
+*.db-shm
+*.db-wal
+*.keystore
+*.jks
+.expo/
+dist/
+web-build/
+npm-debug.log*
+yarn-error.log*
+.DS_Store
