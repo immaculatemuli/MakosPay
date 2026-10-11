@@ -8,7 +8,7 @@ process.env.JWT_SECRET = 'test';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -48,8 +48,8 @@ before(async () => {
   s.free = (await api('POST', '/auth/login', { body: { phone: '0711111112', password: 'cond123' } })).body.token;
 
   s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' } })).body.token;
-  const pid = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 500 }));
+  const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 500 }));
   for (const stop of s.route.stops) {
     const r = await api('POST', '/passenger/pay', {
       token: s.passenger,

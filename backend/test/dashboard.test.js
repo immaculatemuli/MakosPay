@@ -9,7 +9,7 @@ process.env.MPESA_MODE = 'mock';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 const { nairobiDayRange, nairobiToday } = await import('../src/util.js');
 
@@ -29,7 +29,7 @@ const pay = async (stop) =>
   (await api('POST', '/passenger/pay', { token: s.passenger, body: { qr: s.vehicle.qr_token, stop_id: stop.id, expected_fare: stop.app_fare, idempotency_key: randomUUID() } })).body.trip;
 const daysAgo = (n) => new Date(Date.parse(`${nairobiToday()}T00:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10);
 // Moves a payment to a Kenyan date and time (stored in UTC).
-const moveTo = (tripId, date, time) => db.prepare('UPDATE trips SET created_at = ? WHERE id = ?').run(new Date(`${date}T${time}:00.000+03:00`).toISOString(), tripId);
+const moveTo = async (tripId, date, time) => (await db.run('UPDATE trips SET created_at = ? WHERE id = ?', new Date(`${date}T${time}:00.000+03:00`).toISOString(), tripId));
 
 before(async () => {
   server = createApp().listen(0);
@@ -45,20 +45,20 @@ before(async () => {
   s.vehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: route.id } })).body;
   s.idle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDB 222B', owner_name: 'John', owner_phone: '0755666777', route_id: route.id } })).body;
   s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0722333444', password: 'pass123' } })).body.token;
-  s.passengerId = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(s.passengerId, { type: 'test_credit', amount: 2000 }));
+  s.passengerId = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(s.passengerId, { type: 'test_credit', amount: 2000 }));
 
   // Today: 2 x Juja (70) at 07:xx and 1 x Ruiru (50) refunded.
-  moveTo((await pay(s.juja)).id, nairobiToday(), '07:10');
-  moveTo((await pay(s.juja)).id, nairobiToday(), '07:40');
+  await moveTo((await pay(s.juja)).id, nairobiToday(), '07:10');
+  await moveTo((await pay(s.juja)).id, nairobiToday(), '07:40');
   const refunded = await pay(s.ruiru);
   await api('POST', `/admin/payments/${refunded.id}/refund`, { token: s.admin, body: { reason: 'Wrong vehicle' } });
   // 2 days ago at 00:30 Kenyan time (still the previous UTC day): must count on its Kenyan day.
-  moveTo((await pay(s.ruiru)).id, daysAgo(2), '00:30');
+  await moveTo((await pay(s.ruiru)).id, daysAgo(2), '00:30');
   // 10 days ago: outside the last 7 days, inside the 7 before.
-  moveTo((await pay(s.ruiru)).id, daysAgo(10), '18:00');
+  await moveTo((await pay(s.ruiru)).id, daysAgo(10), '18:00');
   // A completed M-Pesa top-up today.
-  db.prepare("INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status, created_at) VALUES (?, '254722333444', 300, 'wallet', 'completed', ?)").run(s.passengerId, nairobiDayRange(nairobiToday())[0]);
+  (await db.run("INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status, created_at) VALUES (?, '254722333444', 300, 'wallet', 'completed', ?)", s.passengerId, nairobiDayRange(nairobiToday())[0]));
 });
 after(() => server.close());
 

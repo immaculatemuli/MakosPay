@@ -2,7 +2,7 @@
 // Nothing is credited until M-Pesa confirms. Confirmation comes from Safaricom's callback, or from asking
 // Safaricom (while the app waits, and every 30 seconds in the background), so it works without a public URL.
 import { config } from '../config.js';
-import { db, insertId, NOW, tx } from '../db.js';
+import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from './mpesa.js';
 import { kesText, notify } from './notifications.js';
@@ -15,7 +15,7 @@ const EXPIRED = 'No answer from M-Pesa (expired)';
 // STK query result codes that mean the passenger has not finished paying yet.
 const STILL_PROCESSING = new Set(['4999']);
 
-export const getPayment = (id) => db.prepare('SELECT * FROM mpesa_payments WHERE id = ?').get(id);
+export const getPayment = (id) => db.get('SELECT * FROM mpesa_payments WHERE id = ?', id);
 
 // Wallet reference until the M-Pesa receipt number is known.
 const placeholderRef = (paymentId) => `MPESA-${paymentId}`;
@@ -23,7 +23,7 @@ const placeholderRef = (paymentId) => `MPESA-${paymentId}`;
 /** Tells the passenger an M-Pesa payment didn't go through (they may have closed the app while waiting). */
 function notifyTopupFailed(payment, reason) {
   const fare = payment.purpose === 'fare';
-  notify([payment.user_id], {
+  return notify([payment.user_id], {
     kind: fare ? 'fare_mpesa.failed' : 'topup.failed',
     title: fare ? `M-Pesa fare payment of ${kesText(payment.amount)} not completed` : `Top-up of ${kesText(payment.amount)} not completed`,
     body: `${reason}. No money was taken${fare ? ' and no ticket was issued' : ''}. You can try again.`,
@@ -41,13 +41,11 @@ export async function startTopup(userId, { amount, phone }) {
   if (amount < config.minTopup || amount > config.maxTopup) {
     throw new HttpError(400, 'INVALID_AMOUNT', `Top up between KES ${config.minTopup} and KES ${config.maxTopup}`);
   }
-  if (getBalance(userId) + amount > config.maxWalletBalance) {
+  if ((await getBalance(userId)) + amount > config.maxWalletBalance) {
     throw new HttpError(400, 'WALLET_LIMIT', `Your wallet can hold at most KES ${config.maxWalletBalance}`);
   }
   // Recorded first, so a fast confirmation can never arrive for a payment we don't know about.
-  const id = insertId(
-    db.prepare("INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status) VALUES (?, ?, ?, 'wallet', 'initiating')").run(userId, phone, amount),
-  );
+  const id = await db.insert("INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status) VALUES (?, ?, ?, 'wallet', 'initiating')", userId, phone, amount);
   await sendPrompt(id, { phone, amount, accountReference: `FAREPAY${userId}`, description: 'Wallet top-up' });
   return getPayment(id);
 }
@@ -59,24 +57,28 @@ export async function startTopup(userId, { amount, phone }) {
  */
 export async function startFarePayment(userId, { qr, stopId, expectedFare, idempotencyKey, phone }) {
   requireMpesa();
-  const trip = findTrip(userId, idempotencyKey);
+  const trip = await findTrip(userId, idempotencyKey);
   if (trip) return { trip };
-  const previous = db
-    .prepare("SELECT * FROM mpesa_payments WHERE user_id = ? AND idempotency_key = ? AND status IN ('initiating', 'pending', 'completed')")
-    .get(userId, idempotencyKey);
+  const previous = await db.get(
+    "SELECT * FROM mpesa_payments WHERE user_id = ? AND idempotency_key = ? AND status IN ('initiating', 'pending', 'completed')",
+    userId,
+    idempotencyKey,
+  );
   if (previous) return { payment: previous };
 
-  const { vehicle, stop } = checkFare(qr, stopId, expectedFare);
-  const id = insertId(
-    db
-      .prepare(
-        `INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status, vehicle_id, stop_id, idempotency_key)
-         VALUES (?, ?, ?, 'fare', 'initiating', ?, ?, ?)`,
-      )
-      .run(userId, phone, stop.app_fare, vehicle.id, stop.id, idempotencyKey),
+  const { vehicle, stop } = await checkFare(qr, stopId, expectedFare);
+  const id = await db.insert(
+    `INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status, vehicle_id, stop_id, idempotency_key)
+     VALUES (?, ?, ?, 'fare', 'initiating', ?, ?, ?)`,
+    userId,
+    phone,
+    stop.app_fare,
+    vehicle.id,
+    stop.id,
+    idempotencyKey,
   );
   await sendPrompt(id, { phone, amount: stop.app_fare, accountReference: vehicle.plate.replace(/\W/g, ''), description: 'Fare' });
-  return { payment: getPayment(id) };
+  return { payment: await getPayment(id) };
 }
 
 async function sendPrompt(id, { phone, amount, accountReference, description }) {
@@ -85,44 +87,45 @@ async function sendPrompt(id, { phone, amount, accountReference, description }) 
     response = await mpesa.stkPush({ phone, amount, accountReference, description });
   } catch (err) {
     console.error('[mpesa] PIN prompt failed:', err.message);
-    db.prepare("UPDATE mpesa_payments SET status = 'failed', result_desc = ? WHERE id = ?").run(String(err.message), id);
+    await db.run("UPDATE mpesa_payments SET status = 'failed', result_desc = ? WHERE id = ?", String(err.message), id);
     throw new HttpError(502, 'MPESA_UNAVAILABLE', 'Could not reach M-Pesa. Please try again.');
   }
-  db.prepare("UPDATE mpesa_payments SET status = 'pending', checkout_request_id = ?, merchant_request_id = ? WHERE id = ?").run(
+  await db.run(
+    "UPDATE mpesa_payments SET status = 'pending', checkout_request_id = ?, merchant_request_id = ? WHERE id = ?",
     response.CheckoutRequestID,
     response.MerchantRequestID,
     id,
   );
   // Tests only: pretend the passenger entered their PIN.
-  if (mpesa.isMock) handleStkCallback(mpesa.mockStkCallback({ checkoutRequestId: response.CheckoutRequestID, amount, phone }));
+  if (mpesa.isMock) await handleStkCallback(mpesa.mockStkCallback({ checkoutRequestId: response.CheckoutRequestID, amount, phone }));
 }
 
 /**
  * A confirmed fare: the M-Pesa money goes into the wallet and straight back out for the fare, so the
  * wallet history always adds up. Runs inside the confirmation's transaction.
  */
-function completeFare(payment, receipt) {
-  postWalletEntry(payment.user_id, {
+async function completeFare(payment, receipt) {
+  await postWalletEntry(payment.user_id, {
     type: 'topup',
     amount: payment.amount,
     reference: receipt ?? placeholderRef(payment.id),
     description: 'M-Pesa payment for fare',
   });
   // Paid from the wallet meanwhile with the same confirmation: keep this money in the wallet.
-  if (findTrip(payment.user_id, payment.idempotency_key)) return;
-  const vehicle = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(payment.vehicle_id);
-  const stop = db.prepare('SELECT * FROM route_stops WHERE id = ?').get(payment.stop_id);
-  const tripId = recordTrip({ passengerId: payment.user_id, vehicle, stop, fare: payment.amount, idempotencyKey: payment.idempotency_key });
-  db.prepare('UPDATE mpesa_payments SET trip_id = ? WHERE id = ?').run(tripId, payment.id);
+  if (await findTrip(payment.user_id, payment.idempotency_key)) return;
+  const vehicle = await db.get('SELECT * FROM vehicles WHERE id = ?', payment.vehicle_id);
+  const stop = await db.get('SELECT * FROM route_stops WHERE id = ?', payment.stop_id);
+  const tripId = await recordTrip({ passengerId: payment.user_id, vehicle, stop, fare: payment.amount, idempotencyKey: payment.idempotency_key });
+  await db.run('UPDATE mpesa_payments SET trip_id = ? WHERE id = ?', tripId, payment.id);
 }
 
 /** Handles M-Pesa's answer (Safaricom's callback, or one built from asking Safaricom). Safe to receive more than once. */
-export function handleStkCallback(body) {
+export async function handleStkCallback(body) {
   const cb = body?.Body?.stkCallback;
   if (!cb?.CheckoutRequestID) return;
 
-  tx(() => {
-    const payment = db.prepare('SELECT * FROM mpesa_payments WHERE checkout_request_id = ?').get(cb.CheckoutRequestID);
+  await tx(async () => {
+    const payment = await db.get('SELECT * FROM mpesa_payments WHERE checkout_request_id = ?', cb.CheckoutRequestID);
     if (!payment) {
       console.warn('[mpesa] confirmation for an unknown payment', JSON.stringify(cb));
       return;
@@ -133,28 +136,29 @@ export function handleStkCallback(body) {
 
     // Already confirmed by asking Safaricom: just record the receipt number that only the callback carries.
     if (payment.status === 'completed' && success && receipt && !payment.mpesa_receipt) {
-      db.prepare('UPDATE mpesa_payments SET mpesa_receipt = ? WHERE id = ?').run(receipt, payment.id);
-      db.prepare('UPDATE wallet_transactions SET reference = ? WHERE user_id = ? AND reference = ?').run(receipt, payment.user_id, placeholderRef(payment.id));
+      await db.run('UPDATE mpesa_payments SET mpesa_receipt = ? WHERE id = ?', receipt, payment.id);
+      await db.run('UPDATE wallet_transactions SET reference = ? WHERE user_id = ? AND reference = ?', receipt, payment.user_id, placeholderRef(payment.id));
       return;
     }
     // M-Pesa took the money after FarePay had given up waiting ("no answer"): the passenger paid, so the
     // money goes into their wallet. A late fare gets no ticket (they will have paid another way by then).
     if (payment.status === 'failed' && payment.result_desc === EXPIRED && success) {
-      db.prepare(`UPDATE mpesa_payments SET status = 'completed', mpesa_receipt = ?, result_desc = ?, completed_at = ${NOW} WHERE id = ?`).run(
+      await db.run(
+        `UPDATE mpesa_payments SET status = 'completed', mpesa_receipt = ?, result_desc = ?, completed_at = ${NOW} WHERE id = ?`,
         receipt,
         'Confirmed late by M-Pesa',
         payment.id,
       );
-      postWalletEntry(payment.user_id, {
+      await postWalletEntry(payment.user_id, {
         type: 'topup',
         amount: payment.amount,
         reference: receipt ?? placeholderRef(payment.id),
         description: payment.purpose === 'fare' ? 'M-Pesa fare payment confirmed late: added to your wallet' : 'M-Pesa top-up (confirmed late)',
       });
-      notify([payment.user_id], {
+      await notify([payment.user_id], {
         kind: 'topup.completed',
         title: `${kesText(payment.amount)} added to your wallet`,
-        body: `M-Pesa confirmed your payment late${receipt ? ` (receipt ${receipt})` : ''}, so it is in your wallet${payment.purpose === 'fare' ? ' instead of paying that fare' : ''}. Balance ${kesText(getBalance(payment.user_id))}.`,
+        body: `M-Pesa confirmed your payment late${receipt ? ` (receipt ${receipt})` : ''}, so it is in your wallet${payment.purpose === 'fare' ? ' instead of paying that fare' : ''}. Balance ${kesText(await getBalance(payment.user_id))}.`,
         target: 'wallet',
       });
       return;
@@ -163,30 +167,31 @@ export function handleStkCallback(body) {
 
     if (!success) {
       const reason = String(cb.ResultDesc ?? 'Payment not completed');
-      db.prepare(`UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW} WHERE id = ?`).run(reason, payment.id);
-      notifyTopupFailed(payment, reason);
+      await db.run(`UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW} WHERE id = ?`, reason, payment.id);
+      await notifyTopupFailed(payment, reason);
       return;
     }
 
-    db.prepare(`UPDATE mpesa_payments SET status = 'completed', mpesa_receipt = ?, result_desc = ?, completed_at = ${NOW} WHERE id = ?`).run(
+    await db.run(
+      `UPDATE mpesa_payments SET status = 'completed', mpesa_receipt = ?, result_desc = ?, completed_at = ${NOW} WHERE id = ?`,
       receipt,
       String(cb.ResultDesc ?? 'Success'),
       payment.id,
     );
     if (payment.purpose === 'fare') {
-      completeFare(payment, receipt);
+      await completeFare(payment, receipt);
     } else {
       // Credit what we asked for: the passenger cannot change the amount in the PIN prompt.
-      postWalletEntry(payment.user_id, {
+      await postWalletEntry(payment.user_id, {
         type: 'topup',
         amount: payment.amount,
         reference: receipt ?? placeholderRef(payment.id),
         description: 'M-Pesa top-up',
       });
-      notify([payment.user_id], {
+      await notify([payment.user_id], {
         kind: 'topup.completed',
         title: `${kesText(payment.amount)} added to your wallet`,
-        body: `${receipt ? `M-Pesa receipt ${receipt}. ` : ''}Your balance is now ${kesText(getBalance(payment.user_id))}.`,
+        body: `${receipt ? `M-Pesa receipt ${receipt}. ` : ''}Your balance is now ${kesText(await getBalance(payment.user_id))}.`,
         target: 'wallet',
       });
     }
@@ -199,7 +204,7 @@ export async function refreshPayment(payment) {
   const wait = config.mpesa.queryIntervalMs;
   if (wait > 0 && payment.last_queried_at && Date.now() - Date.parse(payment.last_queried_at) < wait) return payment;
 
-  db.prepare(`UPDATE mpesa_payments SET last_queried_at = ${NOW} WHERE id = ?`).run(payment.id);
+  await db.run(`UPDATE mpesa_payments SET last_queried_at = ${NOW} WHERE id = ?`, payment.id);
   let result;
   try {
     result = await mpesa.stkQuery(payment.checkout_request_id);
@@ -208,7 +213,7 @@ export async function refreshPayment(payment) {
   }
   // 4999 "still under processing" is not an outcome: keep waiting.
   if (result.ResultCode !== undefined && !STILL_PROCESSING.has(String(result.ResultCode))) {
-    handleStkCallback({
+    await handleStkCallback({
       Body: {
         stkCallback: {
           CheckoutRequestID: payment.checkout_request_id,
@@ -228,24 +233,24 @@ export async function refreshPayment(payment) {
  * `expireAfterMs` never went through.
  */
 export async function reconcilePendingPayments({ expireAfterMs = config.mpesa.pendingExpiryMs } = {}) {
-  for (const payment of db.prepare("SELECT * FROM mpesa_payments WHERE status = 'pending'").all()) {
+  for (const payment of await db.all("SELECT * FROM mpesa_payments WHERE status = 'pending'")) {
     const current = await refreshPayment(payment);
     if (current.status === 'pending' && Date.now() - Date.parse(current.created_at) > expireAfterMs) {
-      const expired = db
-        .prepare(
-          `UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW}
-           WHERE id = ? AND status = 'pending'`,
-        )
-        .run(EXPIRED, current.id);
-      if (expired.changes) notifyTopupFailed(current, 'No answer from M-Pesa');
+      const expired = await db.run(
+        `UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW}
+         WHERE id = ? AND status = 'pending'`,
+        EXPIRED,
+        current.id,
+      );
+      if (expired.changes) await notifyTopupFailed(current, 'No answer from M-Pesa');
     }
   }
 }
 
 /** A passenger's own payment, refreshed, with the ticket once a fare is confirmed. */
 export async function getUserPayment(userId, paymentId) {
-  const payment = getPayment(paymentId);
+  const payment = await getPayment(paymentId);
   if (!payment || payment.user_id !== userId) throw notFound('Payment');
   const current = await refreshPayment(payment);
-  return { payment: current, trip: current.trip_id ? getTrip(current.trip_id) : null };
+  return { payment: current, trip: current.trip_id ? await getTrip(current.trip_id) : null };
 }

@@ -1,5 +1,5 @@
-// PostgreSQL connection and migrations. Prepared in Step 3: the app itself still runs on SQLite (db.js)
-// until its services are moved over one by one.
+// PostgreSQL connection, migrations and backups. The app reaches it through database.js (DB_ENGINE=postgres).
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,9 +16,22 @@ pg.types.setTypeParser(pg.types.builtins.INT8, (value) => {
 
 export const MIGRATIONS_DIR = new URL('../migrations/', import.meta.url);
 
-export function createPool(connectionString) {
+export function createPool(connectionString, extra = {}) {
   if (!connectionString) throw new Error('No PostgreSQL address: set DATABASE_URL (or TEST_DATABASE_URL for tests) in backend/.env');
-  return new pg.Pool({ connectionString, max: 10 });
+  // allowExitOnIdle: scripts and tests can finish without closing the pool by hand.
+  return new pg.Pool({ connectionString, max: 10, allowExitOnIdle: true, ...extra });
+}
+
+/** A full backup with pg_dump (custom format, restore with pg_restore). `schema` limits it to one schema. */
+export function pgDump(connectionString, file, schema = null) {
+  return new Promise((resolve, reject) => {
+    const args = ['--format=custom', '--no-owner', `--file=${file}`, ...(schema ? [`--schema=${schema}`] : []), `--dbname=${connectionString}`];
+    const child = spawn('pg_dump', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let errors = '';
+    child.stderr.on('data', (d) => (errors += d));
+    child.on('error', (err) => reject(new Error(`pg_dump could not start (is PostgreSQL's bin folder on PATH?): ${err.message}`)));
+    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`pg_dump failed: ${errors.trim()}`))));
+  });
 }
 
 const checksum = (sql) => createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex');

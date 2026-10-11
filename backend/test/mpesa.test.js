@@ -56,7 +56,7 @@ process.env.MPESA_QUERY_INTERVAL_MS = '0';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db } = await import('../src/db.js');
+const { db } = await import('../src/database.js');
 const { reconcilePendingPayments } = await import('../src/services/payments.js');
 
 let server;
@@ -70,7 +70,7 @@ const api = async (method, path, { token, body } = {}) => {
   return { status: res.status, body: await res.json() };
 };
 const s = {};
-const status = (id) => db.prepare('SELECT status FROM mpesa_payments WHERE id = ?').get(id).status;
+const status = async (id) => (await db.get('SELECT status FROM mpesa_payments WHERE id = ?', id)).status;
 const balance = async () => (await api('GET', '/passenger/wallet', { token: s.passenger })).body.balance;
 /** Checks the payment like the app does, until it is no longer pending. */
 async function waitForOutcome(id) {
@@ -212,8 +212,8 @@ test('wallet too low: the fare is paid by M-Pesa and the ticket is issued when M
 
 test('a payment is confirmed in the background even if the app was closed', async () => {
   const start = await api('POST', '/passenger/wallet/topup', { token: s.passenger, body: { amount: 100 } });
-  for (let i = 0; i < 5 && status(start.body.payment.id) === 'pending'; i++) await reconcilePendingPayments();
-  assert.equal(status(start.body.payment.id), 'completed');
+  for (let i = 0; i < 5 && await status(start.body.payment.id) === 'pending'; i++) await reconcilePendingPayments();
+  assert.equal(await status(start.body.payment.id), 'completed');
   assert.equal(await balance(), 100);
 });
 
@@ -221,8 +221,8 @@ test('a prompt M-Pesa never answers expires without crediting anything', async (
   fake.defaultAnswers = ['unknown'];
   const start = await api('POST', '/passenger/wallet/topup', { token: s.passenger, body: { amount: 30 } });
   await reconcilePendingPayments();
-  assert.equal(status(start.body.payment.id), 'pending', 'not expired yet');
+  assert.equal(await status(start.body.payment.id), 'pending', 'not expired yet');
   await reconcilePendingPayments({ expireAfterMs: 0 });
-  assert.equal(status(start.body.payment.id), 'failed');
+  assert.equal(await status(start.body.payment.id), 'failed');
   assert.equal(await balance(), 100);
 });

@@ -3,7 +3,7 @@ import { Router } from 'express';
 import QRCode from 'qrcode';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { db, insertId } from '../db.js';
+import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
 import { completePayout, createPayout, failPayout, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
@@ -34,99 +34,102 @@ import { id, kes, name, parse, password, phone } from '../validate.js';
 const router = Router();
 
 /** UPDATE table SET <only the provided fields> WHERE id = ? (used for vehicles). Field names come from zod schemas, never from raw input. */
-function updateRow(table, rowId, fields) {
+async function updateRow(table, rowId, fields) {
   const entries = Object.entries(fields).filter(([, v]) => v !== undefined);
   if (entries.length === 0) throw new HttpError(400, 'NOTHING_TO_UPDATE', 'Nothing to update');
-  const values = entries.map(([, v]) => (typeof v === 'boolean' ? Number(v) : v));
-  const result = db.prepare(`UPDATE ${table} SET ${entries.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...values, rowId);
+  const result = await db.run(`UPDATE ${table} SET ${entries.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`, ...entries.map(([, v]) => v), rowId);
   if (result.changes === 0) throw notFound('Vehicle');
 }
 
 // ---------- Home dashboard ----------
 
-router.get('/summary', (_req, res) => {
-  const count = (sql) => db.prepare(sql).get().n;
+router.get('/summary', async (_req, res) => {
+  const count = async (text) => (await db.get(text)).n;
   const [from, to] = nairobiDayRange(nairobiToday());
   res.json({
-    routes: count('SELECT COUNT(*) AS n FROM routes WHERE is_active = 1'),
-    vehicles: count('SELECT COUNT(*) AS n FROM vehicles WHERE is_active = 1'),
-    vehicles_without_route: count('SELECT COUNT(*) AS n FROM vehicles WHERE is_active = 1 AND route_id IS NULL'),
-    conductors: count("SELECT COUNT(*) AS n FROM users WHERE role = 'conductor' AND is_active = 1"),
-    drivers: count("SELECT COUNT(*) AS n FROM users WHERE role = 'driver' AND is_active = 1"),
-    passengers: count("SELECT COUNT(*) AS n FROM users WHERE role = 'passenger'"),
-    today: daySummary(from, to),
-    owed_to_owners: owedByOwner().reduce((sum, o) => sum + o.amount, 0),
-    open_reports: count("SELECT COUNT(*) AS n FROM reports WHERE status != 'resolved'"),
+    routes: await count('SELECT COUNT(*) AS n FROM routes WHERE is_active = TRUE'),
+    vehicles: await count('SELECT COUNT(*) AS n FROM vehicles WHERE is_active = TRUE'),
+    vehicles_without_route: await count('SELECT COUNT(*) AS n FROM vehicles WHERE is_active = TRUE AND route_id IS NULL'),
+    conductors: await count("SELECT COUNT(*) AS n FROM users WHERE role = 'conductor' AND is_active = TRUE"),
+    drivers: await count("SELECT COUNT(*) AS n FROM users WHERE role = 'driver' AND is_active = TRUE"),
+    passengers: await count("SELECT COUNT(*) AS n FROM users WHERE role = 'passenger'"),
+    today: await daySummary(from, to),
+    owed_to_owners: (await owedByOwner()).reduce((sum, o) => sum + o.amount, 0),
+    open_reports: await count("SELECT COUNT(*) AS n FROM reports WHERE status != 'resolved'"),
   });
 });
 
 // Collections over the last 7 or 30 days: by day, route, vehicle, stop and hour, with the period before.
-router.get('/dashboard', (req, res) => {
+router.get('/dashboard', async (req, res) => {
   const { days } = parse(z.object({ days: z.enum(['7', '30']).default('7').transform(Number) }), req.query);
-  res.json(dashboard(days));
+  res.json(await dashboard(days));
 });
 
 // ---------- Payments ----------
 
-function daySummary(from, to) {
+async function daySummary(from, to) {
   return {
-    ...db.prepare("SELECT COUNT(*) AS payments, COALESCE(SUM(fare), 0) AS total FROM trips WHERE status = 'paid' AND created_at >= ? AND created_at < ?").get(from, to),
-    by_vehicle: db
-      .prepare(
-        `SELECT v.id, v.plate, v.owner_name, COUNT(*) AS payments, SUM(t.fare) AS total
-         FROM trips t JOIN vehicles v ON v.id = t.vehicle_id
-         WHERE t.status = 'paid' AND t.created_at >= ? AND t.created_at < ? GROUP BY v.id ORDER BY total DESC`,
-      )
-      .all(from, to),
+    ...(await db.get("SELECT COUNT(*) AS payments, COALESCE(SUM(fare), 0) AS total FROM trips WHERE status = 'paid' AND created_at >= ? AND created_at < ?", from, to)),
+    by_vehicle: await db.all(
+      `SELECT v.id, v.plate, v.owner_name, COUNT(*) AS payments, SUM(t.fare) AS total
+       FROM trips t JOIN vehicles v ON v.id = t.vehicle_id
+       WHERE t.status = 'paid' AND t.created_at >= ? AND t.created_at < ? GROUP BY v.id ORDER BY total DESC, v.plate`,
+      from,
+      to,
+    ),
   };
 }
 
 // Every payment on one day (default today, Kenyan time), optionally for one vehicle.
-router.get('/payments', (req, res) => {
+router.get('/payments', async (req, res) => {
   const { date, vehicle_id } = parse(z.object({ date: z.string().date().default(nairobiToday), vehicle_id: id.optional() }), req.query);
   const [from, to] = nairobiDayRange(date);
-  const payments = db
-    .prepare(`${TRIP_SELECT} WHERE t.created_at >= ? AND t.created_at < ? AND (? IS NULL OR t.vehicle_id = ?) ORDER BY t.id DESC LIMIT 500`)
-    .all(from, to, vehicle_id ?? null, vehicle_id ?? null);
-  res.json({ date, summary: daySummary(from, to), payments });
+  const payments = await db.all(
+    `${TRIP_SELECT} WHERE t.created_at >= ? AND t.created_at < ? AND (CAST(? AS INTEGER) IS NULL OR t.vehicle_id = ?) ORDER BY t.id DESC LIMIT 500`,
+    from,
+    to,
+    vehicle_id ?? null,
+    vehicle_id ?? null,
+  );
+  res.json({ date, summary: await daySummary(from, to), payments });
 });
 
 // Refund a fare to the passenger's wallet (vehicle broke down, wrong charge...).
-router.post('/payments/:id/refund', (req, res) => {
+router.post('/payments/:id/refund', async (req, res) => {
   const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
-  res.json(refundTrip(parse(id, req.params.id), reason));
+  res.json(await refundTrip(parse(id, req.params.id), reason));
 });
 
 // ---------- Problem reports ----------
 
 // Reports, newest first; ?status=open|in_progress|resolved to filter.
-router.get('/reports', (req, res) => {
+router.get('/reports', async (req, res) => {
   const { status } = parse(z.object({ status: z.enum(['open', 'in_progress', 'resolved']).optional() }), req.query);
-  res.json(db.prepare(`${REPORT_SELECT} WHERE (? IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 200`).all(status ?? null, status ?? null));
+  res.json(await db.all(`${REPORT_SELECT} WHERE (CAST(? AS TEXT) IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 200`, status ?? null, status ?? null));
 });
 
-router.patch('/reports/:id', (req, res) => {
+router.patch('/reports/:id', async (req, res) => {
   const body = parse(
     z.object({ status: z.enum(['open', 'in_progress', 'resolved']), office_note: z.string().trim().min(2).max(1000).optional() }),
     req.body,
   );
-  res.json(updateReport(parse(id, req.params.id), req.user.id, body));
+  res.json(await updateReport(parse(id, req.params.id), req.user.id, body));
 });
 
 // ---------- Owner payouts ----------
 
-router.get('/payouts/owed', (_req, res) => {
-  res.json({ owners: owedByOwner(), automatic: mpesa.isConfigured.b2c, daily_at: config.payoutDailyAt });
+router.get('/payouts/owed', async (_req, res) => {
+  res.json({ owners: await owedByOwner(), automatic: mpesa.isConfigured.b2c, daily_at: config.payoutDailyAt });
 });
 
-router.get('/payouts', (_req, res) => {
-  res.json(db.prepare('SELECT * FROM payouts ORDER BY id DESC LIMIT 200').all());
+router.get('/payouts', async (_req, res) => {
+  res.json(await db.all('SELECT * FROM payouts ORDER BY id DESC LIMIT 200'));
 });
 
-router.get('/payouts/:id', (req, res) => {
-  const payout = getPayout(parse(id, req.params.id));
+router.get('/payouts/:id', async (req, res) => {
+  const payout = await getPayout(parse(id, req.params.id));
   if (!payout) throw notFound('Payout');
-  const trips = db.prepare(`${TRIP_SELECT} WHERE t.payout_id = ? ORDER BY t.id`).all(payout.id);
+  const trips = await db.all(`${TRIP_SELECT} WHERE t.payout_id = ? ORDER BY t.id`, payout.id);
   res.json({ ...payout, trips });
 });
 
@@ -142,52 +145,52 @@ router.post('/payouts/run', async (req, res) => {
 });
 
 // The office sent the money itself (or confirmed it on the M-Pesa statement): record the M-Pesa code.
-router.post('/payouts/:id/complete', (req, res) => {
+router.post('/payouts/:id/complete', async (req, res) => {
   const { reference } = parse(z.object({ reference: z.string().trim().min(3).max(100) }), req.body);
-  res.json(completePayout(parse(id, req.params.id), reference));
+  res.json(await completePayout(parse(id, req.params.id), reference));
 });
 
 // The money did not reach the owner: the fares go back to "owed".
-router.post('/payouts/:id/fail', (req, res) => {
+router.post('/payouts/:id/fail', async (req, res) => {
   const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
-  res.json(failPayout(parse(id, req.params.id), reason));
+  res.json(await failPayout(parse(id, req.params.id), reason));
 });
 
 // ---------- Passenger withdrawals (wallet money back to M-Pesa) ----------
 
 // Waiting ones first (the office may need to send them), then the latest finished ones.
-router.get('/withdrawals', (_req, res) => {
+router.get('/withdrawals', async (_req, res) => {
   res.json({
     automatic: mpesa.isConfigured.b2c,
-    open: db.prepare(`${WITHDRAWAL_SELECT} WHERE w.status IN ('processing', 'manual') ORDER BY w.id`).all(),
-    recent: db.prepare(`${WITHDRAWAL_SELECT} WHERE w.status IN ('completed', 'failed') ORDER BY w.id DESC LIMIT 50`).all(),
+    open: await db.all(`${WITHDRAWAL_SELECT} WHERE w.status IN ('processing', 'manual') ORDER BY w.id`),
+    recent: await db.all(`${WITHDRAWAL_SELECT} WHERE w.status IN ('completed', 'failed') ORDER BY w.id DESC LIMIT 50`),
   });
 });
 
 // The office sent the money itself: record the M-Pesa code.
-router.post('/withdrawals/:id/complete', (req, res) => {
+router.post('/withdrawals/:id/complete', async (req, res) => {
   const { reference } = parse(z.object({ reference: z.string().trim().min(3).max(100) }), req.body);
-  res.json(completeWithdrawal(parse(id, req.params.id), reference.toUpperCase(), req.user.id));
+  res.json(await completeWithdrawal(parse(id, req.params.id), reference.toUpperCase(), req.user.id));
 });
 
 // It could not be sent: the money goes back into the passenger's wallet.
-router.post('/withdrawals/:id/fail', (req, res) => {
+router.post('/withdrawals/:id/fail', async (req, res) => {
   const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
-  res.json(failWithdrawal(parse(id, req.params.id), reason, req.user.id));
+  res.json(await failWithdrawal(parse(id, req.params.id), reason, req.user.id));
 });
 
 // ---------- M-Pesa statement check ----------
 
 // The CSV statement from the M-Pesa org portal, as text. Only reads; the result is kept in the audit log.
-router.post('/statement-check', (req, res) => {
+router.post('/statement-check', async (req, res) => {
   const { csv } = parse(z.object({ csv: z.string().min(1).max(5_000_000) }), req.body);
   let result;
   try {
-    result = checkStatement(csv);
+    result = await checkStatement(csv);
   } catch (err) {
     throw new HttpError(400, 'BAD_STATEMENT', err.message);
   }
-  audit(req.user, 'statement.check', null, null, {
+  await audit(req.user, 'statement.check', null, null, {
     period: result.period,
     all_ok: result.all_ok,
     matched_in: result.money_in.matched,
@@ -201,28 +204,28 @@ router.post('/statement-check', (req, res) => {
 
 // A route has a name, a starting point, and drop-off stops along the way, each with its own fares.
 
-router.get('/routes', (_req, res) => {
-  res.json(listRoutes());
+router.get('/routes', async (_req, res) => {
+  res.json(await listRoutes());
 });
 
-router.get('/routes/:id', (req, res) => {
-  const route = getRoute(parse(id, req.params.id));
+router.get('/routes/:id', async (req, res) => {
+  const route = await getRoute(parse(id, req.params.id));
   if (!route) throw notFound('Route');
   res.json(route);
 });
 
-router.post('/routes', (req, res) => {
+router.post('/routes', async (req, res) => {
   const body = parse(z.object({ name, origin: name, stops: stopsSchema }), req.body);
-  res.status(201).json(getRoute(createRoute(body, req.user.id)));
+  res.status(201).json(await getRoute(await createRoute(body, req.user.id)));
 });
 
 // Fare history for a route: changes already in effect, waiting for their date, and cancelled.
-router.get('/routes/:id/fare-changes', (req, res) => {
-  res.json(routeFareChanges(parse(id, req.params.id)));
+router.get('/routes/:id/fare-changes', async (req, res) => {
+  res.json(await routeFareChanges(parse(id, req.params.id)));
 });
 
 // Set a stop's fares from a date (YYYY-MM-DD, Kenyan time). Today or earlier applies at once; past payments keep their fares.
-router.post('/stops/:id/fare-change', (req, res) => {
+router.post('/stops/:id/fare-change', async (req, res) => {
   const body = parse(
     z
       .object({ cash_fare: kes, app_fare: kes, effective_date: z.string().date(), reason: z.string().trim().max(200).optional() })
@@ -230,29 +233,29 @@ router.post('/stops/:id/fare-change', (req, res) => {
       .refine((f) => f.effective_date <= nairobiDate(366), { path: ['effective_date'], message: 'Choose a date within the next year' }),
     req.body,
   );
-  res.status(201).json(scheduleFareChange(parse(id, req.params.id), body, req.user.id));
+  res.status(201).json(await scheduleFareChange(parse(id, req.params.id), body, req.user.id));
 });
 
-router.post('/fare-changes/:id/cancel', (req, res) => {
-  res.json(cancelFareChange(parse(id, req.params.id)));
+router.post('/fare-changes/:id/cancel', async (req, res) => {
+  res.json(await cancelFareChange(parse(id, req.params.id)));
 });
 
 // Send `stops` to replace the list of stops (in order): stops with an id are updated, new ones added,
 // and stops left out are switched off.
-router.patch('/routes/:id', (req, res) => {
+router.patch('/routes/:id', async (req, res) => {
   const routeId = parse(id, req.params.id);
   const body = parse(
     z.object({ name: name.optional(), origin: name.optional(), is_active: z.boolean().optional(), stops: stopsSchema.optional() }),
     req.body,
   );
-  updateRoute(routeId, body, req.user.id);
-  res.json(getRoute(routeId));
+  await updateRoute(routeId, body, req.user.id);
+  res.json(await getRoute(routeId));
 });
 
 // ---------- Audit log & reconciliation ----------
 
 // Who did what, newest first. ?before=<id> for the next page; ?entity=&entity_id= for one record's history.
-router.get('/audit', (req, res) => {
+router.get('/audit', async (req, res) => {
   const q = parse(
     z.object({
       limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -262,13 +265,13 @@ router.get('/audit', (req, res) => {
     }),
     req.query,
   );
-  const items = listAudit({ before: q.before, limit: q.limit, entity: q.entity, entityId: q.entity_id });
+  const items = await listAudit({ before: q.before, limit: q.limit, entity: q.entity, entityId: q.entity_id });
   res.json({ items, next_before: items.length === q.limit ? items.at(-1).id : null });
 });
 
 // Checks that wallets, M-Pesa, fares and payouts all add up.
-router.get('/reconciliation', (_req, res) => {
-  res.json(reconcile());
+router.get('/reconciliation', async (_req, res) => {
+  res.json(await reconcile());
 });
 
 // ---------- Vehicle crew: conductors and drivers ----------
@@ -285,33 +288,37 @@ for (const [role, { path, column, label }] of Object.entries(CREW)) {
     FROM users u LEFT JOIN vehicles v ON v.${column} = u.id
     WHERE u.role = '${role}'`;
 
-  router.get(`/${path}`, (_req, res) => {
-    res.json(db.prepare(`${SELECT} ORDER BY u.is_active DESC, u.name`).all());
+  router.get(`/${path}`, async (_req, res) => {
+    res.json(await db.all(`${SELECT} ORDER BY u.is_active DESC, u.name`));
   });
 
   router.post(`/${path}`, async (req, res) => {
     const body = parse(z.object({ name, phone, password }), req.body);
     const user = await createUser({ ...body, role });
-    res.status(201).json(db.prepare(`${SELECT} AND u.id = ?`).get(user.id));
+    res.status(201).json(await db.get(`${SELECT} AND u.id = ?`, user.id));
   });
 
   // Switching someone off signs them out and frees their vehicle for someone else.
-  router.patch(`/${path}/:id`, (req, res) => {
+  router.patch(`/${path}/:id`, async (req, res) => {
     const userId = parse(id, req.params.id);
     const body = parse(z.object({ name: name.optional(), is_active: z.boolean().optional() }), req.body);
-    const result = db
-      .prepare('UPDATE users SET name = COALESCE(?, name), is_active = COALESCE(?, is_active) WHERE id = ? AND role = ?')
-      .run(body.name ?? null, body.is_active === undefined ? null : Number(body.is_active), userId, role);
+    const result = await db.run(
+      'UPDATE users SET name = COALESCE(?, name), is_active = COALESCE(?, is_active) WHERE id = ? AND role = ?',
+      body.name ?? null,
+      body.is_active ?? null,
+      userId,
+      role,
+    );
     if (result.changes === 0) throw notFound(label);
-    if (body.is_active === false) db.prepare(`UPDATE vehicles SET ${column} = NULL WHERE ${column} = ?`).run(userId);
-    res.json(db.prepare(`${SELECT} AND u.id = ?`).get(userId));
+    if (body.is_active === false) await db.run(`UPDATE vehicles SET ${column} = NULL WHERE ${column} = ?`, userId);
+    res.json(await db.get(`${SELECT} AND u.id = ?`, userId));
   });
 }
 
 // ---------- SACCO office staff ----------
 
-router.get('/staff', (_req, res) => {
-  res.json(db.prepare("SELECT id, name, phone, is_active, created_at FROM users WHERE role = 'admin' ORDER BY is_active DESC, name").all());
+router.get('/staff', async (_req, res) => {
+  res.json(await db.all("SELECT id, name, phone, is_active, created_at FROM users WHERE role = 'admin' ORDER BY is_active DESC, name"));
 });
 
 router.post('/staff', async (req, res) => {
@@ -321,30 +328,32 @@ router.post('/staff', async (req, res) => {
 });
 
 // Switch a staff account off or on. Nobody can switch off their own account (so the office is never locked out).
-router.patch('/staff/:id', (req, res) => {
+router.patch('/staff/:id', async (req, res) => {
   const staffId = parse(id, req.params.id);
   const { is_active } = parse(z.object({ is_active: z.boolean() }), req.body);
   if (staffId === req.user.id && !is_active) throw new HttpError(400, 'CANNOT_DISABLE_SELF', 'You cannot switch off your own account');
-  const result = db.prepare("UPDATE users SET is_active = ? WHERE id = ? AND role = 'admin'").run(Number(is_active), staffId);
+  const result = await db.run("UPDATE users SET is_active = ? WHERE id = ? AND role = 'admin'", is_active, staffId);
   if (result.changes === 0) throw notFound('Staff account');
-  res.json(db.prepare('SELECT id, name, phone, is_active, created_at FROM users WHERE id = ?').get(staffId));
+  res.json(await db.get('SELECT id, name, phone, is_active, created_at FROM users WHERE id = ?', staffId));
 });
 
 // ---------- Passengers & passwords ----------
 
-// Passengers, newest first; `q` searches by name or phone number.
-router.get('/passengers', (req, res) => {
+// Passengers, newest first; `q` searches by name (any capitals) or phone number.
+router.get('/passengers', async (req, res) => {
   const { q } = parse(z.object({ q: z.string().trim().max(50).optional() }), req.query);
   const digits = q?.replace(/\D/g, '').replace(/^0/, '') ?? '';
-  const rows = db
-    .prepare(
-      `SELECT u.id, u.name, u.phone, u.is_active, u.created_at, w.balance AS wallet_balance,
-              (SELECT COUNT(*) FROM trips t WHERE t.passenger_id = u.id) AS trips
-       FROM users u LEFT JOIN wallets w ON w.user_id = u.id
-       WHERE u.role = 'passenger' AND (? = '' OR u.name LIKE ? OR (? != '' AND u.phone LIKE ?))
-       ORDER BY u.id DESC LIMIT 100`,
-    )
-    .all(q ?? '', `%${q ?? ''}%`, digits, `%${digits}%`);
+  const rows = await db.all(
+    `SELECT u.id, u.name, u.phone, u.is_active, u.created_at, w.balance AS wallet_balance,
+            (SELECT COUNT(*) FROM trips t WHERE t.passenger_id = u.id) AS trips
+     FROM users u LEFT JOIN wallets w ON w.user_id = u.id
+     WHERE u.role = 'passenger' AND (? = '' OR lower(u.name) LIKE lower(?) OR (? != '' AND u.phone LIKE ?))
+     ORDER BY u.id DESC LIMIT 100`,
+    q ?? '',
+    `%${q ?? ''}%`,
+    digits,
+    `%${digits}%`,
+  );
   res.json(rows);
 });
 
@@ -364,7 +373,7 @@ const VEHICLE_SELECT = `
   LEFT JOIN users d ON d.id = v.driver_id
   LEFT JOIN routes r ON r.id = v.route_id`;
 
-const getVehicle = (vehicleId) => db.prepare(`${VEHICLE_SELECT} WHERE v.id = ?`).get(vehicleId);
+const getVehicle = (vehicleId) => db.get(`${VEHICLE_SELECT} WHERE v.id = ?`, vehicleId);
 
 const plate = z
   .string()
@@ -402,30 +411,30 @@ function checkPayoutDetails(v) {
 }
 
 /** The route exists, and the conductor/driver chosen is an active account of that role not on another vehicle. */
-function checkVehicleLinks(fields, vehicleId = null) {
-  if (fields.route_id != null && !getRoute(fields.route_id)) throw notFound('Route');
+async function checkVehicleLinks(fields, vehicleId = null) {
+  if (fields.route_id != null && !(await getRoute(fields.route_id))) throw notFound('Route');
   for (const [role, { column, label }] of Object.entries(CREW)) {
     const userId = fields[column];
     if (userId == null) continue;
-    const person = db.prepare('SELECT is_active FROM users WHERE id = ? AND role = ?').get(userId, role);
+    const person = await db.get('SELECT is_active FROM users WHERE id = ? AND role = ?', userId, role);
     if (!person) throw new HttpError(400, `NOT_A_${role.toUpperCase()}`, `Choose a ${role} account`);
     if (!person.is_active) throw new HttpError(400, `${role.toUpperCase()}_DISABLED`, `This ${role} account is switched off`);
-    const other = db.prepare(`SELECT plate FROM vehicles WHERE ${column} = ? AND id IS NOT ?`).get(userId, vehicleId);
+    const other = await db.get(`SELECT plate FROM vehicles WHERE ${column} = ? AND id IS DISTINCT FROM CAST(? AS INTEGER)`, userId, vehicleId);
     if (other) throw new HttpError(409, `${role.toUpperCase()}_TAKEN`, `This ${label.toLowerCase()} already works on ${other.plate}`);
   }
 }
 
-router.get('/vehicles', (_req, res) => {
-  res.json(db.prepare(`${VEHICLE_SELECT} ORDER BY v.is_active DESC, v.plate`).all());
+router.get('/vehicles', async (_req, res) => {
+  res.json(await db.all(`${VEHICLE_SELECT} ORDER BY v.is_active DESC, v.plate`));
 });
 
-router.get('/vehicles/:id', (req, res) => {
-  const vehicle = getVehicle(parse(id, req.params.id));
+router.get('/vehicles/:id', async (req, res) => {
+  const vehicle = await getVehicle(parse(id, req.params.id));
   if (!vehicle) throw notFound('Vehicle');
   res.json(vehicle);
 });
 
-router.post('/vehicles', (req, res) => {
+router.post('/vehicles', async (req, res) => {
   const body = parse(
     z.object({
       plate,
@@ -439,38 +448,33 @@ router.post('/vehicles', (req, res) => {
     }),
     req.body,
   );
-  if (db.prepare('SELECT 1 FROM vehicles WHERE plate = ?').get(body.plate)) {
+  if (await db.get('SELECT 1 FROM vehicles WHERE plate = ?', body.plate)) {
     throw new HttpError(409, 'PLATE_TAKEN', 'A vehicle with this number plate already exists');
   }
   checkPayoutDetails(body);
-  checkVehicleLinks(body);
+  await checkVehicleLinks(body);
   const bank = body.owner_payout_method === 'bank';
-  const vehicleId = insertId(
-    db
-      .prepare(
-        `INSERT INTO vehicles (plate, description, owner_name, owner_phone, owner_payout_method, owner_bank_name, owner_bank_paybill,
-                               owner_bank_account, conductor_id, driver_id, route_id, qr_token)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        body.plate,
-        body.description ?? null,
-        body.owner_name,
-        body.owner_phone,
-        bank ? 'bank' : 'mpesa',
-        bank ? body.owner_bank_name : null,
-        bank ? body.owner_bank_paybill : null,
-        bank ? body.owner_bank_account : null,
-        body.conductor_id ?? null,
-        body.driver_id ?? null,
-        body.route_id ?? null,
-        newQrToken(),
-      ),
+  const vehicleId = await db.insert(
+    `INSERT INTO vehicles (plate, description, owner_name, owner_phone, owner_payout_method, owner_bank_name, owner_bank_paybill,
+                           owner_bank_account, conductor_id, driver_id, route_id, qr_token)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    body.plate,
+    body.description ?? null,
+    body.owner_name,
+    body.owner_phone,
+    bank ? 'bank' : 'mpesa',
+    bank ? body.owner_bank_name : null,
+    bank ? body.owner_bank_paybill : null,
+    bank ? body.owner_bank_account : null,
+    body.conductor_id ?? null,
+    body.driver_id ?? null,
+    body.route_id ?? null,
+    newQrToken(),
   );
-  res.status(201).json(getVehicle(vehicleId));
+  res.status(201).json(await getVehicle(vehicleId));
 });
 
-router.patch('/vehicles/:id', (req, res) => {
+router.patch('/vehicles/:id', async (req, res) => {
   const vehicleId = parse(id, req.params.id);
   const body = parse(
     z.object({
@@ -485,19 +489,19 @@ router.patch('/vehicles/:id', (req, res) => {
     }),
     req.body,
   );
-  const existing = getVehicle(vehicleId);
+  const existing = await getVehicle(vehicleId);
   if (!existing) throw notFound('Vehicle');
   checkPayoutDetails({ ...existing, ...body });
-  checkVehicleLinks(body, vehicleId);
-  updateRow('vehicles', vehicleId, body);
-  res.json(getVehicle(vehicleId));
+  await checkVehicleLinks(body, vehicleId);
+  await updateRow('vehicles', vehicleId, body);
+  res.json(await getVehicle(vehicleId));
 });
 
 // Makes the old sticker stop working (e.g. if it was copied onto another vehicle).
-router.post('/vehicles/:id/rotate-qr', (req, res) => {
+router.post('/vehicles/:id/rotate-qr', async (req, res) => {
   const vehicleId = parse(id, req.params.id);
-  updateRow('vehicles', vehicleId, { qr_token: newQrToken() });
-  res.json(getVehicle(vehicleId));
+  await updateRow('vehicles', vehicleId, { qr_token: newQrToken() });
+  res.json(await getVehicle(vehicleId));
 });
 
 // The QR sticker to print and put inside the vehicle.
@@ -505,14 +509,14 @@ const qrPng = (vehicle) => QRCode.toBuffer(`${config.qrPrefix}${vehicle.qr_token
 const qrFileName = (vehicle) => `FarePay-QR-${vehicle.plate.replace(/\W+/g, '_')}.png`;
 
 router.get('/vehicles/:id/qr.png', async (req, res) => {
-  const vehicle = getVehicle(parse(id, req.params.id));
+  const vehicle = await getVehicle(parse(id, req.params.id));
   if (!vehicle) throw notFound('Vehicle');
   res.type('png').set('Content-Disposition', `inline; filename="${qrFileName(vehicle)}"`).send(await qrPng(vehicle));
 });
 
 // The same picture inside a normal JSON answer, for the app (images that need a sign-in don't load reliably on Android).
 router.get('/vehicles/:id/qr', async (req, res) => {
-  const vehicle = getVehicle(parse(id, req.params.id));
+  const vehicle = await getVehicle(parse(id, req.params.id));
   if (!vehicle) throw notFound('Vehicle');
   res.json({ plate: vehicle.plate, file_name: qrFileName(vehicle), png_base64: (await qrPng(vehicle)).toString('base64') });
 });

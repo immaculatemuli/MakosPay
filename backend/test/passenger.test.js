@@ -8,7 +8,7 @@ process.env.JWT_SECRET = 'test';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -119,8 +119,8 @@ test('paying to a stop that is not on the vehicle route is refused', async () =>
 });
 
 test('paying from the wallet takes the drop-off fare and gives a ticket', async () => {
-  const userId = db.prepare("SELECT id FROM users WHERE phone = '254722222222'").get().id;
-  tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 500, description: 'Test credit' }));
+  const userId = (await db.get("SELECT id FROM users WHERE phone = '254722222222'")).id;
+  await tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 500, description: 'Test credit' }));
 
   const key = randomUUID();
   const r = await pay(key);
@@ -139,7 +139,7 @@ test('paying from the wallet takes the drop-off fare and gives a ticket', async 
 });
 
 test('the owner of the vehicle at the time is recorded on the trip', async () => {
-  const trip = db.prepare('SELECT owner_name, owner_phone FROM trips WHERE ticket_code = ?').get(s.ticket);
+  const trip = (await db.get('SELECT owner_name, owner_phone FROM trips WHERE ticket_code = ?', s.ticket));
   assert.deepEqual({ ...trip }, { owner_name: 'Mary Owner', owner_phone: '254744555666' });
 });
 

@@ -3,7 +3,7 @@
 //   - money in:  passengers' M-Pesa payments (top-ups and fares), matched by M-Pesa receipt number
 //   - money out: owner payouts and passenger withdrawals, matched by M-Pesa transaction code
 // It only reads. Nothing in the statement changes FarePay's records.
-import { db } from '../db.js';
+import { db } from '../database.js';
 
 /** Splits CSV text into rows of cells (handles quotes, commas and line breaks inside quotes). */
 export function parseCsv(text) {
@@ -95,7 +95,7 @@ export function readStatement(text) {
 const isCharge = (t) => /charge|fee/i.test(`${t.details} ${t.reason}`);
 
 /** Matches the statement against FarePay. Each problem list says exactly which receipt to look at. */
-export function checkStatement(text) {
+export async function checkStatement(text) {
   const rows = readStatement(text);
   if (rows.length === 0) throw new Error('The statement has no completed transactions.');
   const times = rows.map((t) => t.time).filter(Boolean).sort();
@@ -103,14 +103,16 @@ export function checkStatement(text) {
 
   // FarePay's side: confirmed M-Pesa money in, and money sent out with an M-Pesa code.
   const mpesaIn = new Map(
-    db.prepare("SELECT id, mpesa_receipt AS receipt, amount, purpose, completed_at FROM mpesa_payments WHERE status = 'completed' AND mpesa_receipt IS NOT NULL").all().map((p) => [p.receipt.toUpperCase(), p]),
+    (await db.all("SELECT id, mpesa_receipt AS receipt, amount, purpose, completed_at FROM mpesa_payments WHERE status = 'completed' AND mpesa_receipt IS NOT NULL")).map(
+      (p) => [p.receipt.toUpperCase(), p],
+    ),
   );
   const out = new Map(
     [
-      ...db.prepare("SELECT id, 'payout' AS kind, reference, amount, owner_name AS name, completed_at FROM payouts WHERE status = 'completed' AND reference IS NOT NULL").all(),
-      ...db
-        .prepare("SELECT w.id, 'withdrawal' AS kind, w.reference, w.amount, u.name, w.completed_at FROM withdrawals w JOIN users u ON u.id = w.user_id WHERE w.status = 'completed' AND w.reference IS NOT NULL")
-        .all(),
+      ...(await db.all("SELECT id, 'payout' AS kind, reference, amount, owner_name AS name, completed_at FROM payouts WHERE status = 'completed' AND reference IS NOT NULL")),
+      ...(await db.all(
+        "SELECT w.id, 'withdrawal' AS kind, w.reference, w.amount, u.name, w.completed_at FROM withdrawals w JOIN users u ON u.id = w.user_id WHERE w.status = 'completed' AND w.reference IS NOT NULL",
+      )),
     ].map((o) => [o.reference.toUpperCase(), o]),
   );
 

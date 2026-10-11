@@ -9,7 +9,7 @@ process.env.MPESA_MODE = 'mock';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db } = await import('../src/db.js');
+const { db } = await import('../src/database.js');
 const { handleStkCallback } = await import('../src/services/payments.js');
 const { dailyPayoutRun } = await import('../src/services/payouts.js');
 const { nightlyMoneyCheck } = await import('../src/services/reconciliation.js');
@@ -47,7 +47,7 @@ before(async () => {
   s.vehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: route.id } })).body;
   s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0722333444', password: 'pass123' } })).body.token;
   s.other = (await api('POST', '/auth/register', { body: { name: 'Olive', phone: '0722333555', password: 'pass123' } })).body.token;
-  s.passengerId = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
+  s.passengerId = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
 });
 after(() => server.close());
 
@@ -64,8 +64,8 @@ test('a completed top-up tells the passenger the amount, receipt and new balance
 });
 
 test('a cancelled M-Pesa top-up is reported, with nothing taken', async () => {
-  db.prepare("INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status, checkout_request_id) VALUES (?, '254722333444', 100, 'wallet', 'pending', 'ws_CO_test')").run(s.passengerId);
-  handleStkCallback({ Body: { stkCallback: { CheckoutRequestID: 'ws_CO_test', ResultCode: 1032, ResultDesc: 'Request cancelled by user' } } });
+  (await db.run("INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status, checkout_request_id) VALUES (?, '254722333444', 100, 'wallet', 'pending', 'ws_CO_test')", s.passengerId));
+  await handleStkCallback({ Body: { stkCallback: { CheckoutRequestID: 'ws_CO_test', ResultCode: 1032, ResultDesc: 'Request cancelled by user' } } });
   const n = await latest(s.passenger);
   assert.equal(n.kind, 'topup.failed');
   assert.match(n.body, /Request cancelled by user\. No money was taken/);
@@ -132,18 +132,18 @@ test('daily payouts tell the office what was sent', async () => {
 test('the nightly money check is quiet when the books balance and alerts the office when not', async () => {
   const count = async () => (await inbox(s.admin)).items.length;
   const before = await count();
-  assert.equal(nightlyMoneyCheck().all_ok, true);
+  assert.equal((await nightlyMoneyCheck()).all_ok, true);
   assert.equal(await count(), before, 'no alert when everything adds up');
 
-  db.prepare('UPDATE wallets SET balance = balance + 1000 WHERE user_id = ?').run(s.passengerId);
-  assert.equal(nightlyMoneyCheck().all_ok, false);
+  (await db.run('UPDATE wallets SET balance = balance + 1000 WHERE user_id = ?', s.passengerId));
+  assert.equal((await nightlyMoneyCheck()).all_ok, false);
   const n = await latest(s.admin);
   assert.equal(n.kind, 'money_check.failed');
   assert.equal(n.title, 'Money check: 1 problem found');
   assert.match(n.body, /Every wallet balance matches its history/);
   assert.equal(n.target, 'money-check');
   assert.equal((await latest(s.admin2)).kind, 'money_check.failed');
-  db.prepare('UPDATE wallets SET balance = balance - 1000 WHERE user_id = ?').run(s.passengerId);
+  (await db.run('UPDATE wallets SET balance = balance - 1000 WHERE user_id = ?', s.passengerId));
 });
 
 test('signed-out people get nothing', async () => {

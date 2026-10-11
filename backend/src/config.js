@@ -8,6 +8,11 @@ export const config = {
   jwtSecret: env.JWT_SECRET ?? 'dev-only-insecure-secret',
   jwtExpiresIn: env.JWT_EXPIRES_IN ?? '30d',
   dbPath: env.DB_PATH ?? './data/farepay.db',
+  // Which database the app uses: 'sqlite' (DB_PATH, today) or 'postgres' (DATABASE_URL, being prepared).
+  dbEngine: env.DB_ENGINE ?? 'sqlite',
+  databaseUrl: env.DATABASE_URL || null,
+  // Tests only: each test file gets its own empty PostgreSQL schema (needs a database whose name ends in _test).
+  dbIsolate: env.DB_ISOLATE === '1',
   // A copy of the database is saved every night (Kenyan time) into backupDir; the newest backupKeep are kept.
   backupDir: env.BACKUP_DIR ?? './data/backups',
   backupDailyAt: env.BACKUP_DAILY_AT ?? '03:00',
@@ -85,3 +90,5 @@ if (!['sandbox', 'live'].includes(config.intasend.mode)) throw new Error('INTASE
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.payoutDailyAt)) throw new Error('PAYOUT_DAILY_AT must be HH:MM, e.g. 21:00');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.moneyCheckDailyAt)) throw new Error('MONEY_CHECK_DAILY_AT must be HH:MM, e.g. 23:00');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.backupDailyAt)) throw new Error('BACKUP_DAILY_AT must be HH:MM, e.g. 03:00');
+if (!['sqlite', 'postgres'].includes(config.dbEngine)) throw new Error('DB_ENGINE must be sqlite or postgres');
+if (config.dbEngine === 'postgres' && !config.databaseUrl) throw new Error('DB_ENGINE=postgres needs DATABASE_URL');

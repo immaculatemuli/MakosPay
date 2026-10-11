@@ -9,7 +9,7 @@ process.env.MPESA_MODE = 'mock';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -48,8 +48,8 @@ before(async () => {
   s.driver = await login('0711111112', 'drive123');
 
   s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0722333444', password: 'pass123' } })).body.token;
-  const pid = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 500 }));
+  const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 500 }));
   s.ticket = (await api('POST', '/passenger/pay', { token: s.passenger, body: { qr: s.vehicle.qr_token, stop_id: s.stop.id, expected_fare: 70, idempotency_key: randomUUID() } })).body.trip.ticket_code;
 });
 after(() => server.close());

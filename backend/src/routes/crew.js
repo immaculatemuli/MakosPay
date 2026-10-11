@@ -2,7 +2,7 @@
 // Only the conductor can change the vehicle's route. Crew can never change fares, wallets or payouts.
 import { Router } from 'express';
 import { z } from 'zod';
-import { db } from '../db.js';
+import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
@@ -16,9 +16,9 @@ const router = Router();
 const CREW_COLUMN = { conductor: 'conductor_id', driver: 'driver_id' };
 
 /** The vehicle this conductor or driver works on. */
-function myVehicle(user) {
+async function myVehicle(user) {
   const column = CREW_COLUMN[user.role];
-  const vehicle = column && db.prepare(`SELECT * FROM vehicles WHERE ${column} = ? AND is_active = 1`).get(user.id);
+  const vehicle = column && (await db.get(`SELECT * FROM vehicles WHERE ${column} = ? AND is_active = TRUE`, user.id));
   if (!vehicle) throw new HttpError(404, 'NO_VEHICLE', 'You are not on a vehicle yet. Ask the SACCO office to add you to one.');
   return vehicle;
 }
@@ -28,37 +28,40 @@ const forCrew = ({ passenger_phone, owner_name, owner_phone, payout_id, ...trip 
 
 function daySummary(vehicleId, date) {
   const [from, to] = nairobiDayRange(date);
-  return db
-    .prepare("SELECT COUNT(*) AS payments, COALESCE(SUM(fare), 0) AS total FROM trips WHERE vehicle_id = ? AND status = 'paid' AND created_at >= ? AND created_at < ?")
-    .get(vehicleId, from, to);
+  return db.get(
+    "SELECT COUNT(*) AS payments, COALESCE(SUM(fare), 0) AS total FROM trips WHERE vehicle_id = ? AND status = 'paid' AND created_at >= ? AND created_at < ?",
+    vehicleId,
+    from,
+    to,
+  );
 }
 
-const vehicleView = (vehicle) => {
-  const route = vehicle.route_id ? getRoute(vehicle.route_id) : null;
+const vehicleView = async (vehicle) => {
+  const route = vehicle.route_id ? await getRoute(vehicle.route_id) : null;
   return {
     vehicle: { id: vehicle.id, plate: vehicle.plate, description: vehicle.description },
     route: route && { id: route.id, name: route.name, origin: route.origin, stops: route.stops },
   };
 };
 
-router.get('/vehicle', (req, res) => {
-  const vehicle = myVehicle(req.user);
-  res.json({ ...vehicleView(vehicle), today: daySummary(vehicle.id, nairobiToday()) });
+router.get('/vehicle', async (req, res) => {
+  const vehicle = await myVehicle(req.user);
+  res.json({ ...(await vehicleView(vehicle)), today: await daySummary(vehicle.id, nairobiToday()) });
 });
 
 // Payments on this vehicle on one day (default today, Kenyan time), newest first.
-router.get('/payments', (req, res) => {
+router.get('/payments', async (req, res) => {
   const { date } = parse(z.object({ date: z.string().date().default(nairobiToday) }), req.query);
-  const vehicle = myVehicle(req.user);
+  const vehicle = await myVehicle(req.user);
   const [from, to] = nairobiDayRange(date);
-  const trips = db.prepare(`${TRIP_SELECT} WHERE t.vehicle_id = ? AND t.created_at >= ? AND t.created_at < ? ORDER BY t.id DESC`).all(vehicle.id, from, to);
-  res.json({ date, summary: daySummary(vehicle.id, date), payments: trips.map(forCrew) });
+  const trips = await db.all(`${TRIP_SELECT} WHERE t.vehicle_id = ? AND t.created_at >= ? AND t.created_at < ? ORDER BY t.id DESC`, vehicle.id, from, to);
+  res.json({ date, summary: await daySummary(vehicle.id, date), payments: trips.map(forCrew) });
 });
 
 // Check the ticket code a passenger shows.
-router.get('/tickets/:code', (req, res) => {
-  const vehicle = myVehicle(req.user);
-  const trip = db.prepare(`${TRIP_SELECT} WHERE t.ticket_code = ?`).get(req.params.code.trim().toUpperCase());
+router.get('/tickets/:code', async (req, res) => {
+  const vehicle = await myVehicle(req.user);
+  const trip = await db.get(`${TRIP_SELECT} WHERE t.ticket_code = ?`, req.params.code.trim().toUpperCase());
   if (!trip || trip.vehicle_id !== vehicle.id) {
     throw new HttpError(404, 'TICKET_NOT_FOUND', 'No ticket with this code was paid on your vehicle');
   }
@@ -68,28 +71,29 @@ router.get('/tickets/:code', (req, res) => {
 
 // ---------- Problem reports from crew ----------
 
-router.post('/reports', (req, res) => {
-  res.status(201).json(fileReport(req.user, parse(reportSchema, req.body), { vehicleId: myVehicle(req.user).id }));
+router.post('/reports', async (req, res) => {
+  const body = parse(reportSchema, req.body);
+  res.status(201).json(await fileReport(req.user, body, { vehicleId: (await myVehicle(req.user)).id }));
 });
 
-router.get('/reports', (req, res) => {
-  const rows = db.prepare(`${REPORT_SELECT} WHERE r.reporter_id = ? ORDER BY r.id DESC LIMIT 50`).all(req.user.id);
+router.get('/reports', async (req, res) => {
+  const rows = await db.all(`${REPORT_SELECT} WHERE r.reporter_id = ? ORDER BY r.id DESC LIMIT 50`, req.user.id);
   res.json(rows.map(({ reporter_phone, handled_by, ...r }) => r));
 });
 
-router.get('/routes', (_req, res) => {
-  res.json(listRoutes({ activeOnly: true }).map(({ id: routeId, name, origin, stops }) => ({ id: routeId, name, origin, stops })));
+router.get('/routes', async (_req, res) => {
+  res.json((await listRoutes({ activeOnly: true })).map(({ id: routeId, name, origin, stops }) => ({ id: routeId, name, origin, stops })));
 });
 
 // The vehicle is plying a different route today: passengers who scan after this pay that route's fares. Conductor only.
-router.put('/vehicle/route', (req, res) => {
+router.put('/vehicle/route', async (req, res) => {
   if (req.user.role !== 'conductor') throw new HttpError(403, 'FORBIDDEN', 'Only the conductor can change the route');
   const { route_id } = parse(z.object({ route_id: id }), req.body);
-  const vehicle = myVehicle(req.user);
-  const route = getRoute(route_id);
+  const vehicle = await myVehicle(req.user);
+  const route = await getRoute(route_id);
   if (!route || !route.is_active || route.stops.length === 0) throw notFound('Route');
-  db.prepare('UPDATE vehicles SET route_id = ? WHERE id = ?').run(route.id, vehicle.id);
-  res.json(vehicleView({ ...vehicle, route_id: route.id }));
+  await db.run('UPDATE vehicles SET route_id = ? WHERE id = ?', route.id, vehicle.id);
+  res.json(await vehicleView({ ...vehicle, route_id: route.id }));
 });
 
 export default router;

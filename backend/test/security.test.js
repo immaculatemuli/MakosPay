@@ -12,7 +12,7 @@ process.env.MPESA_MODE = 'mock';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { backupNow } = await import('../src/services/backup.js');
+const { BACKUP_EXTENSION: ext, backupNow } = await import('../src/services/backup.js');
 
 let server;
 let base;
@@ -106,19 +106,19 @@ test('too-large requests are refused politely', async () => {
   assert.equal(r.body.error.code, 'TOO_LARGE');
 });
 
-test('backups: a full copy per day, only the newest kept', () => {
+test('backups: a full copy per day, only the newest kept', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'farepay-backup-'));
-  for (const old of ['2026-01-01', '2026-01-02', '2026-01-03']) writeFileSync(join(dir, `farepay-${old}.db`), 'old');
+  for (const old of ['2026-01-01', '2026-01-02', '2026-01-03']) writeFileSync(join(dir, `farepay-${old}.${ext}`), 'old');
   writeFileSync(join(dir, 'notes.txt'), 'not a backup');
-  const { file, bytes, removed } = backupNow(dir, 2, '2026-01-04');
+  const { file, bytes, removed } = await backupNow(dir, 2, '2026-01-04');
   assert.ok(existsSync(file));
   assert.ok(bytes > 1000, 'a real database file');
-  assert.deepEqual(removed, ['farepay-2026-01-01.db', 'farepay-2026-01-02.db']);
-  assert.deepEqual(readdirSync(dir).sort(), ['farepay-2026-01-03.db', 'farepay-2026-01-04.db', 'notes.txt']);
-  backupNow(dir, 2, '2026-01-04'); // running twice on one day replaces that day's file
+  assert.deepEqual(removed, [`farepay-2026-01-01.${ext}`, `farepay-2026-01-02.${ext}`]);
+  assert.deepEqual(readdirSync(dir).sort(), [`farepay-2026-01-03.${ext}`, `farepay-2026-01-04.${ext}`, 'notes.txt']);
+  await backupNow(dir, 2, '2026-01-04'); // running twice on one day replaces that day's file
 });
 
-test('the server refuses to start in production with weak settings, and real money needs production', () => {
+test('the server refuses to start in production with weak settings, and real money needs production', async () => {
   const start = (env) =>
     spawnSync(process.execPath, ['-e', "import('./src/config.js').then(() => console.log('started'))"], {
       cwd: join(import.meta.dirname, '..'),

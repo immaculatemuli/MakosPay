@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticate, requireRole } from './auth.js';
 import { config } from './config.js';
-import { db } from './db.js';
+import { db } from './database.js';
 import { HttpError } from './errors.js';
 import { auditChanges } from './services/audit.js';
 import adminRoutes from './routes/admin.js';
@@ -35,8 +35,8 @@ export function createApp() {
   app.use((req, res, next) => (req.path === '/admin/statement-check' ? statementJson : smallJson)(req, res, next));
 
   // For the hosting's uptime check: also makes sure the database answers.
-  app.get('/health', (_req, res) => {
-    db.prepare('SELECT 1').get();
+  app.get('/health', async (_req, res) => {
+    await db.get('SELECT 1 AS ok');
     res.json({ ok: true });
   });
   app.use('/auth', authRoutes);
