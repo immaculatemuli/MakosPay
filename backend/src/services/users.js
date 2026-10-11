@@ -48,7 +48,7 @@ export async function deleteOwnAccount(userId, currentPassword) {
   if (user.role !== 'passenger') throw new HttpError(403, 'FORBIDDEN', 'Only passenger accounts can be deleted here');
   const balance = db.prepare('SELECT balance FROM wallets WHERE user_id = ?').get(userId)?.balance ?? 0;
   if (balance > 0) {
-    throw new HttpError(409, 'WALLET_NOT_EMPTY', `Your wallet still has KES ${balance}. Use it for fares, or ask the SACCO office to refund it, then delete your account.`);
+    throw new HttpError(409, 'WALLET_NOT_EMPTY', `Your wallet still has KES ${balance}. Withdraw it to M-Pesa from your Wallet (or use it for fares), then delete your account.`);
   }
   const unusable = await bcrypt.hash(randomUUID(), 10);
   db.prepare("UPDATE users SET name = 'Deleted passenger', phone = ?, password_hash = ?, is_active = 0 WHERE id = ?").run(`deleted-${userId}`, unusable, userId);

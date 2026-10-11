@@ -30,6 +30,8 @@ export default function AdminLayout() {
       <Stack.Screen name="audit" options={{ title: 'Audit log' }} />
       <Stack.Screen name="reconciliation" options={{ title: 'Money check' }} />
       <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+      <Stack.Screen name="withdrawals" options={{ title: 'Passenger withdrawals' }} />
+      <Stack.Screen name="statement" options={{ title: 'M-Pesa statement check' }} />
       <Stack.Screen name="account" options={{ title: 'My account' }} />
     </Stack>
   );

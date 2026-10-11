@@ -1,6 +1,6 @@
 // In-app notifications: a short message for one person, shown under the bell in the app.
 // `target` says what the message is about, so the app can open the right screen:
-//   wallet | trips | reports | fare-changes | payouts | payout:<id> | money-check
+//   wallet | trips | reports | fare-changes | payouts | payout:<id> | money-check | withdrawals
 // Notifications are never required for money to move: they only tell people what already happened.
 import { db, NOW } from '../db.js';
 

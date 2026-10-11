@@ -225,7 +225,45 @@ export interface Reconciliation {
     owed_to_owners: number;
     refunds_to_take_back: number;
     mpesa_pending: number;
+    withdrawn_to_mpesa: number;
+    withdrawals_being_sent: number;
   };
+}
+
+/** A passenger taking wallet money back to their own M-Pesa number. */
+export interface Withdrawal {
+  id: number;
+  phone: string;
+  amount: number;
+  status: 'processing' | 'manual' | 'completed' | 'failed';
+  reference: string | null;
+  result_desc: string | null;
+  created_at: string;
+  completed_at: string | null;
+  // Office only:
+  passenger_name?: string;
+  handled_by_name?: string | null;
+}
+
+/** One problem line from the M-Pesa statement check: which receipt, and the amounts on each side. */
+export interface StatementLine {
+  receipt: string;
+  amount?: number;
+  statement?: number;
+  farepay?: number;
+  time?: string | null;
+  details?: string;
+  what?: string;
+}
+
+export interface StatementCheck {
+  period: { from: string | null; to: string | null };
+  transactions: number;
+  money_in: { matched: number; amount: number; wrong_amount: StatementLine[]; not_in_farepay: StatementLine[] };
+  money_out: { matched: number; amount: number; wrong_amount: StatementLine[]; not_in_farepay: StatementLine[] };
+  charges: { count: number; amount: number };
+  not_in_statement: StatementLine[];
+  all_ok: boolean;
 }
 
 /** A message under the bell. `target` says which screen it is about (see lib/notifications). */
@@ -332,7 +370,7 @@ export interface MpesaResponse {
 
 export interface WalletTx {
   id: number;
-  type: 'topup' | 'fare' | 'refund' | 'test_credit';
+  type: 'topup' | 'fare' | 'refund' | 'test_credit' | 'withdrawal' | 'withdrawal_reversal';
   amount: number;
   balance_after: number;
   reference: string | null;

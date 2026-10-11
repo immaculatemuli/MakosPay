@@ -19,11 +19,15 @@ export function audit(actor, action, entity = null, entityId = null, details = n
 // Never stored in the audit log, whatever endpoint they come through.
 const SECRET_KEYS = /password|pin|secret|token|credential|passkey/i;
 
+// Long text (e.g. an uploaded M-Pesa statement) is not copied into the log, only its length.
+const MAX_TEXT = 1000;
+
 const redact = (value) => {
   if (Array.isArray(value)) return value.map(redact);
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, SECRET_KEYS.test(k) ? '[hidden]' : redact(v)]));
   }
+  if (typeof value === 'string' && value.length > MAX_TEXT) return `[${value.length} characters]`;
   return value;
 };
 

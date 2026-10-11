@@ -8,6 +8,7 @@ import { getUserPayment, startFarePayment, startTopup } from '../services/paymen
 import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
 import { listRoutes, publicFareChanges } from '../services/routes.js';
 import { getBalance } from '../services/wallet.js';
+import { requestWithdrawal } from '../services/withdrawals.js';
 import { payFare, quoteFare, TRIP_SELECT } from '../services/trips.js';
 import { nairobiDayRange, nairobiToday } from '../util.js';
 import { id, kes, parse, phone } from '../validate.js';
@@ -149,6 +150,21 @@ router.post('/wallet/topup', async (req, res) => {
   const body = parse(z.object({ amount: kes, phone: phone.optional() }), req.body);
   const payment = await startTopup(req.user.id, { amount: body.amount, phone: body.phone ?? req.user.phone });
   res.status(202).json({ payment, wallet_balance: getBalance(req.user.id) });
+});
+
+// Withdrawals: wallet money back to the passenger's own M-Pesa number (never another number).
+router.get('/withdrawals', (req, res) => {
+  const rows = db
+    .prepare('SELECT id, phone, amount, status, reference, result_desc, created_at, completed_at FROM withdrawals WHERE user_id = ? ORDER BY id DESC LIMIT 20')
+    .all(req.user.id);
+  res.json({ balance: getBalance(req.user.id), phone: req.user.phone, min_amount: config.minWithdrawal, per_day: config.maxWithdrawalsPerDay, withdrawals: rows });
+});
+
+router.post('/withdrawals', async (req, res) => {
+  const { amount } = parse(z.object({ amount: kes }), req.body);
+  const withdrawal = await requestWithdrawal(req.user, amount);
+  const { passenger_name, handled_by, handled_by_name, conversation_id, provider_reference, ...mine } = withdrawal;
+  res.status(201).json({ withdrawal: mine, balance: getBalance(req.user.id) });
 });
 
 // M-Pesa payments that are still waiting or didn't go through, so the wallet can explain them.

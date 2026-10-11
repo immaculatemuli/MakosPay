@@ -5,6 +5,7 @@ import { isConfigured, isMock, providerLabel } from './services/mpesa.js';
 import { reconcilePendingPayments } from './services/payments.js';
 import { reconcileProcessingPayouts, startDailyPayouts } from './services/payouts.js';
 import { startNightlyMoneyCheck } from './services/reconciliation.js';
+import { reconcileProcessingWithdrawals } from './services/withdrawals.js';
 import { applyDueFareChanges } from './services/routes.js';
 
 /** Runs fn on a timer in the background, never two runs at once. */
@@ -40,6 +41,7 @@ createApp().listen(config.port, '0.0.0.0', () => {
   }
   if (isConfigured.b2c) {
     if (!isMock) every(config.mpesa.reconcileEveryMs, 'payouts', () => reconcileProcessingPayouts());
+    if (!isMock) every(config.mpesa.reconcileEveryMs, 'withdrawals', () => reconcileProcessingWithdrawals());
     console.log(`  Owners are paid automatically every day at ${config.payoutDailyAt} (Kenyan time)`);
   } else {
     console.warn('! Automatic owner payouts are off: the office sends the money itself and records the M-Pesa code');

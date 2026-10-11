@@ -13,7 +13,10 @@ import platformRoutes from './routes/platform.js';
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '100kb' }));
+  // Small bodies everywhere, except an uploaded M-Pesa statement (a CSV file sent as text).
+  const smallJson = express.json({ limit: '100kb' });
+  const statementJson = express.json({ limit: '6mb' });
+  app.use((req, res, next) => (req.path === '/admin/statement-check' ? statementJson : smallJson)(req, res, next));
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
   app.use('/auth', authRoutes);

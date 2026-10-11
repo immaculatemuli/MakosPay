@@ -11,6 +11,8 @@ const LABEL: Record<WalletTx['type'], string> = {
   fare: 'Fare',
   refund: 'Refund',
   test_credit: 'Test credit',
+  withdrawal: 'Withdrawal to M-Pesa',
+  withdrawal_reversal: 'Withdrawal not sent',
 };
 
 type Attempt = Pick<MpesaPayment, 'id' | 'amount' | 'purpose' | 'status' | 'result_desc'> & { created_at: string };
@@ -35,6 +37,7 @@ export default function Wallet() {
         <Text style={{ fontSize: 34, fontWeight: '800', color: colors.text }}>{wallet.data ? kes(wallet.data.balance) : '—'}</Text>
       </Card>
       <Button title="Add money with M-Pesa" icon="add-circle-outline" onPress={() => router.push('/passenger/topup')} />
+      <Button title="Withdraw to M-Pesa" variant="secondary" icon="arrow-up-circle-outline" onPress={() => router.push('/passenger/withdraw')} />
 
       {!!attempts.data?.length && (
         <>

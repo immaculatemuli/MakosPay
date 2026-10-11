@@ -63,6 +63,14 @@ export function reconcile() {
     .all()
     .filter((p) => p.amount !== p.expected);
 
+  // 7. Every withdrawal took its amount from the wallet once, and a failed one put it back once.
+  const withdrawalMismatches = one(
+    `SELECT COUNT(*) AS n FROM withdrawals w WHERE
+       (SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions t WHERE t.user_id = w.user_id AND t.reference = 'W' || w.id AND t.type = 'withdrawal') != -w.amount
+       OR (SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions t WHERE t.user_id = w.user_id AND t.reference = 'W' || w.id AND t.type = 'withdrawal_reversal')
+          != CASE WHEN w.status = 'failed' THEN w.amount ELSE 0 END`,
+  );
+
   const totals = {
     real_money: live,
     mpesa_collected: mpesaCompleted,
@@ -75,6 +83,8 @@ export function reconcile() {
     owed_to_owners: owedNow,
     refunds_to_take_back: one('SELECT COALESCE(SUM(amount), 0) AS n FROM owner_deductions WHERE payout_id IS NULL'),
     mpesa_pending: one("SELECT COALESCE(SUM(amount), 0) AS n FROM mpesa_payments WHERE status = 'pending'"),
+    withdrawn_to_mpesa: one("SELECT COALESCE(SUM(amount), 0) AS n FROM withdrawals WHERE status = 'completed'"),
+    withdrawals_being_sent: one("SELECT COALESCE(SUM(amount), 0) AS n FROM withdrawals WHERE status IN ('processing', 'manual')"),
   };
 
   const checks = [
@@ -100,6 +110,11 @@ export function reconcile() {
       name: 'Each payout amount matches its fares',
       ok: payoutMismatches.length === 0,
       detail: payoutMismatches.length ? payoutMismatches.map((p) => `payout #${p.id} ${p.owner_name}: ${p.amount} vs ${p.expected}`).join('; ') : null,
+    },
+    {
+      name: 'Every withdrawal matches its wallet entries',
+      ok: withdrawalMismatches === 0,
+      detail: withdrawalMismatches ? `${withdrawalMismatches} withdrawals out of step with the wallet` : null,
     },
   ];
 

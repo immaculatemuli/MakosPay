@@ -88,7 +88,7 @@ export function AccountScreen({ children }: { children?: ReactNode }) {
       {user.role === 'passenger' && (
         <>
           <SectionTitle>Delete my account</SectionTitle>
-          <Muted>Use or get a refund of any money left in your wallet first. Your past payments are kept for the SACCO’s records, without your name or number.</Muted>
+          <Muted>Use any money left in your wallet, or withdraw it to M-Pesa from your Wallet, first. Your past payments are kept for the SACCO’s records, without your name or number.</Muted>
           <Field label="Your password" secureTextEntry value={deletePassword} onChangeText={setDeletePassword} />
           {deleteError && <ErrorBox message={deleteError} />}
           <Button title="Delete my account" variant="danger" icon="trash-outline" onPress={deleteAccount} loading={deleting} disabled={!deletePassword} />

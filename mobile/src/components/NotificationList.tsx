@@ -14,6 +14,7 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 function iconFor(kind: string): IconName {
   if (kind.startsWith('topup') || kind.startsWith('fare_mpesa')) return 'wallet-outline';
+  if (kind.startsWith('withdrawal')) return 'arrow-up-circle-outline';
   if (kind === 'fare.refunded') return 'return-down-back-outline';
   if (kind === 'fare.changed') return 'pricetag-outline';
   if (kind.startsWith('report')) return 'chatbox-ellipses-outline';

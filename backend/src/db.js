@@ -16,6 +16,9 @@ db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeou
 // the computer. Vehicle owners don't log in: the admin records their payout details on the vehicle.
 export const ROLES = ['admin', 'passenger', 'conductor', 'driver', 'platform_admin'];
 
+// Kinds of wallet entry. withdrawal: sent back to the passenger's M-Pesa; withdrawal_reversal: it couldn't be sent.
+const WALLET_TYPES = ['topup', 'fare', 'refund', 'test_credit', 'withdrawal', 'withdrawal_reversal'].map((t) => `'${t}'`).join(', ');
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id            INTEGER PRIMARY KEY,
@@ -75,7 +78,7 @@ CREATE TABLE IF NOT EXISTS wallets (
 CREATE TABLE IF NOT EXISTS wallet_transactions (
   id            INTEGER PRIMARY KEY,
   user_id       INTEGER NOT NULL REFERENCES users(id),
-  type          TEXT NOT NULL CHECK (type IN ('topup', 'fare', 'refund', 'test_credit')),
+  type          TEXT NOT NULL CHECK (type IN (${WALLET_TYPES})),
   amount        INTEGER NOT NULL,          -- positive = money in, negative = money out
   balance_after INTEGER NOT NULL,
   reference     TEXT,                      -- ticket code, M-Pesa receipt...
@@ -146,6 +149,26 @@ CREATE TABLE IF NOT EXISTS payouts (
   completed_at       TEXT
 );
 
+-- A passenger taking wallet money back to their own M-Pesa number. The wallet is debited when it is asked
+-- for; if the money can't be sent, it goes back into the wallet ('withdrawal_reversal').
+CREATE TABLE IF NOT EXISTS withdrawals (
+  id                 INTEGER PRIMARY KEY,
+  user_id            INTEGER NOT NULL REFERENCES users(id),
+  phone              TEXT NOT NULL,
+  amount             INTEGER NOT NULL CHECK (amount > 0),
+  -- processing: sent to M-Pesa, waiting for the result. manual: the office sends the money itself.
+  status             TEXT NOT NULL CHECK (status IN ('processing', 'manual', 'completed', 'failed')),
+  conversation_id    TEXT NOT NULL UNIQUE,
+  provider_reference TEXT,
+  reference          TEXT,                  -- M-Pesa transaction code once sent
+  result_desc        TEXT,
+  handled_by         INTEGER REFERENCES users(id),
+  created_at         TEXT NOT NULL DEFAULT (${NOW}),
+  completed_at       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, id);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status);
+
 -- Last run of scheduled jobs, so a restart never runs the daily payout twice.
 CREATE TABLE IF NOT EXISTS job_runs (
   name     TEXT PRIMARY KEY,
@@ -171,6 +194,31 @@ if (!usersSql.includes("'platform_admin'")) {
       INSERT INTO users_new SELECT id, name, phone, password_hash, role, is_active, created_at FROM users;
       DROP TABLE users;
       ALTER TABLE users_new RENAME TO users;
+    `);
+  });
+  db.exec('PRAGMA foreign_keys = ON');
+}
+
+// Wallet history only allowed four kinds of entry at first: rebuild it once to allow withdrawals (ids kept).
+const walletTxSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'wallet_transactions'").get().sql;
+if (!walletTxSql.includes("'withdrawal'")) {
+  db.exec('PRAGMA foreign_keys = OFF');
+  tx(() => {
+    db.exec(`
+      CREATE TABLE wallet_transactions_new (
+        id            INTEGER PRIMARY KEY,
+        user_id       INTEGER NOT NULL REFERENCES users(id),
+        type          TEXT NOT NULL CHECK (type IN (${WALLET_TYPES})),
+        amount        INTEGER NOT NULL,
+        balance_after INTEGER NOT NULL,
+        reference     TEXT,
+        description   TEXT,
+        created_at    TEXT NOT NULL DEFAULT (${NOW})
+      );
+      INSERT INTO wallet_transactions_new SELECT id, user_id, type, amount, balance_after, reference, description, created_at FROM wallet_transactions;
+      DROP TABLE wallet_transactions;
+      ALTER TABLE wallet_transactions_new RENAME TO wallet_transactions;
+      CREATE INDEX IF NOT EXISTS idx_wallet_tx_user ON wallet_transactions(user_id, id);
     `);
   });
   db.exec('PRAGMA foreign_keys = ON');

@@ -46,6 +46,8 @@ export default function MoneyCheck() {
             <KeyValue label="Still owed to owners" value={kes(d.totals.owed_to_owners)} />
             {d.totals.refunds_to_take_back > 0 && <KeyValue label="Refunds to take off next payouts" value={kes(d.totals.refunds_to_take_back)} />}
             {d.totals.mpesa_pending > 0 && <KeyValue label="M-Pesa waiting for confirmation" value={kes(d.totals.mpesa_pending)} />}
+            {d.totals.withdrawn_to_mpesa > 0 && <KeyValue label="Withdrawn by passengers to M-Pesa" value={kes(d.totals.withdrawn_to_mpesa)} />}
+            {d.totals.withdrawals_being_sent > 0 && <KeyValue label="Withdrawals being sent" value={kes(d.totals.withdrawals_being_sent)} />}
           </Card>
           <Muted>
             Money left in passenger wallets plus money owed to owners must always be covered by what is actually held in the business M-Pesa account. Compare

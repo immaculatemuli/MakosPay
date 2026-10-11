@@ -7,7 +7,9 @@ import { db, insertId } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
 import { completePayout, createPayout, failPayout, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
-import { listAudit } from '../services/audit.js';
+import { audit, listAudit } from '../services/audit.js';
+import { checkStatement } from '../services/statement.js';
+import { completeWithdrawal, failWithdrawal, WITHDRAWAL_SELECT } from '../services/withdrawals.js';
 import { dashboard } from '../services/dashboard.js';
 import { reconcile } from '../services/reconciliation.js';
 import {
@@ -149,6 +151,50 @@ router.post('/payouts/:id/complete', (req, res) => {
 router.post('/payouts/:id/fail', (req, res) => {
   const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
   res.json(failPayout(parse(id, req.params.id), reason));
+});
+
+// ---------- Passenger withdrawals (wallet money back to M-Pesa) ----------
+
+// Waiting ones first (the office may need to send them), then the latest finished ones.
+router.get('/withdrawals', (_req, res) => {
+  res.json({
+    automatic: mpesa.isConfigured.b2c,
+    open: db.prepare(`${WITHDRAWAL_SELECT} WHERE w.status IN ('processing', 'manual') ORDER BY w.id`).all(),
+    recent: db.prepare(`${WITHDRAWAL_SELECT} WHERE w.status IN ('completed', 'failed') ORDER BY w.id DESC LIMIT 50`).all(),
+  });
+});
+
+// The office sent the money itself: record the M-Pesa code.
+router.post('/withdrawals/:id/complete', (req, res) => {
+  const { reference } = parse(z.object({ reference: z.string().trim().min(3).max(100) }), req.body);
+  res.json(completeWithdrawal(parse(id, req.params.id), reference.toUpperCase(), req.user.id));
+});
+
+// It could not be sent: the money goes back into the passenger's wallet.
+router.post('/withdrawals/:id/fail', (req, res) => {
+  const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
+  res.json(failWithdrawal(parse(id, req.params.id), reason, req.user.id));
+});
+
+// ---------- M-Pesa statement check ----------
+
+// The CSV statement from the M-Pesa org portal, as text. Only reads; the result is kept in the audit log.
+router.post('/statement-check', (req, res) => {
+  const { csv } = parse(z.object({ csv: z.string().min(1).max(5_000_000) }), req.body);
+  let result;
+  try {
+    result = checkStatement(csv);
+  } catch (err) {
+    throw new HttpError(400, 'BAD_STATEMENT', err.message);
+  }
+  audit(req.user, 'statement.check', null, null, {
+    period: result.period,
+    all_ok: result.all_ok,
+    matched_in: result.money_in.matched,
+    matched_out: result.money_out.matched,
+    problems: result.money_in.wrong_amount.length + result.money_in.not_in_farepay.length + result.money_out.wrong_amount.length + result.money_out.not_in_farepay.length + result.not_in_statement.length,
+  });
+  res.json(result);
 });
 
 // ---------- Routes & fares ----------

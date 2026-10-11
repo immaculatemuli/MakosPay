@@ -17,6 +17,7 @@ export default function PassengerLayout() {
       <Stack.Screen name="pay" options={{ title: 'Confirm payment' }} />
       <Stack.Screen name="ticket" options={{ title: 'Your ticket', headerBackVisible: false, gestureEnabled: false }} />
       <Stack.Screen name="topup" options={{ title: 'Add money with M-Pesa' }} />
+      <Stack.Screen name="withdraw" options={{ title: 'Withdraw to M-Pesa' }} />
       <Stack.Screen name="report" options={{ title: 'Report a problem' }} />
       <Stack.Screen name="reports" options={{ title: 'My reports' }} />
       <Stack.Screen name="fare-changes" options={{ title: 'Fare changes' }} />

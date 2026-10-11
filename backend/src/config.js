@@ -19,6 +19,9 @@ export const config = {
   minTopup: num(env.MIN_TOPUP, 10),
   maxTopup: num(env.MAX_TOPUP, 20000),
   maxWalletBalance: num(env.MAX_WALLET_BALANCE, 50000),
+  // Passengers taking wallet money back to their M-Pesa: smallest amount, and how many times a day.
+  minWithdrawal: num(env.MIN_WITHDRAWAL, 10),
+  maxWithdrawalsPerDay: num(env.MAX_WITHDRAWALS_PER_DAY, 2),
 
   // Kenyan time (HH:MM) when every owner is sent their unpaid fares.
   payoutDailyAt: env.PAYOUT_DAILY_AT ?? '21:00',

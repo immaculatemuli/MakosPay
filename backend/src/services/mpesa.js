@@ -107,7 +107,7 @@ export async function stkQuery(checkoutRequestId) {
  * Sends money to an M-Pesa number. Returns { providerReference }: IntaSend's tracking id, or
  * Daraja's ConversationID (Daraja reports the outcome by callback instead).
  */
-export async function b2cPayment({ originatorConversationId, phone, amount, remarks, name }) {
+export async function b2cPayment({ originatorConversationId, phone, amount, remarks, name, occasion = 'Owner payout' }) {
   if (viaIntaSend) return intasend.b2cPayment({ phone, amount, remarks, name });
   if (isMock) return { providerReference: `mock-${randomUUID()}` };
   const data = await post('/mpesa/b2c/v3/paymentrequest', {
@@ -121,7 +121,7 @@ export async function b2cPayment({ originatorConversationId, phone, amount, rema
     Remarks: remarks.slice(0, 100),
     QueueTimeOutURL: callbackUrl('b2c/timeout'),
     ResultURL: callbackUrl('b2c/result'),
-    Occasion: 'Owner payout',
+    Occasion: occasion,
   });
   return { providerReference: data.ConversationID ?? null };
 }
