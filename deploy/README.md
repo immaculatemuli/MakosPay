@@ -29,9 +29,10 @@ changes. For real passengers and real money it must run on a server that is alwa
 Connect with SSH (`ssh ubuntu@<server-ip>`), then:
 
 ```bash
-# Node.js 24 and Git
+# Node.js 24, Git and Yarn 1.22 (FarePay's package manager)
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs git
+sudo npm install -g yarn@1.22.22
 
 # Caddy (handles https certificates automatically)
 sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
@@ -54,7 +55,7 @@ sudo useradd --system --create-home --home-dir /opt/farepay --shell /usr/sbin/no
 sudo git clone https://github.com/<you>/farepay.git /opt/farepay-src
 sudo cp -r /opt/farepay-src/. /opt/farepay/ && sudo chown -R farepay:farepay /opt/farepay
 cd /opt/farepay/backend
-sudo -u farepay npm ci --omit=dev
+sudo -u farepay yarn install --frozen-lockfile --production
 sudo -u farepay mkdir -p data
 ```
 
@@ -116,7 +117,7 @@ curl https://<your-address>/health    # should answer {"ok":true}
 ```bash
 cd /opt/farepay-src && sudo git pull
 sudo cp -r /opt/farepay-src/. /opt/farepay/ && sudo chown -R farepay:farepay /opt/farepay
-cd /opt/farepay/backend && sudo -u farepay npm ci --omit=dev
+cd /opt/farepay/backend && sudo -u farepay yarn install --frozen-lockfile --production
 sudo systemctl restart farepay
 ```
 

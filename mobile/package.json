@@ -33,5 +33,6 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit"
   },
-  "private": true
+  "private": true,
+  "packageManager": "yarn@1.22.22"
 }

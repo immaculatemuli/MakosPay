@@ -4,6 +4,7 @@
   "private": true,
   "description": "FarePay backend: matatu fare payments by QR code, passenger wallets and daily owner payouts",
   "type": "module",
+  "packageManager": "yarn@1.22.22",
   "engines": {
     "node": ">=22.13"
   },

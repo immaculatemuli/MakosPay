@@ -1,6 +1,6 @@
 // Creates a SACCO office account, or (with --platform) a platform admin account. Usage:
-//   npm run create-admin -- --name "Jane Doe" --phone 0712345678 --password "a-strong-password"
-//   npm run create-admin -- --platform --name "Jane Doe" --phone 0712345678 --password "a-strong-password"
+//   yarn create-admin --name "Jane Doe" --phone 0712345678 --password "a-strong-password"
+//   yarn create-admin --platform --name "Jane Doe" --phone 0712345678 --password "a-strong-password"
 import { parseArgs } from 'node:util';
 import { config } from '../src/config.js';
 import { createUser } from '../src/services/users.js';
@@ -12,7 +12,7 @@ const { values } = parseArgs({
 
 const phone = normalizePhone(values.phone);
 if (!values.name || !phone || !values.password || values.password.length < 6) {
-  console.error('Usage: npm run create-admin -- [--platform] --name "Full Name" --phone 07XXXXXXXX --password <at least 6 characters>');
+  console.error('Usage: yarn create-admin [--platform] --name "Full Name" --phone 07XXXXXXXX --password <at least 6 characters>');
   process.exit(1);
 }
 
