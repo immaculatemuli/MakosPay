@@ -3,9 +3,10 @@ import { authenticate, requireRole } from './auth.js';
 import { HttpError } from './errors.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
-import conductorRoutes from './routes/conductor.js';
+import crewRoutes from './routes/crew.js';
 import mpesaRoutes from './routes/mpesa.js';
 import passengerRoutes from './routes/passenger.js';
+import platformRoutes from './routes/platform.js';
 
 export function createApp() {
   const app = express();
@@ -14,9 +15,12 @@ export function createApp() {
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
   app.use('/auth', authRoutes);
-  app.use('/admin', authenticate, requireRole('admin'), adminRoutes);
+  // The platform admin can do everything the SACCO office can, plus the platform screens.
+  app.use('/admin', authenticate, requireRole('admin', 'platform_admin'), adminRoutes);
+  app.use('/platform', authenticate, requireRole('platform_admin'), platformRoutes);
   app.use('/passenger', authenticate, requireRole('passenger'), passengerRoutes);
-  app.use('/conductor', authenticate, requireRole('conductor'), conductorRoutes);
+  // Conductors and drivers. '/conductor' is the older address, kept for apps installed before drivers existed.
+  app.use(['/crew', '/conductor'], authenticate, requireRole('conductor', 'driver'), crewRoutes);
   app.use('/mpesa', mpesaRoutes);
 
   app.use((_req, _res, next) => next(new HttpError(404, 'NOT_FOUND', 'Endpoint not found')));

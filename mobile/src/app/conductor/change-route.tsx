@@ -9,8 +9,8 @@ import { useApi } from '@/lib/useApi';
 
 /** The vehicle is on a different route today: passengers who scan after this pay that route's fares. */
 export default function ChangeRoute() {
-  const routes = useApi<PublicRoute[]>('/conductor/routes');
-  const vehicle = useApi<ConductorVehicle>('/conductor/vehicle');
+  const routes = useApi<PublicRoute[]>('/crew/routes');
+  const vehicle = useApi<ConductorVehicle>('/crew/vehicle');
   const [busy, setBusy] = useState(false);
   if ((routes.loading && !routes.data) || (vehicle.loading && !vehicle.data)) return <Loading />;
   const currentId = vehicle.data?.route?.id;
@@ -24,7 +24,7 @@ export default function ChangeRoute() {
         onPress: async () => {
           setBusy(true);
           try {
-            await api('/conductor/vehicle/route', { method: 'PUT', body: { route_id: r.id } });
+            await api('/crew/vehicle/route', { method: 'PUT', body: { route_id: r.id } });
             router.back();
           } catch (err) {
             Alert.alert('Could not change route', errorMessage(err));

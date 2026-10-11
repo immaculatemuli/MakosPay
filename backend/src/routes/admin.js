@@ -1,4 +1,4 @@
-// SACCO office: routes and fares, conductors, vehicles (with the owner's payout details) and QR stickers.
+// SACCO office: routes and fares, conductors and drivers, vehicles (with the owner's payout details) and QR stickers.
 import { Router } from 'express';
 import QRCode from 'qrcode';
 import { z } from 'zod';
@@ -34,6 +34,7 @@ router.get('/summary', (_req, res) => {
     vehicles: count('SELECT COUNT(*) AS n FROM vehicles WHERE is_active = 1'),
     vehicles_without_route: count('SELECT COUNT(*) AS n FROM vehicles WHERE is_active = 1 AND route_id IS NULL'),
     conductors: count("SELECT COUNT(*) AS n FROM users WHERE role = 'conductor' AND is_active = 1"),
+    drivers: count("SELECT COUNT(*) AS n FROM users WHERE role = 'driver' AND is_active = 1"),
     passengers: count("SELECT COUNT(*) AS n FROM users WHERE role = 'passenger'"),
     today: daySummary(from, to),
     owed_to_owners: owedByOwner().reduce((sum, o) => sum + o.amount, 0),
@@ -142,34 +143,42 @@ router.patch('/routes/:id', (req, res) => {
   res.json(getRoute(routeId));
 });
 
-// ---------- Conductors ----------
+// ---------- Vehicle crew: conductors and drivers ----------
+// Both work the same way: the office creates their sign-in, puts them on one vehicle, and can switch them off.
 
-const CONDUCTOR_SELECT = `
-  SELECT u.id, u.name, u.phone, u.is_active, u.created_at, v.id AS vehicle_id, v.plate AS vehicle_plate
-  FROM users u LEFT JOIN vehicles v ON v.conductor_id = u.id
-  WHERE u.role = 'conductor'`;
+const CREW = {
+  conductor: { path: 'conductors', column: 'conductor_id', label: 'Conductor' },
+  driver: { path: 'drivers', column: 'driver_id', label: 'Driver' },
+};
 
-router.get('/conductors', (_req, res) => {
-  res.json(db.prepare(`${CONDUCTOR_SELECT} ORDER BY u.is_active DESC, u.name`).all());
-});
+for (const [role, { path, column, label }] of Object.entries(CREW)) {
+  const SELECT = `
+    SELECT u.id, u.name, u.phone, u.is_active, u.created_at, v.id AS vehicle_id, v.plate AS vehicle_plate
+    FROM users u LEFT JOIN vehicles v ON v.${column} = u.id
+    WHERE u.role = '${role}'`;
 
-router.post('/conductors', async (req, res) => {
-  const body = parse(z.object({ name, phone, password }), req.body);
-  const user = await createUser({ ...body, role: 'conductor' });
-  res.status(201).json(db.prepare(`${CONDUCTOR_SELECT} AND u.id = ?`).get(user.id));
-});
+  router.get(`/${path}`, (_req, res) => {
+    res.json(db.prepare(`${SELECT} ORDER BY u.is_active DESC, u.name`).all());
+  });
 
-// Disabling a conductor signs them out and frees their vehicle for someone else.
-router.patch('/conductors/:id', (req, res) => {
-  const conductorId = parse(id, req.params.id);
-  const body = parse(z.object({ name: name.optional(), is_active: z.boolean().optional() }), req.body);
-  const result = db
-    .prepare("UPDATE users SET name = COALESCE(?, name), is_active = COALESCE(?, is_active) WHERE id = ? AND role = 'conductor'")
-    .run(body.name ?? null, body.is_active === undefined ? null : Number(body.is_active), conductorId);
-  if (result.changes === 0) throw notFound('Conductor');
-  if (body.is_active === false) db.prepare('UPDATE vehicles SET conductor_id = NULL WHERE conductor_id = ?').run(conductorId);
-  res.json(db.prepare(`${CONDUCTOR_SELECT} AND u.id = ?`).get(conductorId));
-});
+  router.post(`/${path}`, async (req, res) => {
+    const body = parse(z.object({ name, phone, password }), req.body);
+    const user = await createUser({ ...body, role });
+    res.status(201).json(db.prepare(`${SELECT} AND u.id = ?`).get(user.id));
+  });
+
+  // Switching someone off signs them out and frees their vehicle for someone else.
+  router.patch(`/${path}/:id`, (req, res) => {
+    const userId = parse(id, req.params.id);
+    const body = parse(z.object({ name: name.optional(), is_active: z.boolean().optional() }), req.body);
+    const result = db
+      .prepare('UPDATE users SET name = COALESCE(?, name), is_active = COALESCE(?, is_active) WHERE id = ? AND role = ?')
+      .run(body.name ?? null, body.is_active === undefined ? null : Number(body.is_active), userId, role);
+    if (result.changes === 0) throw notFound(label);
+    if (body.is_active === false) db.prepare(`UPDATE vehicles SET ${column} = NULL WHERE ${column} = ?`).run(userId);
+    res.json(db.prepare(`${SELECT} AND u.id = ?`).get(userId));
+  });
+}
 
 // ---------- SACCO office staff ----------
 
@@ -221,9 +230,10 @@ router.post('/users/:id/password', async (req, res) => {
 // ---------- Vehicles & QR stickers ----------
 
 const VEHICLE_SELECT = `
-  SELECT v.*, c.name AS conductor_name, c.phone AS conductor_phone, r.name AS route_name, r.origin
+  SELECT v.*, c.name AS conductor_name, c.phone AS conductor_phone, d.name AS driver_name, r.name AS route_name, r.origin
   FROM vehicles v
   LEFT JOIN users c ON c.id = v.conductor_id
+  LEFT JOIN users d ON d.id = v.driver_id
   LEFT JOIN routes r ON r.id = v.route_id`;
 
 const getVehicle = (vehicleId) => db.prepare(`${VEHICLE_SELECT} WHERE v.id = ?`).get(vehicleId);
@@ -263,14 +273,17 @@ function checkPayoutDetails(v) {
   }
 }
 
-function checkVehicleLinks({ conductor_id, route_id }, vehicleId = null) {
-  if (route_id != null && !getRoute(route_id)) throw notFound('Route');
-  if (conductor_id != null) {
-    const conductor = db.prepare("SELECT is_active FROM users WHERE id = ? AND role = 'conductor'").get(conductor_id);
-    if (!conductor) throw new HttpError(400, 'NOT_A_CONDUCTOR', 'Choose a conductor account');
-    if (!conductor.is_active) throw new HttpError(400, 'CONDUCTOR_DISABLED', 'This conductor account is disabled');
-    const other = db.prepare('SELECT plate FROM vehicles WHERE conductor_id = ? AND id IS NOT ?').get(conductor_id, vehicleId);
-    if (other) throw new HttpError(409, 'CONDUCTOR_TAKEN', `This conductor already works on ${other.plate}`);
+/** The route exists, and the conductor/driver chosen is an active account of that role not on another vehicle. */
+function checkVehicleLinks(fields, vehicleId = null) {
+  if (fields.route_id != null && !getRoute(fields.route_id)) throw notFound('Route');
+  for (const [role, { column, label }] of Object.entries(CREW)) {
+    const userId = fields[column];
+    if (userId == null) continue;
+    const person = db.prepare('SELECT is_active FROM users WHERE id = ? AND role = ?').get(userId, role);
+    if (!person) throw new HttpError(400, `NOT_A_${role.toUpperCase()}`, `Choose a ${role} account`);
+    if (!person.is_active) throw new HttpError(400, `${role.toUpperCase()}_DISABLED`, `This ${role} account is switched off`);
+    const other = db.prepare(`SELECT plate FROM vehicles WHERE ${column} = ? AND id IS NOT ?`).get(userId, vehicleId);
+    if (other) throw new HttpError(409, `${role.toUpperCase()}_TAKEN`, `This ${label.toLowerCase()} already works on ${other.plate}`);
   }
 }
 
@@ -293,6 +306,7 @@ router.post('/vehicles', (req, res) => {
       owner_phone: phone,
       ...payoutFields,
       conductor_id: id.nullable().optional(),
+      driver_id: id.nullable().optional(),
       route_id: id.nullable().optional(),
     }),
     req.body,
@@ -307,8 +321,8 @@ router.post('/vehicles', (req, res) => {
     db
       .prepare(
         `INSERT INTO vehicles (plate, description, owner_name, owner_phone, owner_payout_method, owner_bank_name, owner_bank_paybill,
-                               owner_bank_account, conductor_id, route_id, qr_token)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                               owner_bank_account, conductor_id, driver_id, route_id, qr_token)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         body.plate,
@@ -320,6 +334,7 @@ router.post('/vehicles', (req, res) => {
         bank ? body.owner_bank_paybill : null,
         bank ? body.owner_bank_account : null,
         body.conductor_id ?? null,
+        body.driver_id ?? null,
         body.route_id ?? null,
         newQrToken(),
       ),
@@ -336,6 +351,7 @@ router.patch('/vehicles/:id', (req, res) => {
       owner_phone: phone.optional(),
       ...payoutFields,
       conductor_id: id.nullable().optional(),
+      driver_id: id.nullable().optional(),
       route_id: id.nullable().optional(),
       is_active: z.boolean().optional(),
     }),

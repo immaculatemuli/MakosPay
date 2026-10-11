@@ -28,10 +28,10 @@ export async function verifyCredentials(phone, password) {
   return getUser(user.id);
 }
 
-/** The SACCO office sets a new password for a passenger or conductor who forgot theirs. */
+/** The SACCO office sets a new password for a passenger, conductor or driver who forgot theirs. */
 export async function resetPassword(userId, newPassword) {
-  const user = db.prepare("SELECT id FROM users WHERE id = ? AND role IN ('passenger', 'conductor')").get(userId);
-  if (!user) throw new HttpError(404, 'NOT_FOUND', 'Passenger or conductor not found');
+  const user = db.prepare("SELECT id FROM users WHERE id = ? AND role IN ('passenger', 'conductor', 'driver')").get(userId);
+  if (!user) throw new HttpError(404, 'NOT_FOUND', 'Passenger, conductor or driver not found');
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await bcrypt.hash(newPassword, 10), userId);
 }
 

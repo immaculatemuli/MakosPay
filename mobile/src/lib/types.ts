@@ -1,10 +1,24 @@
-export type Role = 'admin' | 'passenger' | 'conductor';
+export type Role = 'admin' | 'passenger' | 'conductor' | 'driver' | 'platform_admin';
 
 export const ROLE_LABEL: Record<Role, string> = {
   admin: 'SACCO office',
   passenger: 'Passenger',
   conductor: 'Conductor',
+  driver: 'Driver',
+  platform_admin: 'Platform admin',
 };
+
+/** The section of the app each role uses. The platform admin uses the SACCO office screens (plus Platform). */
+export const ROLE_HOME: Record<Role, '/admin' | '/passenger' | '/conductor' | '/driver'> = {
+  admin: '/admin',
+  platform_admin: '/admin',
+  passenger: '/passenger',
+  conductor: '/conductor',
+  driver: '/driver',
+};
+
+/** SACCO office screens are open to the office and the platform admin. */
+export const isOffice = (role: Role | undefined) => role === 'admin' || role === 'platform_admin';
 
 /** A drop-off point on a route, with its own fares. */
 export interface Stop {
@@ -40,6 +54,8 @@ export interface Vehicle extends OwnerPayoutDetails {
   owner_phone: string;
   conductor_id: number | null;
   conductor_name: string | null;
+  driver_id: number | null;
+  driver_name: string | null;
   route_id: number | null;
   route_name: string | null;
   qr_token: string;

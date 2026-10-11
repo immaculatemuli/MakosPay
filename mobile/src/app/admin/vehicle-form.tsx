@@ -12,6 +12,7 @@ export default function VehicleForm() {
   const vehicle = useApi<Vehicle>(id ? `/admin/vehicles/${id}` : null);
   const routes = useApi<Route[]>('/admin/routes');
   const conductors = useApi<Conductor[]>('/admin/conductors');
+  const drivers = useApi<Conductor[]>('/admin/drivers');
   const existing = vehicle.data;
 
   const [plate, setPlate] = useState('');
@@ -19,6 +20,7 @@ export default function VehicleForm() {
   const [ownerName, setOwnerName] = useState('');
   const [ownerPhone, setOwnerPhone] = useState('');
   const [conductorId, setConductorId] = useState<number | null>(null);
+  const [driverId, setDriverId] = useState<number | null>(null);
   const [routeId, setRouteId] = useState<number | null>(null);
   const [payoutMethod, setPayoutMethod] = useState<'mpesa' | 'bank'>('mpesa');
   const [bankName, setBankName] = useState('');
@@ -35,6 +37,7 @@ export default function VehicleForm() {
     setOwnerName(existing.owner_name);
     setOwnerPhone(displayPhone(existing.owner_phone));
     setConductorId(existing.conductor_id);
+    setDriverId(existing.driver_id);
     setRouteId(existing.route_id);
     setPayoutMethod(existing.owner_payout_method);
     setBankName(existing.owner_bank_name ?? '');
@@ -42,11 +45,12 @@ export default function VehicleForm() {
     setBankAccount(existing.owner_bank_account ?? '');
   }, [existing]);
 
-  if ((id && vehicle.loading && !existing) || (routes.loading && !routes.data) || (conductors.loading && !conductors.data)) return <Loading />;
-  const loadError = vehicle.error ?? routes.error ?? conductors.error;
+  if ((id && vehicle.loading && !existing) || (routes.loading && !routes.data) || (conductors.loading && !conductors.data) || (drivers.loading && !drivers.data)) return <Loading />;
+  const loadError = vehicle.error ?? routes.error ?? conductors.error ?? drivers.error;
 
   // Conductors who are free, plus this vehicle's own conductor.
   const freeConductors = (conductors.data ?? []).filter((c) => c.is_active && (!c.vehicle_id || c.id === existing?.conductor_id));
+  const freeDrivers = (drivers.data ?? []).filter((d) => d.is_active && (!d.vehicle_id || d.id === existing?.driver_id));
   const activeRoutes = (routes.data ?? []).filter((r) => r.is_active || r.id === existing?.route_id);
 
   const bankValid = payoutMethod === 'mpesa' || (bankName.trim().length >= 2 && /^\d{5,7}$/.test(bankPaybill.trim()) && bankAccount.trim().length >= 4);
@@ -67,6 +71,7 @@ export default function VehicleForm() {
           owner_bank_account: bankAccount.trim(),
         }),
         conductor_id: conductorId,
+        driver_id: driverId,
         route_id: routeId,
       };
       if (id) {
@@ -147,7 +152,14 @@ export default function VehicleForm() {
         value={conductorId}
         onChange={setConductorId}
       />
-      {freeConductors.length === 0 && <Muted>No free conductors. Add one in the Conductors tab.</Muted>}
+      {freeConductors.length === 0 && <Muted>No free conductors. Add one from Home → Conductors.</Muted>}
+      <Chips
+        label="Driver"
+        options={[{ value: null, label: 'None' }, ...freeDrivers.map((d) => ({ value: d.id, label: d.name }))]}
+        value={driverId}
+        onChange={setDriverId}
+      />
+      {freeDrivers.length === 0 && <Muted>No free drivers. Add one from Home → Drivers.</Muted>}
 
       {error && <ErrorBox message={error} />}
       <Button title={id ? 'Save changes' : 'Add vehicle'} onPress={save} loading={busy} disabled={!valid} />

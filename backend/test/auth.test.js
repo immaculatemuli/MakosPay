@@ -61,8 +61,8 @@ test('every kind of user logs in with phone and password and gets their role', a
   }
 });
 
-test('only the three user types exist', async () => {
-  await assert.rejects(createUser({ name: 'Old Role', phone: '254711000009', password: 'secret1', role: 'driver' }));
+test('only the known user types exist', async () => {
+  await assert.rejects(createUser({ name: 'Unknown Role', phone: '254711000009', password: 'secret1', role: 'owner' }));
 });
 
 test('wrong password and unknown numbers get the same answer', async () => {

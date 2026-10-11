@@ -11,9 +11,10 @@ if (config.dbPath !== ':memory:') mkdirSync(dirname(config.dbPath), { recursive:
 export const db = new DatabaseSync(config.dbPath);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
 
-// The three kinds of user. Only passengers sign up themselves; the SACCO office (admin) creates conductors.
-// Vehicle owners don't log in: the admin records their name and M-Pesa number for payouts.
-export const ROLES = ['admin', 'passenger', 'conductor'];
+// The kinds of user. Only passengers sign up themselves. The SACCO office (admin) creates conductors and
+// drivers; the platform admin (whoever runs FarePay itself) is above the SACCO office and is created from
+// the computer. Vehicle owners don't log in: the admin records their payout details on the vehicle.
+export const ROLES = ['admin', 'passenger', 'conductor', 'driver', 'platform_admin'];
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -152,6 +153,29 @@ CREATE TABLE IF NOT EXISTS job_runs (
 );
 `);
 
+// The users table only allowed three roles at first: rebuild it once so it accepts all of ROLES (ids are kept).
+const usersSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").get().sql;
+if (!usersSql.includes("'platform_admin'")) {
+  db.exec('PRAGMA foreign_keys = OFF');
+  tx(() => {
+    db.exec(`
+      CREATE TABLE users_new (
+        id            INTEGER PRIMARY KEY,
+        name          TEXT NOT NULL,
+        phone         TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role          TEXT NOT NULL CHECK (role IN (${ROLES.map((r) => `'${r}'`).join(', ')})),
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT NOT NULL DEFAULT (${NOW})
+      );
+      INSERT INTO users_new SELECT id, name, phone, password_hash, role, is_active, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `);
+  });
+  db.exec('PRAGMA foreign_keys = ON');
+}
+
 // Passengers who signed up before wallets existed get an empty one.
 db.exec("INSERT OR IGNORE INTO wallets (user_id) SELECT id FROM users WHERE role = 'passenger'");
 
@@ -201,6 +225,12 @@ CREATE TABLE IF NOT EXISTS owner_deductions (
   created_at  TEXT NOT NULL DEFAULT (${NOW})
 );
 `);
+
+// Each vehicle can have one driver (as well as one conductor).
+if (!hasColumn('vehicles', 'driver_id')) {
+  db.exec('ALTER TABLE vehicles ADD COLUMN driver_id INTEGER REFERENCES users(id)');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_vehicles_driver ON vehicles(driver_id) WHERE driver_id IS NOT NULL');
+}
 
 // Owners can be paid to M-Pesa or to a bank account (through the bank's M-Pesa paybill).
 if (!hasColumn('vehicles', 'owner_payout_method')) {

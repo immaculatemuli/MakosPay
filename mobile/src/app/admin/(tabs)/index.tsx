@@ -14,6 +14,7 @@ interface Summary {
   vehicles: number;
   vehicles_without_route: number;
   conductors: number;
+  drivers: number;
   passengers: number;
   today: DaySummary;
   owed_to_owners: number;
@@ -81,7 +82,7 @@ export default function AdminHome() {
         <View style={styles.tiles}>
           <Tile icon="map-outline" value={s.routes} label="Routes" href="/admin/routes" />
           <Tile icon="bus-outline" value={s.vehicles} label="Vehicles" href="/admin/vehicles" />
-          <Tile icon="people-outline" value={s.conductors} label="Conductors" href="/admin/conductors" />
+          <Tile icon="people-outline" value={s.conductors} label="Conductors" href={{ pathname: '/admin/crew', params: { role: 'conductor' } }} />
           <Tile icon="person-outline" value={s.passengers} label="Passengers" href="/admin/passengers" />
         </View>
       )}
@@ -90,8 +91,12 @@ export default function AdminHome() {
       <List>
         <ListRow icon="add-circle-outline" title="Add route" subtitle="Drop-off stops and their fares" onPress={() => router.push('/admin/route-form')} />
         <ListRow icon="add-circle-outline" title="Add vehicle" subtitle="Plate, owner's M-Pesa number, QR sticker" onPress={() => router.push('/admin/vehicle-form')} />
-        <ListRow icon="person-add-outline" title="Add conductor" subtitle="Creates their sign-in" onPress={() => router.push('/admin/conductor-form')} />
+        <ListRow icon="person-add-outline" title="Add conductor" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'conductor' } })} />
+        <ListRow icon="car-outline" title="Add driver" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'driver' } })} />
         <ListRow icon="briefcase-outline" title="Office staff" subtitle="Other SACCO office accounts" onPress={() => router.push('/admin/staff')} />
+        {user?.role === 'platform_admin' && (
+          <ListRow icon="shield-checkmark-outline" title="Platform" subtitle="Payment setup and platform admins" onPress={() => router.push('/admin/platform')} />
+        )}
       </List>
 
       <SectionTitle>Today by vehicle</SectionTitle>

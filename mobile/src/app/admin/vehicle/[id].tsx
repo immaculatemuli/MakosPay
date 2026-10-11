@@ -56,6 +56,7 @@ export default function VehicleDetails() {
           value={v.owner_payout_method === 'bank' ? `${v.owner_bank_name} (paybill ${v.owner_bank_paybill}) acc ${v.owner_bank_account}` : 'M-Pesa'}
         />
         <KeyValue label="Conductor" value={v.conductor_name ?? 'None'} />
+        <KeyValue label="Driver" value={v.driver_name ?? 'None'} />
         <KeyValue label="Route" value={v.route_name ?? 'None yet'} />
       </Card>
       <Button
