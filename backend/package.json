@@ -15,7 +15,8 @@
     "backup": "node --env-file-if-exists=.env scripts/backup.js",
     "test": "node --test",
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.js",
-    "test:pg": "node --env-file-if-exists=.env --test \"pg-tests/**/*.js\""
+    "test:pg": "node --env-file-if-exists=.env --test \"pg-tests/**/*.js\"",
+    "test:postgres": "node scripts/run-tests-on-postgres.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

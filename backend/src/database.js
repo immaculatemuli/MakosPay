@@ -107,14 +107,15 @@ function sameAsSqlite(row) {
 
 async function startPostgres() {
   const { createPool, migrate } = await import('./postgres.js');
-  let schema = null;
-  if (config.dbIsolate) {
-    // Tests: every test file gets its own empty schema, so files can run at the same time.
-    if (!/\/[\w-]*_test(\?.*)?$/.test(config.databaseUrl ?? '')) throw new Error('DB_ISOLATE is only allowed on a database whose name ends in _test');
-    schema = `t_${process.pid}_${randomBytes(3).toString('hex')}`;
+  // Tests only: DB_ISOLATE gives every test file its own empty schema (so files can run at the same time);
+  // DB_SCHEMA names one, so several processes (e.g. a server and a script) share it. Never on a real database.
+  let schema = config.dbSchema ?? (config.dbIsolate ? `t_${process.pid}_${randomBytes(3).toString('hex')}` : null);
+  if (schema) {
+    if (!/\/[\w-]*_test(\?.*)?$/.test(config.databaseUrl ?? '')) throw new Error('DB_ISOLATE and DB_SCHEMA are only allowed on a database whose name ends in _test');
+    if (!/^[a-z_][a-z0-9_]{0,40}$/.test(schema)) throw new Error('DB_SCHEMA must be a simple lowercase name');
   }
   const pool = createPool(config.databaseUrl, schema ? { options: `-c search_path=${schema}` } : {});
-  if (schema) await pool.query(`CREATE SCHEMA ${schema}`);
+  if (schema) await pool.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
   await migrate(pool);
 
   const client = () => inTransaction.getStore()?.client ?? pool;

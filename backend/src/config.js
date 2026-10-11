@@ -13,6 +13,7 @@ export const config = {
   databaseUrl: env.DATABASE_URL || null,
   // Tests only: each test file gets its own empty PostgreSQL schema (needs a database whose name ends in _test).
   dbIsolate: env.DB_ISOLATE === '1',
+  dbSchema: env.DB_SCHEMA || null,
   // A copy of the database is saved every night (Kenyan time) into backupDir; the newest backupKeep are kept.
   backupDir: env.BACKUP_DIR ?? './data/backups',
   backupDailyAt: env.BACKUP_DAILY_AT ?? '03:00',
