@@ -262,6 +262,20 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity, entity_id);
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit log entries cannot be changed'); END;
 CREATE TRIGGER IF NOT EXISTS audit_log_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit log entries cannot be deleted'); END;
 
+-- A vehicle's trip from start to end ("run"; the trips table holds passengers' fare payments). Crew start
+-- and end it; fares paid while it is open belong to it. Only one open run per vehicle.
+CREATE TABLE IF NOT EXISTS vehicle_runs (
+  id         INTEGER PRIMARY KEY,
+  vehicle_id INTEGER NOT NULL REFERENCES vehicles(id),
+  route_id   INTEGER REFERENCES routes(id),
+  started_by INTEGER NOT NULL REFERENCES users(id),
+  started_at TEXT NOT NULL DEFAULT (${NOW}),
+  ended_by   INTEGER REFERENCES users(id),
+  ended_at   TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vehicle_runs_open ON vehicle_runs(vehicle_id) WHERE ended_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_vehicle_runs_vehicle ON vehicle_runs(vehicle_id, started_at);
+
 -- Drop-off stops a passenger saved for quick choosing.
 CREATE TABLE IF NOT EXISTS saved_stops (
   user_id    INTEGER NOT NULL REFERENCES users(id),
@@ -286,6 +300,9 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, id);
 CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id, id);
 `);
+
+// The vehicle run (crew trip) a fare was paid during, if one was open.
+if (!hasColumn('trips', 'run_id')) db.exec('ALTER TABLE trips ADD COLUMN run_id INTEGER REFERENCES vehicle_runs(id)');
 
 // Each vehicle can have one driver (as well as one conductor).
 if (!hasColumn('vehicles', 'driver_id')) {

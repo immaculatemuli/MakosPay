@@ -24,11 +24,15 @@ export const REPORT_SELECT = `
 
 export const getReport = (id) => db.prepare(`${REPORT_SELECT} WHERE r.id = ?`).get(id);
 
-/** A passenger files a report, optionally about one of their own payments. Limited per day to stop abuse. */
-export function fileReport(user, { category, trip_id, message }) {
+/**
+ * Files a report, optionally about one payment: a passenger's own payment, or (for crew, `vehicleId` set)
+ * a payment made on their vehicle. Limited per day to stop abuse.
+ */
+export function fileReport(user, { category, trip_id, message }, { vehicleId } = {}) {
   if (trip_id) {
-    const trip = db.prepare('SELECT passenger_id FROM trips WHERE id = ?').get(trip_id);
-    if (!trip || trip.passenger_id !== user.id) throw new HttpError(400, 'NOT_YOUR_PAYMENT', 'That payment is not one of yours');
+    const trip = db.prepare('SELECT passenger_id, vehicle_id FROM trips WHERE id = ?').get(trip_id);
+    const allowed = trip && (vehicleId ? trip.vehicle_id === vehicleId : trip.passenger_id === user.id);
+    if (!allowed) throw new HttpError(400, 'NOT_YOUR_PAYMENT', vehicleId ? 'That payment was not made on your vehicle' : 'That payment is not one of yours');
   }
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const recent = db.prepare('SELECT COUNT(*) AS n FROM reports WHERE reporter_id = ? AND created_at >= ?').get(user.id, since).n;

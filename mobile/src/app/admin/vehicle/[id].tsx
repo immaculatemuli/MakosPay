@@ -1,14 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Alert, Image, Text } from 'react-native';
-import { Badge, Button, Card, colors, ErrorBox, KeyValue, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
+import { Badge, Button, Card, colors, Empty, ErrorBox, KeyValue, List, ListRow, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
 import { api, authHeader, errorMessage, getApiUrl } from '@/lib/api';
-import { displayPhone } from '@/lib/format';
-import type { Vehicle } from '@/lib/types';
+import { displayPhone, kes, time } from '@/lib/format';
+import type { Run, Vehicle } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
 export default function VehicleDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const vehicle = useApi<Vehicle>(`/admin/vehicles/${id}`);
+  const runs = useApi<Run[]>(`/admin/vehicles/${id}/runs`);
 
   if (vehicle.loading && !vehicle.data) return <Loading />;
   const v = vehicle.data;
@@ -44,7 +45,13 @@ export default function VehicleDetails() {
       : confirm('Use this vehicle again?', '', 'Use again', () => api(`/admin/vehicles/${v.id}`, { method: 'PATCH', body: { is_active: true } }), false);
 
   return (
-    <Screen refreshing={vehicle.refreshing} onRefresh={vehicle.refresh}>
+    <Screen
+      refreshing={vehicle.refreshing || runs.refreshing}
+      onRefresh={() => {
+        vehicle.refresh();
+        runs.refresh();
+      }}
+    >
       <Card>
         <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text }}>{v.plate}</Text>
         {!v.is_active && <Badge text="Not in use" tone="danger" />}
@@ -65,6 +72,25 @@ export default function VehicleDetails() {
         icon="create-outline"
         onPress={() => router.push({ pathname: '/admin/vehicle-form', params: { id: v.id } })}
       />
+
+      <SectionTitle>Trips today</SectionTitle>
+      {runs.error && <ErrorBox message={runs.error} onRetry={runs.reload} />}
+      {runs.data?.length === 0 && <Empty text="The crew hasn't started a trip today." />}
+      {!!runs.data?.length && (
+        <List>
+          {runs.data.map((r) => (
+            <ListRow
+              key={r.id}
+              icon={r.ended_at ? 'flag-outline' : 'navigate-outline'}
+              title={`${r.ended_at ? ` – ${time(r.ended_at)}` : ' – now'}`}
+              subtitle={` payment${r.payments === 1 ? '' : 's'} · ${r.route_name ?? 'no route'}`}
+              right={kes(r.total)}
+              rightSub={r.ended_at ? undefined : <Badge text="In progress" tone="success" />}
+              onPress={() => router.push(`/admin/run/${r.id}`)}
+            />
+          ))}
+        </List>
+      )}
 
       <SectionTitle>QR sticker</SectionTitle>
       <Card style={{ alignItems: 'center' }}>

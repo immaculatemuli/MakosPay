@@ -6,7 +6,8 @@ import { Hero } from '@/components/Hero';
 import { Badge, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Notice, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { kes, nairobiDate, prettyDate, time } from '@/lib/format';
-import { ROLE_LABEL, type ConductorDay, type ConductorVehicle } from '@/lib/types';
+import { ROLE_LABEL, type ConductorDay, type ConductorVehicle, type Run } from '@/lib/types';
+import { TripCard } from './TripCard';
 import { useApi } from '@/lib/useApi';
 
 const REFRESH_EVERY_MS = 10_000;
@@ -30,14 +31,19 @@ export function CrewHome() {
   const vehicle = useApi<ConductorVehicle>('/crew/vehicle');
   const date = nairobiDate(day);
   const payments = useApi<ConductorDay>(`/crew/payments?date=${date}`);
+  const currentRun = useApi<Run | null>('/crew/runs/current');
 
   // New payments appear on their own: check every 10 seconds while this screen is open.
   const reloadPayments = payments.reload;
+  const reloadRun = currentRun.reload;
   useFocusEffect(
     useCallback(() => {
-      const timer = setInterval(() => void reloadPayments(), REFRESH_EVERY_MS);
+      const timer = setInterval(() => {
+        void reloadPayments();
+        void reloadRun();
+      }, REFRESH_EVERY_MS);
       return () => clearInterval(timer);
-    }, [reloadPayments]),
+    }, [reloadPayments, reloadRun]),
   );
 
   if (vehicle.loading && !vehicle.data) return <Loading />;
@@ -56,6 +62,7 @@ export function CrewHome() {
   const refresh = () => {
     vehicle.refresh();
     payments.refresh();
+    currentRun.refresh();
   };
 
   return (
@@ -94,6 +101,15 @@ export function CrewHome() {
         {isConductor && <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />}
       </Pressable>
       {!v.route && <Notice>Passengers can't pay until the vehicle has a route.</Notice>}
+
+      <TripCard
+        current={currentRun.loading && !currentRun.data ? undefined : currentRun.data}
+        hasRoute={!!v.route}
+        onChange={() => {
+          void currentRun.reload();
+          void payments.reload();
+        }}
+      />
 
       <SectionTitle>Payments</SectionTitle>
       <Chips options={DAYS} value={day} onChange={setDay} />

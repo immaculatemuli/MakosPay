@@ -142,6 +142,8 @@ export function checkFare(qr, stopId, expectedFare) {
 export function recordTrip({ passengerId, vehicle, stop, fare, idempotencyKey }) {
   const route = db.prepare('SELECT id, name FROM routes WHERE id = ?').get(stop.route_id);
   const ticketCode = uniqueTicketCode();
+  // The crew's trip (run) in progress on this vehicle, if any, so its collection summary includes this fare.
+  const run = db.prepare('SELECT id FROM vehicle_runs WHERE vehicle_id = ? AND ended_at IS NULL').get(vehicle.id);
   postWalletEntry(passengerId, {
     type: 'fare',
     amount: -fare,
@@ -152,8 +154,8 @@ export function recordTrip({ passengerId, vehicle, stop, fare, idempotencyKey })
     db
       .prepare(
         `INSERT INTO trips (ticket_code, passenger_id, vehicle_id, route_id, stop_id, stop_name, conductor_id, owner_name, owner_phone,
-                            fare, cash_fare, idempotency_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            fare, cash_fare, idempotency_key, run_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ticketCode,
@@ -168,6 +170,7 @@ export function recordTrip({ passengerId, vehicle, stop, fare, idempotencyKey })
         fare,
         stop.cash_fare,
         idempotencyKey,
+        run?.id ?? null,
       ),
   );
 }

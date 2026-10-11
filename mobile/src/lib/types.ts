@@ -228,6 +228,20 @@ export interface Reconciliation {
   };
 }
 
+/** A vehicle's trip from start to end, with what was collected (refunded fares not counted). */
+export interface Run {
+  id: number;
+  vehicle_id: number;
+  route_name: string | null;
+  started_by_name: string;
+  started_at: string;
+  ended_by_name: string | null;
+  ended_at: string | null;
+  payments: number;
+  total: number;
+  by_stop?: { stop_name: string; payments: number; total: number }[];
+}
+
 /** A drop-off stop with its route, for "saved" and "frequent" lists. */
 export interface StopChoice {
   stop_id: number;
