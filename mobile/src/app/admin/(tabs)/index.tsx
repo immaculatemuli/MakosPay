@@ -77,6 +77,14 @@ export default function AdminHome() {
       </Hero>
 
       {summary.error && <ErrorBox message={summary.error} onRetry={summary.reload} />}
+      <List>
+        <ListRow
+          icon="bar-chart-outline"
+          title="Dashboard"
+          subtitle="Collections by day, route and vehicle"
+          onPress={() => router.push('/admin/dashboard')}
+        />
+      </List>
       {nextStep && <Notice>{nextStep}</Notice>}
       {!!s?.open_reports && (
         <ListRow
@@ -102,7 +110,7 @@ export default function AdminHome() {
         <ListRow icon="add-circle-outline" title="Add vehicle" subtitle="Plate, owner's M-Pesa number, QR sticker" onPress={() => router.push('/admin/vehicle-form')} />
         <ListRow icon="person-add-outline" title="Add conductor" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'conductor' } })} />
         <ListRow icon="car-outline" title="Add driver" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'driver' } })} />
-        <ListRow icon="chatbox-ellipses-outline" title="Problem reports" subtitle="From passengers" onPress={() => router.push('/admin/reports')} />
+        <ListRow icon="chatbox-ellipses-outline" title="Problem reports" subtitle="From passengers and crew" onPress={() => router.push('/admin/reports')} />
         <ListRow icon="checkmark-done-outline" title="Money check" subtitle="Do wallets, M-Pesa and payouts add up?" onPress={() => router.push('/admin/reconciliation')} />
         <ListRow icon="list-outline" title="Audit log" subtitle="Who changed what, and when" onPress={() => router.push('/admin/audit')} />
         <ListRow icon="briefcase-outline" title="Office staff" subtitle="Other SACCO office accounts" onPress={() => router.push('/admin/staff')} />

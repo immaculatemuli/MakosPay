@@ -228,6 +228,30 @@ export interface Reconciliation {
   };
 }
 
+/** The office dashboard: collections over the last 7 or 30 days (refunded fares not counted). */
+export interface DashboardTotals {
+  payments: number;
+  collected: number;
+  passengers: number;
+  passengers_saved: number;
+}
+
+export interface Dashboard {
+  days: 7 | 30;
+  from_date: string;
+  to_date: string;
+  real_money: boolean;
+  totals: DashboardTotals;
+  previous: DashboardTotals;
+  refunds: { count: number; amount: number };
+  topups: { count: number; amount: number };
+  by_day: { date: string; payments: number; total: number }[];
+  by_route: { id: number; name: string; payments: number; total: number }[];
+  by_vehicle: { id: number; plate: string; owner_name: string; payments: number; total: number }[];
+  top_stops: { stop_name: string; route_name: string; payments: number; total: number }[];
+  by_hour: { hour: number; payments: number }[];
+}
+
 /** A drop-off stop with its route, for "saved" and "frequent" lists. */
 export interface StopChoice {
   stop_id: number;

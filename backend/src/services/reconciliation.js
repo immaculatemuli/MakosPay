@@ -1,13 +1,13 @@
 // Reconciliation: checks that the money recorded in FarePay adds up, so mistakes or tampering show.
 // It only reads. "Test" money (test credit, M-Pesa sandbox/mock) is reported separately from real money.
-import { config } from '../config.js';
+import { isRealMoney } from '../config.js';
 import { db } from '../db.js';
 import { owedByOwner } from './payouts.js';
 
 const one = (sql, ...params) => db.prepare(sql).get(...params).n;
 
 export function reconcile() {
-  const live = config.paymentProvider === 'intasend' ? config.intasend.mode === 'live' : config.mpesa.mode === 'production';
+  const live = isRealMoney();
 
   // 1. Every wallet balance equals the sum of its history.
   const walletMismatches = db

@@ -54,6 +54,9 @@ export const config = {
   },
 };
 
+/** True only when real money moves (Safaricom production or IntaSend live); otherwise it is test money. */
+export const isRealMoney = () => (config.paymentProvider === 'intasend' ? config.intasend.mode === 'live' : config.mpesa.mode === 'production');
+
 if (config.env === 'production') {
   if (config.jwtSecret === 'dev-only-insecure-secret') throw new Error('JWT_SECRET must be set in production');
   if (config.mpesa.callbackSecret === 'dev-callback-secret') throw new Error('MPESA_CALLBACK_SECRET must be set in production');

@@ -28,6 +28,7 @@ export default function AdminLayout() {
       <Stack.Screen name="fare-history" options={{ title: 'Fare history' }} />
       <Stack.Screen name="audit" options={{ title: 'Audit log' }} />
       <Stack.Screen name="reconciliation" options={{ title: 'Money check' }} />
+      <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
       <Stack.Screen name="account" options={{ title: 'My account' }} />
     </Stack>
   );

@@ -2,7 +2,7 @@
 // Platform admins can also use every SACCO office screen (see app.js).
 import { Router } from 'express';
 import { z } from 'zod';
-import { config } from '../config.js';
+import { config, isRealMoney } from '../config.js';
 import { db } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
@@ -13,7 +13,7 @@ const router = Router();
 
 // How money moves right now. `live` is true only when real money moves (Safaricom production or IntaSend live).
 router.get('/system', (_req, res) => {
-  const live = config.paymentProvider === 'intasend' ? config.intasend.mode === 'live' : config.mpesa.mode === 'production';
+  const live = isRealMoney();
   res.json({
     payments_by: mpesa.providerLabel,
     live,

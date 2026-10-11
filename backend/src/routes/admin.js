@@ -8,6 +8,7 @@ import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
 import { completePayout, createPayout, failPayout, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
 import { listAudit } from '../services/audit.js';
+import { dashboard } from '../services/dashboard.js';
 import { reconcile } from '../services/reconciliation.js';
 import {
   cancelFareChange,
@@ -55,6 +56,12 @@ router.get('/summary', (_req, res) => {
     owed_to_owners: owedByOwner().reduce((sum, o) => sum + o.amount, 0),
     open_reports: count("SELECT COUNT(*) AS n FROM reports WHERE status != 'resolved'"),
   });
+});
+
+// Collections over the last 7 or 30 days: by day, route, vehicle, stop and hour, with the period before.
+router.get('/dashboard', (req, res) => {
+  const { days } = parse(z.object({ days: z.enum(['7', '30']).default('7').transform(Number) }), req.query);
+  res.json(dashboard(days));
 });
 
 // ---------- Payments ----------
