@@ -1,5 +1,4 @@
-// Vehicle crew (conductor or driver): their vehicle, every payment made on it, checking tickets, starting and
-// ending trips with their collection summary, and reporting problems.
+// Vehicle crew (conductor or driver): their vehicle, every payment made on it, checking tickets and reporting problems.
 // Only the conductor can change the vehicle's route. Crew can never change fares, wallets or payouts.
 import { Router } from 'express';
 import { z } from 'zod';
@@ -7,7 +6,6 @@ import { db } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
-import { endRun, getRun, listRuns, openRun, startRun } from '../services/runs.js';
 import { TRIP_SELECT } from '../services/trips.js';
 import { maskPhone, nairobiDayRange, nairobiToday } from '../util.js';
 import { id, parse } from '../validate.js';
@@ -66,36 +64,6 @@ router.get('/tickets/:code', (req, res) => {
   }
   const [from, to] = nairobiDayRange(nairobiToday());
   res.json({ is_today: trip.created_at >= from && trip.created_at < to, refunded: trip.status === 'refunded', payment: forCrew(trip) });
-});
-
-// ---------- Trips (vehicle runs): start, end and what was collected ----------
-
-// The trip in progress on this vehicle (or null), with its collection so far.
-router.get('/runs/current', (req, res) => {
-  const run = openRun(myVehicle(req.user).id);
-  res.json(run ? getRun(run.id) : null);
-});
-
-// The vehicle's trips on one day (default today, Kenyan time), with totals.
-router.get('/runs', (req, res) => {
-  const { date } = parse(z.object({ date: z.string().date().default(nairobiToday) }), req.query);
-  const [from, to] = nairobiDayRange(date);
-  res.json(listRuns(myVehicle(req.user).id, from, to));
-});
-
-router.get('/runs/:id', (req, res) => {
-  const vehicle = myVehicle(req.user);
-  const run = getRun(parse(id, req.params.id));
-  if (!run || run.vehicle_id !== vehicle.id) throw notFound('Trip');
-  res.json(run);
-});
-
-router.post('/runs', (req, res) => {
-  res.status(201).json(startRun(myVehicle(req.user), req.user));
-});
-
-router.post('/runs/:id/end', (req, res) => {
-  res.json(endRun(myVehicle(req.user), req.user, parse(id, req.params.id)));
 });
 
 // ---------- Problem reports from crew ----------

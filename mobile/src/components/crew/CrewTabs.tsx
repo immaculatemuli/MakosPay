@@ -13,10 +13,6 @@ export function CrewTabs({ accountHref }: { accountHref: Href }) {
         options={{ title: 'Payments', tabBarIcon: ({ color, size }) => <Ionicons name="cash-outline" color={color} size={size} /> }}
       />
       <Tabs.Screen
-        name="trips"
-        options={{ title: 'Trips', tabBarIcon: ({ color, size }) => <Ionicons name="navigate-outline" color={color} size={size} /> }}
-      />
-      <Tabs.Screen
         name="check"
         options={{ title: 'Check ticket', tabBarIcon: ({ color, size }) => <Ionicons name="ticket-outline" color={color} size={size} /> }}
       />

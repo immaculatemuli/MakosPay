@@ -20,7 +20,6 @@ import {
   updateRoute,
 } from '../services/routes.js';
 import { REPORT_SELECT, updateReport } from '../services/reports.js';
-import { getRun, listRuns } from '../services/runs.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
 import { createUser, resetPassword } from '../services/users.js';
 import { nairobiDayRange, nairobiToday, newQrToken } from '../util.js';
@@ -439,19 +438,6 @@ router.patch('/vehicles/:id', (req, res) => {
   checkVehicleLinks(body, vehicleId);
   updateRow('vehicles', vehicleId, body);
   res.json(getVehicle(vehicleId));
-});
-
-// A vehicle's trips (runs) on one day, with what was collected on each.
-router.get('/vehicles/:id/runs', (req, res) => {
-  const { date } = parse(z.object({ date: z.string().date().default(nairobiToday) }), req.query);
-  const [from, to] = nairobiDayRange(date);
-  res.json(listRuns(parse(id, req.params.id), from, to));
-});
-
-router.get('/runs/:id', (req, res) => {
-  const run = getRun(parse(id, req.params.id));
-  if (!run) throw notFound('Trip');
-  res.json(run);
 });
 
 // Makes the old sticker stop working (e.g. if it was copied onto another vehicle).
