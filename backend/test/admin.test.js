@@ -128,6 +128,13 @@ test('the QR sticker can be shown, and replaced so the old one stops working', a
   assert.equal(png.status, 200);
   assert.ok(png.body.length > 500);
 
+  // What the app shows: the same picture inside JSON, ready to display and share.
+  const qr = await api('GET', `/admin/vehicles/${s.vehicle.id}/qr`, { token: s.admin });
+  assert.equal(qr.status, 200);
+  assert.equal(qr.body.file_name, 'FarePay-QR-KDA_123A.png');
+  assert.equal(Buffer.from(qr.body.png_base64, 'base64').subarray(1, 4).toString(), 'PNG');
+  assert.equal((await api('GET', `/admin/vehicles/${s.vehicle.id}/qr`)).status, 401);
+
   const rotated = await api('POST', `/admin/vehicles/${s.vehicle.id}/rotate-qr`, { token: s.admin });
   assert.notEqual(rotated.body.qr_token, s.vehicle.qr_token);
 });

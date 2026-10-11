@@ -1,7 +1,10 @@
+import { File, Paths } from 'expo-file-system';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Image, Text } from 'react-native';
+import * as Sharing from 'expo-sharing';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Image, Text } from 'react-native';
 import { Badge, Button, Card, colors, ErrorBox, KeyValue, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
-import { api, authHeader, errorMessage, getApiUrl } from '@/lib/api';
+import { api, errorMessage } from '@/lib/api';
 import { displayPhone } from '@/lib/format';
 import type { Vehicle } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
@@ -9,6 +12,8 @@ import { useApi } from '@/lib/useApi';
 export default function VehicleDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const vehicle = useApi<Vehicle>(`/admin/vehicles/${id}`);
+  const qr = useApi<{ plate: string; file_name: string; png_base64: string }>(`/admin/vehicles/${id}/qr`);
+  const [sharing, setSharing] = useState(false);
 
   if (vehicle.loading && !vehicle.data) return <Loading />;
   const v = vehicle.data;
@@ -32,9 +37,28 @@ export default function VehicleDetails() {
     ]);
 
   const replaceQr = () =>
-    confirm('Replace QR code?', 'The current sticker stops working straight away. Print and stick the new one in the vehicle.', 'Replace', () =>
-      api(`/admin/vehicles/${v.id}/rotate-qr`, { method: 'POST' }),
-    );
+    confirm('Replace QR code?', 'The current sticker stops working straight away. Print and stick the new one in the vehicle.', 'Replace', async () => {
+      await api(`/admin/vehicles/${v.id}/rotate-qr`, { method: 'POST' });
+      await qr.reload();
+    });
+
+  // Saves the picture as a PNG file, then opens Android's share menu (Save to Photos/Files, WhatsApp, Email, Print...).
+  const shareQr = async () => {
+    if (!qr.data) return;
+    setSharing(true);
+    try {
+      const file = new File(Paths.cache, qr.data.file_name);
+      if (file.exists) file.delete();
+      file.create();
+      file.write(qr.data.png_base64, { encoding: 'base64' });
+      if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing is not available on this phone.');
+      await Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle: `QR code for ${v.plate}` });
+    } catch (err) {
+      Alert.alert('Could not share the QR code', errorMessage(err));
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const toggleActive = () =>
     v.is_active
@@ -68,15 +92,20 @@ export default function VehicleDetails() {
 
       <SectionTitle>QR sticker</SectionTitle>
       <Card style={{ alignItems: 'center' }}>
-        <Image
-          // The token in the address makes the picture refresh after the code is replaced.
-          source={{ uri: `${getApiUrl()}/admin/vehicles/${v.id}/qr.png?t=${v.qr_token}`, headers: authHeader() }}
-          style={{ width: 240, height: 240 }}
-          accessibilityLabel={`QR code for ${v.plate}`}
-        />
+        {qr.data ? (
+          <Image source={{ uri: `data:image/png;base64,${qr.data.png_base64}` }} style={{ width: 260, height: 260 }} accessibilityLabel={`QR code for ${v.plate}`} />
+        ) : qr.error ? (
+          <ErrorBox message={qr.error} onRetry={qr.reload} />
+        ) : (
+          <ActivityIndicator style={{ height: 260 }} color={colors.primary} />
+        )}
         <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 8 }}>{v.plate}</Text>
-        <Muted center>Take a screenshot of this code and print it. Stick it inside the vehicle where passengers can scan it.</Muted>
+        <Muted center>
+          Passengers scan this code to pay. Tap the button below to save it to your phone or send it (WhatsApp, email) and print it. Stick it inside
+          the vehicle where passengers can see it.
+        </Muted>
       </Card>
+      <Button title="Save or share QR code" icon="share-outline" onPress={shareQr} loading={sharing} disabled={!qr.data} />
       <Button title="Replace QR code" variant="danger" icon="refresh" onPress={replaceQr} />
       <Button title={v.is_active ? 'Stop using this vehicle' : 'Use this vehicle again'} variant={v.is_active ? 'danger' : 'secondary'} onPress={toggleActive} />
     </Screen>

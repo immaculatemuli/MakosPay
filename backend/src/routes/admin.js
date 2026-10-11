@@ -501,11 +501,20 @@ router.post('/vehicles/:id/rotate-qr', (req, res) => {
 });
 
 // The QR sticker to print and put inside the vehicle.
+const qrPng = (vehicle) => QRCode.toBuffer(`${config.qrPrefix}${vehicle.qr_token}`, { width: 800, margin: 2, errorCorrectionLevel: 'M' });
+const qrFileName = (vehicle) => `FarePay-QR-${vehicle.plate.replace(/\W+/g, '_')}.png`;
+
 router.get('/vehicles/:id/qr.png', async (req, res) => {
   const vehicle = getVehicle(parse(id, req.params.id));
   if (!vehicle) throw notFound('Vehicle');
-  const png = await QRCode.toBuffer(`${config.qrPrefix}${vehicle.qr_token}`, { width: 800, margin: 2, errorCorrectionLevel: 'M' });
-  res.type('png').set('Content-Disposition', `inline; filename="${vehicle.plate.replace(/\W+/g, '_')}.png"`).send(png);
+  res.type('png').set('Content-Disposition', `inline; filename="${qrFileName(vehicle)}"`).send(await qrPng(vehicle));
+});
+
+// The same picture inside a normal JSON answer, for the app (images that need a sign-in don't load reliably on Android).
+router.get('/vehicles/:id/qr', async (req, res) => {
+  const vehicle = getVehicle(parse(id, req.params.id));
+  if (!vehicle) throw notFound('Vehicle');
+  res.json({ plate: vehicle.plate, file_name: qrFileName(vehicle), png_base64: (await qrPng(vehicle)).toString('base64') });
 });
 
 export default router;
