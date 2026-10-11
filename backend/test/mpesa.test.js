@@ -112,7 +112,8 @@ test('top-up: PIN prompt to the passenger, wallet credited only when M-Pesa conf
   const push = fake.requests.find((r) => r.path === '/mpesa/stkpush/v1/processrequest').body;
   assert.equal(push.PhoneNumber, '254712345678');
   assert.equal(push.Amount, 200);
-  assert.match(push.CallBackURL, /\/mpesa\/callback\/cbsecret\/stk$/);
+  assert.match(push.CallBackURL, /\/hooks\/cbsecret\/stk$/);
+  assert.doesNotMatch(push.CallBackURL, /mpesa|safaricom/i, 'Safaricom refuses addresses with these words');
 
   const first = await api('GET', `/passenger/mpesa/${start.body.payment.id}`, { token: s.passenger });
   assert.equal(first.body.payment.status, 'pending', 'passenger has not entered the PIN yet');
@@ -125,7 +126,7 @@ test('top-up: PIN prompt to the passenger, wallet credited only when M-Pesa conf
 });
 
 test("Safaricom's later confirmation adds the receipt number without paying twice", async () => {
-  const cb = await api('POST', '/mpesa/callback/cbsecret/stk', {
+  const cb = await api('POST', '/hooks/cbsecret/stk', {
     body: {
       Body: {
         stkCallback: {
@@ -145,8 +146,10 @@ test("Safaricom's later confirmation adds the receipt number without paying twic
 });
 
 test('a callback with the wrong secret is ignored', async () => {
-  const res = await fetch(`${base}/mpesa/callback/wrong/stk`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-  assert.equal(res.status, 404);
+  for (const path of ['/hooks/wrong/stk', '/mpesa/callback/wrong/stk']) {
+    const res = await fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(res.status, 404, path);
+  }
 });
 
 test('top-up amounts outside the limits are refused before any prompt', async () => {

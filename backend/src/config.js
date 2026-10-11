@@ -8,6 +8,12 @@ export const config = {
   jwtSecret: env.JWT_SECRET ?? 'dev-only-insecure-secret',
   jwtExpiresIn: env.JWT_EXPIRES_IN ?? '30d',
   dbPath: env.DB_PATH ?? './data/farepay.db',
+  // A copy of the database is saved every night (Kenyan time) into backupDir; the newest backupKeep are kept.
+  backupDir: env.BACKUP_DIR ?? './data/backups',
+  backupDailyAt: env.BACKUP_DAILY_AT ?? '03:00',
+  backupKeep: num(env.BACKUP_KEEP, 14),
+  // How many proxies sit in front of the server (e.g. 1 for Caddy), so limits see the phone's real address.
+  trustProxy: /^\d+$/.test(env.TRUST_PROXY ?? '') ? Number(env.TRUST_PROXY) : env.TRUST_PROXY || false,
 
   // The SACCO this FarePay runs for (one SACCO for now), shown to passengers.
   saccoName: env.SACCO_NAME || 'Your SACCO',
@@ -63,12 +69,19 @@ export const config = {
 export const isRealMoney = () => (config.paymentProvider === 'intasend' ? config.intasend.mode === 'live' : config.mpesa.mode === 'production');
 
 if (config.env === 'production') {
-  if (config.jwtSecret === 'dev-only-insecure-secret') throw new Error('JWT_SECRET must be set in production');
-  if (config.mpesa.callbackSecret === 'dev-callback-secret') throw new Error('MPESA_CALLBACK_SECRET must be set in production');
+  if (config.jwtSecret === 'dev-only-insecure-secret' || config.jwtSecret.length < 32) throw new Error('JWT_SECRET must be set in production (at least 32 random characters)');
+  if (config.mpesa.callbackSecret === 'dev-callback-secret' || config.mpesa.callbackSecret.length < 24) {
+    throw new Error('MPESA_CALLBACK_SECRET must be set in production (at least 24 random characters)');
+  }
   if (config.mpesa.mode === 'mock') throw new Error('MPESA_MODE=mock is for tests only');
+  if (config.paymentProvider === 'daraja' && !/^https:\/\//.test(config.mpesa.callbackBaseUrl)) throw new Error('MPESA_CALLBACK_BASE_URL must be an https:// address in production');
+  if (config.dbPath === ':memory:') throw new Error('DB_PATH must be a file in production');
 }
+// Real money only with every production safety check above switched on.
+if (isRealMoney() && config.env !== 'production') throw new Error('Real money (MPESA_MODE=production or INTASEND_MODE=live) needs NODE_ENV=production');
 if (!['sandbox', 'production', 'mock'].includes(config.mpesa.mode)) throw new Error('MPESA_MODE must be sandbox, production or mock');
 if (!['daraja', 'intasend'].includes(config.paymentProvider)) throw new Error('PAYMENT_PROVIDER must be daraja or intasend');
 if (!['sandbox', 'live'].includes(config.intasend.mode)) throw new Error('INTASEND_MODE must be sandbox or live');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.payoutDailyAt)) throw new Error('PAYOUT_DAILY_AT must be HH:MM, e.g. 21:00');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.moneyCheckDailyAt)) throw new Error('MONEY_CHECK_DAILY_AT must be HH:MM, e.g. 23:00');
+if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.backupDailyAt)) throw new Error('BACKUP_DAILY_AT must be HH:MM, e.g. 03:00');

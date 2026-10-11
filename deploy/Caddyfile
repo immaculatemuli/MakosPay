@@ -1,0 +1,6 @@
+# Caddy gets a free HTTPS certificate for your web address and passes requests to FarePay.
+# Replace api.example.co.ke with your address, then copy to /etc/caddy/Caddyfile (see deploy/README.md).
+api.example.co.ke {
+	encode gzip
+	reverse_proxy localhost:4000
+}

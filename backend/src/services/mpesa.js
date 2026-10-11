@@ -30,7 +30,8 @@ export const isConfigured = viaIntaSend
       stk: isMock || Boolean(cfg.consumerKey && cfg.consumerSecret && cfg.shortcode && cfg.passkey),
       b2c: isMock || Boolean(cfg.consumerKey && cfg.consumerSecret && cfg.b2cShortcode && cfg.b2cInitiatorName && cfg.b2cSecurityCredential),
     };
-const callbackUrl = (path) => `${cfg.callbackBaseUrl}/mpesa/callback/${cfg.callbackSecret}/${path}`;
+// Safaricom refuses callback addresses containing words like "mpesa" or "safaricom", so they go to /hooks.
+const callbackUrl = (path) => `${cfg.callbackBaseUrl}/hooks/${cfg.callbackSecret}/${path}`;
 
 let cachedToken = null; // { value, expiresAt }
 

@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { isConfigured, isMock, providerLabel } from './services/mpesa.js';
 import { reconcilePendingPayments } from './services/payments.js';
 import { reconcileProcessingPayouts, startDailyPayouts } from './services/payouts.js';
+import { startNightlyBackup } from './services/backup.js';
 import { startNightlyMoneyCheck } from './services/reconciliation.js';
 import { reconcileProcessingWithdrawals } from './services/withdrawals.js';
 import { applyDueFareChanges } from './services/routes.js';
@@ -51,6 +52,8 @@ createApp().listen(config.port, '0.0.0.0', () => {
   // Every night the books are checked; the office is alerted only if something doesn't add up.
   startNightlyMoneyCheck();
   console.log(`  Money check runs every night at ${config.moneyCheckDailyAt} (Kenyan time)`);
+  startNightlyBackup();
+  console.log(`  Database backed up every night at ${config.backupDailyAt} into ${config.backupDir}`);
   // Fare changes scheduled for a date take effect on their own (they are also applied before any fare is charged).
   every(60_000, 'fare changes', () => applyDueFareChanges());
 });

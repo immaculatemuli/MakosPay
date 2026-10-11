@@ -20,9 +20,14 @@ export async function createUser({ name, phone, password, role }) {
   });
 }
 
+// Checked when the phone number has no account, so a wrong number takes as long as a wrong password
+// (otherwise the answer time would tell people which numbers are registered).
+const NO_ACCOUNT_HASH = bcrypt.hashSync(randomUUID(), 10);
+
 export async function verifyCredentials(phone, password) {
   const user = db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
-  const ok = user && (await bcrypt.compare(password, user.password_hash));
+  const matches = await bcrypt.compare(password, user?.password_hash ?? NO_ACCOUNT_HASH);
+  const ok = user && matches;
   if (!ok) throw new HttpError(401, 'INVALID_CREDENTIALS', 'Wrong phone number or password');
   if (!user.is_active) throw new HttpError(403, 'ACCOUNT_DISABLED', 'This account has been disabled. Contact the SACCO office.');
   return getUser(user.id);
@@ -32,8 +37,12 @@ export async function verifyCredentials(phone, password) {
 export async function resetPassword(userId, newPassword) {
   const user = db.prepare("SELECT id FROM users WHERE id = ? AND role IN ('passenger', 'conductor', 'driver')").get(userId);
   if (!user) throw new HttpError(404, 'NOT_FOUND', 'Passenger, conductor or driver not found');
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await bcrypt.hash(newPassword, 10), userId);
+  setPassword(userId, await bcrypt.hash(newPassword, 10));
 }
+
+/** Saves a new password and signs out every phone using the old one. */
+const setPassword = (userId, hash) =>
+  db.prepare('UPDATE users SET password_hash = ?, session_version = session_version + 1 WHERE id = ?').run(hash, userId);
 
 /**
  * A passenger deletes their account (required by Google Play). Their name and phone number are removed
@@ -51,7 +60,11 @@ export async function deleteOwnAccount(userId, currentPassword) {
     throw new HttpError(409, 'WALLET_NOT_EMPTY', `Your wallet still has KES ${balance}. Withdraw it to M-Pesa from your Wallet (or use it for fares), then delete your account.`);
   }
   const unusable = await bcrypt.hash(randomUUID(), 10);
-  db.prepare("UPDATE users SET name = 'Deleted passenger', phone = ?, password_hash = ?, is_active = 0 WHERE id = ?").run(`deleted-${userId}`, unusable, userId);
+  db.prepare("UPDATE users SET name = 'Deleted passenger', phone = ?, password_hash = ?, is_active = 0, session_version = session_version + 1 WHERE id = ?").run(
+    `deleted-${userId}`,
+    unusable,
+    userId,
+  );
 }
 
 export async function changePassword(userId, currentPassword, newPassword) {
@@ -59,5 +72,5 @@ export async function changePassword(userId, currentPassword, newPassword) {
   if (!user || !(await bcrypt.compare(currentPassword, user.password_hash))) {
     throw new HttpError(400, 'WRONG_PASSWORD', 'Your current password is incorrect');
   }
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await bcrypt.hash(newPassword, 10), userId);
+  setPassword(userId, await bcrypt.hash(newPassword, 10));
 }

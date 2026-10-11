@@ -1,0 +1,22 @@
+# systemd service: keeps the FarePay server running, starts it when the machine boots, and restarts it if it
+# ever stops. Copy to /etc/systemd/system/farepay.service (see deploy/README.md).
+[Unit]
+Description=FarePay API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=farepay
+WorkingDirectory=/opt/farepay/backend
+ExecStart=/usr/bin/node --env-file=.env src/server.js
+Restart=always
+RestartSec=5
+# The server can only write to its own data folder.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/farepay/backend/data
+
+[Install]
+WantedBy=multi-user.target

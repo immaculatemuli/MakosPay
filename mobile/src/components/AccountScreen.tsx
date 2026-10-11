@@ -9,7 +9,7 @@ import { Button, Card, ErrorBox, Field, KeyValue, Muted, Notice, Screen, Section
 
 /** Profile, password change, privacy policy, sign out, and (passengers) deleting the account; shared by all roles. */
 export function AccountScreen({ children }: { children?: ReactNode }) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, changePassword: savePassword } = useAuth();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,7 +26,7 @@ export function AccountScreen({ children }: { children?: ReactNode }) {
     setError(null);
     setDone(false);
     try {
-      await api('/auth/change-password', { method: 'POST', body: { current_password: current, new_password: next } });
+      await savePassword(current, next);
       setCurrent('');
       setNext('');
       setDone(true);
@@ -76,7 +76,7 @@ export function AccountScreen({ children }: { children?: ReactNode }) {
 
       <SectionTitle>Change password</SectionTitle>
       {error && <ErrorBox message={error} />}
-      {done && <Notice tone="success">Password changed.</Notice>}
+      {done && <Notice tone="success">Password changed. Any other phone signed in to this account has been signed out.</Notice>}
       <Field label="Current password" secureTextEntry value={current} onChangeText={setCurrent} />
       <Field label="New password" hint="At least 6 characters" secureTextEntry value={next} onChangeText={setNext} />
       <Button title="Change password" variant="secondary" onPress={changePassword} loading={busy} disabled={!current || next.length < 6} />

@@ -251,6 +251,9 @@ if (hasColumn('routes', 'cash_fare')) {
   db.exec('PRAGMA foreign_keys = ON');
 }
 
+// Raised when the password changes, so every older sign-in stops working (see auth.js).
+if (!hasColumn('users', 'session_version')) db.exec('ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0');
+
 // Trips now record which stop the passenger paid to.
 if (!hasColumn('trips', 'stop_id')) db.exec('ALTER TABLE trips ADD COLUMN stop_id INTEGER REFERENCES route_stops(id)');
 if (!hasColumn('trips', 'stop_name')) db.exec('ALTER TABLE trips ADD COLUMN stop_name TEXT');

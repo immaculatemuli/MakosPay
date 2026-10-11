@@ -130,7 +130,7 @@ test('pay now: one M-Pesa payment to the owner for everything owed, confirmed by
   assert.equal(sent.PartyB, '254744555666');
   assert.equal(sent.Amount, 230);
   assert.match(sent.Remarks, /KDA 123A/);
-  assert.match(sent.ResultURL, /\/mpesa\/callback\/cbsecret\/b2c\/result$/);
+  assert.match(sent.ResultURL, /\/hooks\/cbsecret\/b2c\/result$/);
 
   assert.deepEqual((await owed()).owners.map((x) => x.owner_name), ['John Owner'], "Mary's fares are no longer owed");
   const again = await api('POST', '/admin/payouts', { token: s.admin, body: { owner_phone: '0744555666' } });

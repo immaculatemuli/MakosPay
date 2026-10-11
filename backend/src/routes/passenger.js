@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db.js';
+import { limitBy, pinPromptsByUser } from '../ratelimit.js';
 import { config } from '../config.js';
 import { HttpError } from '../errors.js';
 import { getUserPayment, startFarePayment, startTopup } from '../services/payments.js';
@@ -124,7 +125,7 @@ router.post('/pay', (req, res) => {
 });
 
 // Wallet too low: pay this one fare with an M-Pesa PIN prompt. The app then checks GET /mpesa/:id until confirmed.
-router.post('/pay-mpesa', async (req, res) => {
+router.post('/pay-mpesa', limitBy(pinPromptsByUser, (req) => req.user.id), async (req, res) => {
   const body = parse(
     z.object({ qr: z.string().min(1), stop_id: id, expected_fare: kes, idempotency_key: z.string().min(8).max(100) }),
     req.body,
@@ -146,7 +147,7 @@ router.get('/wallet', (req, res) => {
 });
 
 // Sends the M-Pesa PIN prompt. The app then checks GET /mpesa/:id until it is completed or failed.
-router.post('/wallet/topup', async (req, res) => {
+router.post('/wallet/topup', limitBy(pinPromptsByUser, (req) => req.user.id), async (req, res) => {
   const body = parse(z.object({ amount: kes, phone: phone.optional() }), req.body);
   const payment = await startTopup(req.user.id, { amount: body.amount, phone: body.phone ?? req.user.phone });
   res.status(202).json({ payment, wallet_balance: getBalance(req.user.id) });

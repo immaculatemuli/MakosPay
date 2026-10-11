@@ -15,7 +15,7 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (phone: string, password: string) => Promise<void>;
   register: (name: string, phone: string, password: string) => Promise<void>;
-  resetPassword: (phone: string, code: string, newPassword: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -73,18 +73,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [save],
   );
 
-  // Forgot password: the SMS code sets a new password and signs the user in.
-  const resetPassword = useCallback(
-    async (phone: string, code: string, newPassword: string) => {
-      const res = await api<Session>('/auth/password-reset/confirm', { method: 'POST', body: { phone, code, new_password: newPassword } });
+  // A new password signs out every other phone; this one gets a fresh sign-in so it stays signed in.
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const res = await api<Session>('/auth/change-password', { method: 'POST', body: { current_password: currentPassword, new_password: newPassword } });
       await save(res);
     },
     [save],
   );
 
   const value = useMemo(
-    () => ({ user: session?.user ?? null, loading, signIn, register, resetPassword, signOut }),
-    [session, loading, signIn, register, resetPassword, signOut],
+    () => ({ user: session?.user ?? null, loading, signIn, register, changePassword, signOut }),
+    [session, loading, signIn, register, changePassword, signOut],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
