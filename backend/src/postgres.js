@@ -25,8 +25,12 @@ export function createPool(connectionString, extra = {}) {
 /** A full backup with pg_dump (custom format, restore with pg_restore). `schema` limits it to one schema. */
 export function pgDump(connectionString, file, schema = null) {
   return new Promise((resolve, reject) => {
-    const args = ['--format=custom', '--no-owner', `--file=${file}`, ...(schema ? [`--schema=${schema}`] : []), `--dbname=${connectionString}`];
-    const child = spawn('pg_dump', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    // The password goes in the environment, never on the command line (other programs can see command lines).
+    const url = new URL(connectionString);
+    const password = decodeURIComponent(url.password);
+    url.password = '';
+    const args = ['--format=custom', '--no-owner', '--no-password', `--file=${file}`, ...(schema ? [`--schema=${schema}`] : []), `--dbname=${url}`];
+    const child = spawn('pg_dump', args, { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, PGPASSWORD: password } });
     let errors = '';
     child.stderr.on('data', (d) => (errors += d));
     child.on('error', (err) => reject(new Error(`pg_dump could not start (is PostgreSQL's bin folder on PATH?): ${err.message}`)));
