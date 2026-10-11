@@ -251,6 +251,14 @@ if (hasColumn('routes', 'cash_fare')) {
   db.exec('PRAGMA foreign_keys = ON');
 }
 
+// One M-Pesa receipt can only ever be recorded on one payment, so the same money can't be credited twice.
+// (Only added if the data already obeys it, so an old duplicate never stops the server from starting.)
+if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'idx_mpesa_payments_receipt'").get()) {
+  const dupes = db.prepare('SELECT mpesa_receipt FROM mpesa_payments WHERE mpesa_receipt IS NOT NULL GROUP BY mpesa_receipt HAVING COUNT(*) > 1').all();
+  if (dupes.length === 0) db.exec('CREATE UNIQUE INDEX idx_mpesa_payments_receipt ON mpesa_payments(mpesa_receipt) WHERE mpesa_receipt IS NOT NULL');
+  else console.warn(`! M-Pesa receipts recorded more than once: ${dupes.map((d) => d.mpesa_receipt).join(', ')}. Check them in Money check.`);
+}
+
 // Raised when the password changes, so every older sign-in stops working (see auth.js).
 if (!hasColumn('users', 'session_version')) db.exec('ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0');
 

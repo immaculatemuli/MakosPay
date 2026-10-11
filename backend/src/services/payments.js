@@ -9,6 +9,9 @@ import { kesText, notify } from './notifications.js';
 import { checkFare, findTrip, getTrip, recordTrip } from './trips.js';
 import { getBalance, postWalletEntry } from './wallet.js';
 
+// What an M-Pesa payment that never got an answer is marked with (a late "success" can still complete it).
+const EXPIRED = 'No answer from M-Pesa (expired)';
+
 // STK query result codes that mean the passenger has not finished paying yet.
 const STILL_PROCESSING = new Set(['4999']);
 
@@ -134,6 +137,28 @@ export function handleStkCallback(body) {
       db.prepare('UPDATE wallet_transactions SET reference = ? WHERE user_id = ? AND reference = ?').run(receipt, payment.user_id, placeholderRef(payment.id));
       return;
     }
+    // M-Pesa took the money after FarePay had given up waiting ("no answer"): the passenger paid, so the
+    // money goes into their wallet. A late fare gets no ticket (they will have paid another way by then).
+    if (payment.status === 'failed' && payment.result_desc === EXPIRED && success) {
+      db.prepare(`UPDATE mpesa_payments SET status = 'completed', mpesa_receipt = ?, result_desc = ?, completed_at = ${NOW} WHERE id = ?`).run(
+        receipt,
+        'Confirmed late by M-Pesa',
+        payment.id,
+      );
+      postWalletEntry(payment.user_id, {
+        type: 'topup',
+        amount: payment.amount,
+        reference: receipt ?? placeholderRef(payment.id),
+        description: payment.purpose === 'fare' ? 'M-Pesa fare payment confirmed late: added to your wallet' : 'M-Pesa top-up (confirmed late)',
+      });
+      notify([payment.user_id], {
+        kind: 'topup.completed',
+        title: `${kesText(payment.amount)} added to your wallet`,
+        body: `M-Pesa confirmed your payment late${receipt ? ` (receipt ${receipt})` : ''}, so it is in your wallet${payment.purpose === 'fare' ? ' instead of paying that fare' : ''}. Balance ${kesText(getBalance(payment.user_id))}.`,
+        target: 'wallet',
+      });
+      return;
+    }
     if (payment.status !== 'pending') return;
 
     if (!success) {
@@ -208,10 +233,10 @@ export async function reconcilePendingPayments({ expireAfterMs = config.mpesa.pe
     if (current.status === 'pending' && Date.now() - Date.parse(current.created_at) > expireAfterMs) {
       const expired = db
         .prepare(
-          `UPDATE mpesa_payments SET status = 'failed', result_desc = 'No answer from M-Pesa (expired)', completed_at = ${NOW}
+          `UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW}
            WHERE id = ? AND status = 'pending'`,
         )
-        .run(current.id);
+        .run(EXPIRED, current.id);
       if (expired.changes) notifyTopupFailed(current, 'No answer from M-Pesa');
     }
   }
