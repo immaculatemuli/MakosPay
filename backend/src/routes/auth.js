@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, signToken } from '../auth.js';
+import { audit } from '../services/audit.js';
 import { changePassword, createUser, deleteOwnAccount, verifyCredentials } from '../services/users.js';
 import { name, parse, password, phone } from '../validate.js';
 
@@ -27,6 +28,7 @@ router.get('/me', authenticate, (req, res) => {
 router.post('/delete-account', authenticate, async (req, res) => {
   const { password: current } = parse(z.object({ password: z.string().min(1) }), req.body);
   await deleteOwnAccount(req.user.id, current);
+  audit(req.user, 'account.delete', 'users', req.user.id);
   res.json({ ok: true });
 });
 

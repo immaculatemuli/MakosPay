@@ -6,7 +6,7 @@ import { config } from '../config.js';
 import { HttpError } from '../errors.js';
 import { getUserPayment, startFarePayment, startTopup } from '../services/payments.js';
 import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
-import { listRoutes } from '../services/routes.js';
+import { listRoutes, publicFareChanges } from '../services/routes.js';
 import { getBalance } from '../services/wallet.js';
 import { payFare, quoteFare, TRIP_SELECT } from '../services/trips.js';
 import { nairobiDayRange, nairobiToday } from '../util.js';
@@ -86,6 +86,11 @@ router.post('/reports', (req, res) => {
 router.get('/reports', (req, res) => {
   const rows = db.prepare(`${REPORT_SELECT} WHERE r.reporter_id = ? ORDER BY r.id DESC LIMIT 50`).all(req.user.id);
   res.json(rows.map(({ reporter_phone, handled_by, ...r }) => r));
+});
+
+// Fare changes on routes in use: recent ones (last 30 days) and those coming up, with their dates.
+router.get('/fare-changes', (_req, res) => {
+  res.json(publicFareChanges());
 });
 
 // ---------- Routes, scanning and paying ----------

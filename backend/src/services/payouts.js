@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import { db, insertId, NOW, tx } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import { nairobiToday } from '../util.js';
+import { audit } from './audit.js';
 import * as mpesa from './mpesa.js';
 
 export const getPayout = (id) => db.prepare('SELECT * FROM payouts WHERE id = ?').get(id);
@@ -157,8 +158,10 @@ export function handleB2cResult(body) {
   if (!result?.OriginatorConversationID) return;
   const payout = db.prepare('SELECT * FROM payouts WHERE conversation_id = ?').get(result.OriginatorConversationID);
   if (!payout || payout.status !== 'processing') return;
-  if (Number(result.ResultCode) === 0) completePayout(payout.id, String(result.TransactionID));
+  const ok = Number(result.ResultCode) === 0;
+  if (ok) completePayout(payout.id, String(result.TransactionID));
   else failPayout(payout.id, String(result.ResultDesc ?? 'M-Pesa payment failed'));
+  audit(null, ok ? 'payout.confirmed' : 'payout.failed', 'payouts', payout.id, { amount: payout.amount, result: result.ResultDesc ?? null, reference: ok ? String(result.TransactionID) : null });
 }
 
 /** M-Pesa's queue timed out: the outcome is unknown, so leave it for the office to check. */
@@ -206,6 +209,7 @@ export function startDailyPayouts() {
     try {
       db.prepare("INSERT INTO job_runs (name, last_run) VALUES ('daily_payouts', ?) ON CONFLICT(name) DO UPDATE SET last_run = excluded.last_run").run(today);
       const paid = await payEveryone();
+      audit(null, 'payout.daily_run', 'payouts', null, { date: today, payouts: paid.map((p) => ({ id: p.id, owner: p.owner_name, amount: p.amount, status: p.status })) });
       console.log(`[payouts] daily payouts for ${today}: ${paid.length} owner(s)`);
     } catch (err) {
       console.error('[payouts] daily payouts failed:', err.message);

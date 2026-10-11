@@ -227,6 +227,41 @@ CREATE TABLE IF NOT EXISTS owner_deductions (
 `);
 
 db.exec(`
+-- Every fare change for a drop-off stop: what it was, what it became, who changed it and from when.
+-- A change dated in the future waits (applied_at NULL) until that day. Past payments keep their own fares.
+CREATE TABLE IF NOT EXISTS fare_changes (
+  id             INTEGER PRIMARY KEY,
+  stop_id        INTEGER NOT NULL REFERENCES route_stops(id),
+  old_cash_fare  INTEGER NOT NULL,
+  old_app_fare   INTEGER NOT NULL,
+  new_cash_fare  INTEGER NOT NULL CHECK (new_cash_fare > 0),
+  new_app_fare   INTEGER NOT NULL CHECK (new_app_fare > 0),
+  effective_from TEXT NOT NULL,   -- when it takes effect (UTC), e.g. midnight Kenyan time on the chosen day
+  applied_at     TEXT,            -- when it actually took effect (NULL = still waiting)
+  cancelled_at   TEXT,
+  reason         TEXT,
+  changed_by     INTEGER NOT NULL REFERENCES users(id),
+  created_at     TEXT NOT NULL DEFAULT (${NOW}),
+  CHECK (new_app_fare <= new_cash_fare)
+);
+CREATE INDEX IF NOT EXISTS idx_fare_changes_stop ON fare_changes(stop_id, id);
+CREATE INDEX IF NOT EXISTS idx_fare_changes_due ON fare_changes(effective_from) WHERE applied_at IS NULL AND cancelled_at IS NULL;
+
+-- What office and platform staff did, for accountability. Only ever added to: there is no way to edit or delete.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id         INTEGER PRIMARY KEY,
+  actor_id   INTEGER REFERENCES users(id),   -- NULL = the system itself (e.g. the daily payout)
+  actor_role TEXT,
+  action     TEXT NOT NULL,                  -- e.g. 'fare.change', 'payment.refund', 'payout.complete'
+  entity     TEXT,                           -- e.g. 'stop', 'trip', 'payout'
+  entity_id  INTEGER,
+  details    TEXT,                           -- JSON with the important values
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity, entity_id);
+CREATE TRIGGER IF NOT EXISTS audit_log_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit log entries cannot be changed'); END;
+CREATE TRIGGER IF NOT EXISTS audit_log_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit log entries cannot be deleted'); END;
+
 -- Drop-off stops a passenger saved for quick choosing.
 CREATE TABLE IF NOT EXISTS saved_stops (
   user_id    INTEGER NOT NULL REFERENCES users(id),
@@ -275,6 +310,8 @@ for (const column of ['bank_name', 'bank_paybill', 'bank_account']) {
  * which together with node:sqlite's synchronous API makes it atomic.
  */
 export function tx(fn) {
+  // Already inside a transaction (e.g. a payment applying a due fare change): just join it.
+  if (db.isTransaction) return fn();
   db.exec('BEGIN IMMEDIATE');
   try {
     const result = fn();

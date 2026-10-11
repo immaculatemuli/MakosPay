@@ -1,0 +1,32 @@
+/** Plain words for audit log actions (the server records them as "METHOD /path"). */
+const LABELS: [RegExp, string][] = [
+  [/^POST \/admin\/routes$/, 'Added a route'],
+  [/^PATCH \/admin\/routes\/:id$/, 'Changed a route or its fares'],
+  [/^POST \/admin\/stops\/:id\/fare-change$/, 'Set a new fare'],
+  [/^POST \/admin\/fare-changes\/:id\/cancel$/, 'Cancelled a fare change'],
+  [/^POST \/admin\/vehicles$/, 'Added a vehicle'],
+  [/^PATCH \/admin\/vehicles\/:id$/, 'Changed a vehicle'],
+  [/^POST \/admin\/vehicles\/:id\/rotate-qr$/, 'Replaced a QR sticker'],
+  [/^POST \/admin\/conductors$/, 'Added a conductor'],
+  [/^PATCH \/admin\/conductors\/:id$/, 'Changed a conductor account'],
+  [/^POST \/admin\/drivers$/, 'Added a driver'],
+  [/^PATCH \/admin\/drivers\/:id$/, 'Changed a driver account'],
+  [/^POST \/admin\/staff$/, 'Added an office account'],
+  [/^PATCH \/admin\/staff\/:id$/, 'Changed an office account'],
+  [/^POST \/admin\/users\/:id\/password$/, 'Set a new password for someone'],
+  [/^POST \/admin\/payments\/:id\/refund$/, 'Refunded a fare'],
+  [/^PATCH \/admin\/reports\/:id$/, 'Replied to a problem report'],
+  [/^POST \/admin\/payouts$/, 'Paid an owner'],
+  [/^POST \/admin\/payouts\/run$/, 'Paid all owners'],
+  [/^POST \/admin\/payouts\/:id\/complete$/, 'Marked a payout as paid'],
+  [/^POST \/admin\/payouts\/:id\/fail$/, 'Marked a payout as failed'],
+  [/^POST \/platform\/admins$/, 'Added a platform admin'],
+  [/^PATCH \/platform\/admins\/:id$/, 'Changed a platform admin'],
+  [/^PUT \/(crew|conductor)\/vehicle\/route$/, 'Changed the vehicle’s route'],
+  [/^payout\.confirmed$/, 'M-Pesa confirmed a payout'],
+  [/^payout\.failed$/, 'M-Pesa rejected a payout'],
+  [/^payout\.daily_run$/, 'Daily owner payouts ran'],
+  [/^account\.delete$/, 'A passenger deleted their account'],
+];
+
+export const auditLabel = (action: string) => LABELS.find(([re]) => re.test(action))?.[1] ?? action;

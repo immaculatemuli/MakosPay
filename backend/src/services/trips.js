@@ -1,13 +1,14 @@
 import { db, insertId, NOW, tx } from '../db.js';
 import { HttpError } from '../errors.js';
 import { parseQr, randomCode } from '../util.js';
-import { getRoute, getStop, requireActiveStop } from './routes.js';
+import { applyDueFareChanges, getRoute, getStop, requireActiveStop } from './routes.js';
 import { getBalance, postWalletEntry } from './wallet.js';
 
 const RECENT_PAYMENT_WINDOW_MS = 30 * 60 * 1000;
 
 /** The vehicle behind a scanned QR code, and the route it is on. */
 function loadVehicle(qr) {
+  applyDueFareChanges(); // a fare change dated today must apply before anyone is quoted or charged
   const vehicle = db
     .prepare(
       `SELECT v.*, c.name AS conductor_name FROM vehicles v LEFT JOIN users c ON c.id = v.conductor_id AND c.is_active = 1

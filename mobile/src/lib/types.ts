@@ -180,6 +180,54 @@ export interface Payout extends PayoutDestination {
   completed_at: string | null;
 }
 
+/** One fare change for a drop-off stop (applied, waiting for its date, or cancelled). */
+export interface FareChange {
+  id: number;
+  stop_id: number;
+  stop_name: string;
+  route_name: string;
+  old_cash_fare: number;
+  old_app_fare: number;
+  new_cash_fare: number;
+  new_app_fare: number;
+  effective_from: string;
+  applied_at: string | null;
+  cancelled_at?: string | null;
+  reason?: string | null;
+  changed_by_name?: string;
+  created_at?: string;
+}
+
+export interface AuditEntry {
+  id: number;
+  actor_name: string | null;
+  actor_role: string;
+  action: string;
+  entity: string | null;
+  entity_id: number | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface Reconciliation {
+  checked_at: string;
+  all_ok: boolean;
+  checks: { name: string; ok: boolean; detail: string | null }[];
+  totals: {
+    real_money: boolean;
+    mpesa_collected: number;
+    test_credit: number;
+    refunds_to_wallets: number;
+    fares_paid: number;
+    wallet_balances: number;
+    paid_out_to_owners: number;
+    being_paid_out: number;
+    owed_to_owners: number;
+    refunds_to_take_back: number;
+    mpesa_pending: number;
+  };
+}
+
 /** A drop-off stop with its route, for "saved" and "frequent" lists. */
 export interface StopChoice {
   stop_id: number;

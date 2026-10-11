@@ -93,7 +93,18 @@ export default function RouteForm() {
       <Field label="Starts from" placeholder="e.g. Town" value={origin} onChangeText={setOrigin} />
 
       <SectionTitle>Drop-off stops and fares</SectionTitle>
-      <Muted>Add each place passengers can get off, in order along the route. App users pay the app fare.</Muted>
+      <Muted>
+        Add each place passengers can get off, in order along the route. App users pay the Member Fare.
+        {id ? ' Fare changes made here start straight away; to start a new fare on a later day, use Fare history.' : ''}
+      </Muted>
+      {id && (
+        <Button
+          title="Fare history and future fares"
+          variant="secondary"
+          icon="time-outline"
+          onPress={() => router.push({ pathname: '/admin/fare-history', params: { route_id: id } })}
+        />
+      )}
       <View style={{ height: 10 }} />
 
       {stops.map((s, index) => {

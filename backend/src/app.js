@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate, requireRole } from './auth.js';
 import { HttpError } from './errors.js';
+import { auditChanges } from './services/audit.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import crewRoutes from './routes/crew.js';
@@ -15,12 +16,13 @@ export function createApp() {
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
   app.use('/auth', authRoutes);
+  // Every change made by office, platform and crew accounts is recorded in the audit log (auditChanges).
   // The platform admin can do everything the SACCO office can, plus the platform screens.
-  app.use('/admin', authenticate, requireRole('admin', 'platform_admin'), adminRoutes);
-  app.use('/platform', authenticate, requireRole('platform_admin'), platformRoutes);
+  app.use('/admin', authenticate, requireRole('admin', 'platform_admin'), auditChanges, adminRoutes);
+  app.use('/platform', authenticate, requireRole('platform_admin'), auditChanges, platformRoutes);
   app.use('/passenger', authenticate, requireRole('passenger'), passengerRoutes);
   // Conductors and drivers. '/conductor' is the older address, kept for apps installed before drivers existed.
-  app.use(['/crew', '/conductor'], authenticate, requireRole('conductor', 'driver'), crewRoutes);
+  app.use(['/crew', '/conductor'], authenticate, requireRole('conductor', 'driver'), auditChanges, crewRoutes);
   app.use('/mpesa', mpesaRoutes);
 
   app.use((_req, _res, next) => next(new HttpError(404, 'NOT_FOUND', 'Endpoint not found')));

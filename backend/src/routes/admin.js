@@ -7,12 +7,26 @@ import { db, insertId } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
 import { completePayout, createPayout, failPayout, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
-import { createRoute, getRoute, listRoutes, stopsSchema, updateRoute } from '../services/routes.js';
+import { listAudit } from '../services/audit.js';
+import { reconcile } from '../services/reconciliation.js';
+import {
+  cancelFareChange,
+  createRoute,
+  getRoute,
+  listRoutes,
+  routeFareChanges,
+  scheduleFareChange,
+  stopsSchema,
+  updateRoute,
+} from '../services/routes.js';
 import { REPORT_SELECT, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
 import { createUser, resetPassword } from '../services/users.js';
 import { nairobiDayRange, nairobiToday, newQrToken } from '../util.js';
-import { id, name, parse, password, phone } from '../validate.js';
+
+/** YYYY-MM-DD in Kenya, days from today. */
+const nairobiDate = (days) => new Date(Date.now() + 3 * 3600_000 + days * 86_400_000).toISOString().slice(0, 10);
+import { id, kes, name, parse, password, phone } from '../validate.js';
 
 const router = Router();
 
@@ -146,7 +160,28 @@ router.get('/routes/:id', (req, res) => {
 
 router.post('/routes', (req, res) => {
   const body = parse(z.object({ name, origin: name, stops: stopsSchema }), req.body);
-  res.status(201).json(getRoute(createRoute(body)));
+  res.status(201).json(getRoute(createRoute(body, req.user.id)));
+});
+
+// Fare history for a route: changes already in effect, waiting for their date, and cancelled.
+router.get('/routes/:id/fare-changes', (req, res) => {
+  res.json(routeFareChanges(parse(id, req.params.id)));
+});
+
+// Set a stop's fares from a date (YYYY-MM-DD, Kenyan time). Today or earlier applies at once; past payments keep their fares.
+router.post('/stops/:id/fare-change', (req, res) => {
+  const body = parse(
+    z
+      .object({ cash_fare: kes, app_fare: kes, effective_date: z.string().date(), reason: z.string().trim().max(200).optional() })
+      .refine((f) => f.app_fare <= f.cash_fare, { path: ['app_fare'], message: 'Member Fare cannot be more than the cash fare' })
+      .refine((f) => f.effective_date <= nairobiDate(366), { path: ['effective_date'], message: 'Choose a date within the next year' }),
+    req.body,
+  );
+  res.status(201).json(scheduleFareChange(parse(id, req.params.id), body, req.user.id));
+});
+
+router.post('/fare-changes/:id/cancel', (req, res) => {
+  res.json(cancelFareChange(parse(id, req.params.id)));
 });
 
 // Send `stops` to replace the list of stops (in order): stops with an id are updated, new ones added,
@@ -157,8 +192,30 @@ router.patch('/routes/:id', (req, res) => {
     z.object({ name: name.optional(), origin: name.optional(), is_active: z.boolean().optional(), stops: stopsSchema.optional() }),
     req.body,
   );
-  updateRoute(routeId, body);
+  updateRoute(routeId, body, req.user.id);
   res.json(getRoute(routeId));
+});
+
+// ---------- Audit log & reconciliation ----------
+
+// Who did what, newest first. ?before=<id> for the next page; ?entity=&entity_id= for one record's history.
+router.get('/audit', (req, res) => {
+  const q = parse(
+    z.object({
+      limit: z.coerce.number().int().min(1).max(200).default(50),
+      before: z.coerce.number().int().positive().optional(),
+      entity: z.string().max(40).optional(),
+      entity_id: z.coerce.number().int().positive().optional(),
+    }),
+    req.query,
+  );
+  const items = listAudit({ before: q.before, limit: q.limit, entity: q.entity, entityId: q.entity_id });
+  res.json({ items, next_before: items.length === q.limit ? items.at(-1).id : null });
+});
+
+// Checks that wallets, M-Pesa, fares and payouts all add up.
+router.get('/reconciliation', (_req, res) => {
+  res.json(reconcile());
 });
 
 // ---------- Vehicle crew: conductors and drivers ----------

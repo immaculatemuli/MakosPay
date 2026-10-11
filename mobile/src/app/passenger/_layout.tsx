@@ -18,6 +18,7 @@ export default function PassengerLayout() {
       <Stack.Screen name="topup" options={{ title: 'Add money with M-Pesa' }} />
       <Stack.Screen name="report" options={{ title: 'Report a problem' }} />
       <Stack.Screen name="reports" options={{ title: 'My reports' }} />
+      <Stack.Screen name="fare-changes" options={{ title: 'Fare changes' }} />
     </Stack>
   );
 }

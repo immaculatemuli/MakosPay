@@ -103,6 +103,8 @@ export default function AdminHome() {
         <ListRow icon="person-add-outline" title="Add conductor" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'conductor' } })} />
         <ListRow icon="car-outline" title="Add driver" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'driver' } })} />
         <ListRow icon="chatbox-ellipses-outline" title="Problem reports" subtitle="From passengers" onPress={() => router.push('/admin/reports')} />
+        <ListRow icon="checkmark-done-outline" title="Money check" subtitle="Do wallets, M-Pesa and payouts add up?" onPress={() => router.push('/admin/reconciliation')} />
+        <ListRow icon="list-outline" title="Audit log" subtitle="Who changed what, and when" onPress={() => router.push('/admin/audit')} />
         <ListRow icon="briefcase-outline" title="Office staff" subtitle="Other SACCO office accounts" onPress={() => router.push('/admin/staff')} />
         {user?.role === 'platform_admin' && (
           <ListRow icon="shield-checkmark-outline" title="Platform" subtitle="Payment setup and platform admins" onPress={() => router.push('/admin/platform')} />
