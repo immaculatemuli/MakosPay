@@ -63,7 +63,11 @@ export function VehicleDetail() {
               <div className="title">Pay your fare with FarePay</div>
               <img src={`data:image/png;base64,${qr.data.png_base64}`} alt={`QR code for ${v.plate}`} />
               <div className="plate">{v.plate}</div>
-              <div className="hint">Open the FarePay app, tap Pay, and scan this code.</div>
+              <div className="hint">
+                {qr.data.opens_with_camera
+                  ? 'Scan with your phone camera to pay by M-Pesa, or with the FarePay app.'
+                  : 'Open the FarePay app, tap Pay, and scan this code.'}
+              </div>
             </div>
           )}
           <p className="muted">

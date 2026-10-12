@@ -4,14 +4,14 @@ import { useCallback, useRef, useState } from 'react';
 import { type LayoutRectangle, StyleSheet, Text, View } from 'react-native';
 import { Button, colors, Loading, Muted, Screen } from '@/components/ui';
 
-// A scan only counts when it is clearly a FarePay sticker, the WHOLE code is inside the square, it is big
-// enough to be the sticker the passenger is pointing at (not one across the stage), and the same code is read
-// several times in a row. A glimpse of a code at the edge of the camera, or of a neighbouring matatu's sticker,
-// is ignored.
-const FAREPAY_CODE = /^farepay:\/\/pay\?v=[A-Za-z0-9_-]{6,}$/;
+// A scan only counts when it is clearly a FarePay sticker, the WHOLE code is inside the square (all four
+// corners), it is big enough to be the sticker the passenger is pointing at (not one across the stage), and the
+// same code is read several times in a row. Anything else - part of a code, a code at the edge of the camera,
+// a neighbouring matatu's sticker, or a read the camera can't place on screen - is ignored.
+// Stickers are either the app's own code or a link to the pay page (which any phone camera can open).
+const FAREPAY_CODE = /^(farepay:\/\/pay|https:\/\/[^/?#\s]+\/pay)\?v=[A-Za-z0-9_-]{6,}$/;
 const READS_NEEDED = 3;
 const READ_WINDOW_MS = 1500;
-const EDGE_ALLOWANCE = 8; // screen points the code's corners may poke past the square
 const MIN_SIZE = 0.4; // the code must fill at least this share of the square
 
 type Hint = 'aim' | 'fit' | 'closer' | 'hold' | 'other';
@@ -38,16 +38,11 @@ function cornersOf(result: BarcodeScanningResult): Point[] {
   ];
 }
 
-/** Why this read can't count yet, or null when the whole code is well inside the square. */
+/** Why this read can't count, or null when the whole code is inside the square and big enough. */
 function placementProblem(corners: Point[], frame: LayoutRectangle | null): Hint | null {
-  if (!frame || corners.length === 0) return null; // the camera didn't say where the code is: rely on repeated reads
-  const inside = corners.every(
-    (p) =>
-      p.x >= frame.x - EDGE_ALLOWANCE &&
-      p.x <= frame.x + frame.width + EDGE_ALLOWANCE &&
-      p.y >= frame.y - EDGE_ALLOWANCE &&
-      p.y <= frame.y + frame.height + EDGE_ALLOWANCE,
-  );
+  // Not yet laid out, or the camera didn't say where the code is: it can't be shown to be inside, so it doesn't count.
+  if (!frame || corners.length < 4) return 'fit';
+  const inside = corners.every((p) => p.x >= frame.x && p.x <= frame.x + frame.width && p.y >= frame.y && p.y <= frame.y + frame.height);
   if (!inside) return 'fit';
   const xs = corners.map((p) => p.x);
   const ys = corners.map((p) => p.y);

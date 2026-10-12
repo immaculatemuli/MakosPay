@@ -518,7 +518,13 @@ router.get('/vehicles/:id/qr.png', async (req, res) => {
 router.get('/vehicles/:id/qr', async (req, res) => {
   const vehicle = await getVehicle(parse(id, req.params.id));
   if (!vehicle) throw notFound('Vehicle');
-  res.json({ plate: vehicle.plate, file_name: qrFileName(vehicle), png_base64: (await qrPng(vehicle)).toString('base64') });
+  res.json({
+    plate: vehicle.plate,
+    file_name: qrFileName(vehicle),
+    png_base64: (await qrPng(vehicle)).toString('base64'),
+    // A link sticker opens the pay page from any phone camera; otherwise only the FarePay app can read it.
+    opens_with_camera: config.qrPrefix.startsWith('https://'),
+  });
 });
 
 export default router;

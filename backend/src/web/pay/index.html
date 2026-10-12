@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Pay fare · FarePay</title>
+    <link rel="stylesheet" href="/pay-assets/pay.css" />
+    <script src="/pay-assets/pay.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="brand">FarePay</div>
+        <div class="sacco" id="sacco"></div>
+      </header>
+
+      <section id="loading"><p class="muted center">Loading…</p></section>
+
+      <section id="problem" hidden>
+        <h1>Can't pay here</h1>
+        <p id="problem-text"></p>
+      </section>
+
+      <section id="choose" hidden>
+        <div class="vehicle">
+          <div class="plate" id="plate"></div>
+          <div class="muted" id="route"></div>
+        </div>
+
+        <h2>Where are you getting off?</h2>
+        <div class="stops" id="stops" role="radiogroup" aria-label="Drop-off stop"></div>
+
+        <label for="phone">Your M-Pesa number</label>
+        <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" maxlength="16" />
+
+        <p class="error" id="choose-error" hidden></p>
+        <button id="pay" type="button" disabled>Pay with M-Pesa</button>
+        <p class="muted small">You will get the M-Pesa PIN prompt on this number. Nothing is paid until you enter your PIN.</p>
+      </section>
+
+      <section id="waiting" hidden>
+        <div class="spinner" aria-hidden="true"></div>
+        <h1>Check your phone</h1>
+        <p>Enter your M-Pesa PIN to pay <strong id="waiting-amount"></strong>.</p>
+        <p class="muted small" id="waiting-note">Keep this page open. Your ticket appears here as soon as M-Pesa confirms.</p>
+        <button id="give-up" type="button" class="secondary" hidden>The prompt never came: try again</button>
+      </section>
+
+      <section id="paid" hidden>
+        <div class="ticket">
+          <div class="ok">✓ Paid</div>
+          <div class="code" id="t-code"></div>
+          <div class="plate" id="t-plate"></div>
+          <div id="t-trip"></div>
+          <div class="muted" id="t-time"></div>
+        </div>
+        <p class="muted small center">Show this to the conductor if asked.</p>
+        <button id="again" type="button" class="secondary">Pay another fare</button>
+      </section>
+
+      <section id="failed" hidden>
+        <h1>Not paid</h1>
+        <p id="failed-text"></p>
+        <button id="retry" type="button">Try again</button>
+      </section>
+    </main>
+  </body>
+</html>

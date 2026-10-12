@@ -149,14 +149,21 @@ curl https://<your-address>/health    # should answer {"ok":true}
 Then open `https://<your-address>/office/` in a browser and sign in with an office account. The Money check
 page should show every check passed.
 
-## 8. Point the app at the server
+## 8. QR stickers
+
+With the https address set (`MPESA_CALLBACK_BASE_URL`), every sticker is a link to
+`https://<your-address>/pay?v=...`: passengers without the app scan it with the phone camera and pay by
+M-Pesa PIN; the FarePay app scans the same sticker. **Print the stickers only once the address is final**:
+a sticker made while on a temporary tunnel address stops opening when that address changes.
+
+## 9. Point the app at the server
 
 - **Already installed apps:** on the sign-in screen, tap *Server address* and enter `https://<your-address>`.
 - **New APK:** in `mobile/eas.json`, set `EXPO_PUBLIC_API_URL` to `https://<your-address>`, then build:
   `cd mobile; $env:EAS_NO_VCS='1'; npx eas build -p android --profile preview`.
   From then on the address never changes, so no more tunnel.
 
-## 9. Backups
+## 10. Backups
 
 - The server saves a full copy of the database every night at 03:00 into `/opt/farepay/backend/data/backups`
   (`farepay-YYYY-MM-DD.pgdump`) and keeps the last 14. Make one any time:
@@ -176,7 +183,7 @@ page should show every check passed.
   Anything paid after the backup was taken is not in it: check M-Pesa statements (Statement check page)
   before money moves again.
 
-## 10. Updating FarePay later
+## 11. Updating FarePay later
 
 ```bash
 cd /opt/farepay-src && sudo git pull
@@ -189,7 +196,7 @@ sudo systemctl restart farepay
 The database upgrades itself when the server starts. A backup is taken every night, but make one
 before big updates anyway.
 
-## 11. Before switching on real money
+## 12. Before switching on real money
 
 - [ ] Safaricom Go Live approved for your Paybill (C2B/STK) and for B2C (and B2B if owners are paid to banks).
 - [ ] Production Daraja keys, passkey, shortcode, initiator name and security credential in `.env`.

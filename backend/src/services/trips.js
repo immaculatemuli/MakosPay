@@ -8,7 +8,7 @@ import { getBalance, postWalletEntry } from './wallet.js';
 const RECENT_PAYMENT_WINDOW_MS = 30 * 60 * 1000;
 
 /** The vehicle behind a scanned QR code, and the route it is on. */
-async function loadVehicle(qr) {
+export async function loadVehicle(qr) {
   await applyDueFareChanges(); // a fare change dated today must apply before anyone is quoted or charged
   const vehicle = await db.get(
     `SELECT v.*, c.name AS conductor_name FROM vehicles v LEFT JOIN users c ON c.id = v.conductor_id AND c.is_active = TRUE

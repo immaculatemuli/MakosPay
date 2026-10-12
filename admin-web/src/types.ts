@@ -49,6 +49,7 @@ export interface VehicleQr {
   plate: string;
   file_name: string;
   png_base64: string;
+  opens_with_camera: boolean;
 }
 
 export interface Payment {

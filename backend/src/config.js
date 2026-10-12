@@ -30,8 +30,9 @@ export const config = {
   // The SACCO this FarePay runs for (one SACCO for now), shown to passengers.
   saccoName: env.SACCO_NAME || 'Your SACCO',
 
-  // Text inside each vehicle's QR sticker, followed by the vehicle's secret token.
-  qrPrefix: env.QR_PREFIX ?? 'farepay://pay?v=',
+  // Text inside each vehicle's QR sticker, followed by the vehicle's secret token. With the server's https
+  // address set, the sticker is a link to its pay page, so any phone camera can pay (the app scans it too).
+  qrPrefix: env.QR_PREFIX || (/^https:\/\//.test(env.MPESA_CALLBACK_BASE_URL ?? '') ? `${env.MPESA_CALLBACK_BASE_URL.replace(/\/+$/, '')}/pay?v=` : 'farepay://pay?v='),
 
   // Wallet limits, in whole shillings.
   minTopup: num(env.MIN_TOPUP, 10),

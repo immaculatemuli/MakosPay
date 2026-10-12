@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import crewRoutes from './routes/crew.js';
 import mpesaRoutes from './routes/mpesa.js';
 import notificationRoutes from './routes/notifications.js';
+import { payApi, payPage } from './routes/noapp.js';
 import passengerRoutes from './routes/passenger.js';
 import platformRoutes from './routes/platform.js';
 
@@ -74,6 +75,9 @@ export function createApp() {
   // Conductors and drivers. '/conductor' is the older address, kept for apps installed before drivers existed.
   app.use(['/crew', '/conductor'], authenticate, requireRole('conductor', 'driver'), auditChanges, crewRoutes);
   app.use('/notifications', authenticate, notificationRoutes);
+  // Passengers without the app: the QR sticker's link opens the pay page, which uses /pay-api.
+  app.use(payPage);
+  app.use('/pay-api', payApi);
   // M-Pesa's callbacks: /hooks/<secret>/... (sent to Safaricom); /mpesa/callback/<secret>/... still works for
   // payments started before the address changed.
   app.use('/hooks', (req, _res, next) => {

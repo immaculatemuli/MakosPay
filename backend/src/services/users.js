@@ -5,10 +5,20 @@ import { HttpError } from '../errors.js';
 
 export const getUser = (id) => db.get('SELECT id, name, phone, role, is_active, created_at FROM users WHERE id = ?', id);
 
+// The password of a passenger who has only paid from the phone camera page (no app): it is not a bcrypt hash,
+// so no password ever matches it and nobody can sign in as them.
+export const NO_APP_PASSWORD = 'no-app-passenger';
+
 export async function createUser({ name, phone, password, role }) {
   const passwordHash = await bcrypt.hash(password, 10);
   return tx(async () => {
-    if (await db.get('SELECT 1 FROM users WHERE phone = ?', phone)) {
+    const existing = await db.get('SELECT id, role, password_hash, is_active FROM users WHERE phone = ?', phone);
+    // Someone who paid without the app now signs up with that number: their fares and wallet become theirs.
+    if (existing && role === 'passenger' && existing.role === 'passenger' && existing.password_hash === NO_APP_PASSWORD && existing.is_active) {
+      await db.run('UPDATE users SET name = ?, password_hash = ?, session_version = session_version + 1 WHERE id = ?', name, passwordHash, existing.id);
+      return getUser(existing.id);
+    }
+    if (existing) {
       throw new HttpError(409, 'PHONE_TAKEN', 'An account with this phone number already exists');
     }
     const id = await db.insert('INSERT INTO users (name, phone, password_hash, role) VALUES (?, ?, ?, ?)', name, phone, passwordHash, role);

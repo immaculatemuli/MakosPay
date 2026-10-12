@@ -72,7 +72,9 @@ export async function authenticate(req, _res, next) {
   } catch {
     throw new HttpError(401, 'UNAUTHENTICATED', 'Invalid or expired token');
   }
-  // A web sign-in only works as the cookie, and a phone sign-in only as a bearer token.
+  // A web sign-in only works as the cookie, and a phone sign-in only as a bearer token. Other FarePay tokens
+  // (e.g. a no-app payment's status link) are never a sign-in.
+  if (payload.aud !== undefined && payload.aud !== WEB_AUDIENCE) throw new HttpError(401, 'UNAUTHENTICATED', 'Invalid or expired token');
   if ((payload.aud === WEB_AUDIENCE) !== Boolean(fromCookie)) throw new HttpError(401, 'UNAUTHENTICATED', 'Invalid or expired token');
   if (fromCookie) checkWebRequest(req);
 
