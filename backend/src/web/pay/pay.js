@@ -23,7 +23,7 @@ const remember = {
   },
 };
 
-const SECTIONS = ['loading', 'problem', 'choose', 'waiting', 'paid', 'failed'];
+const SECTIONS = ['loading', 'problem', 'choose', 'quick', 'waiting', 'paid', 'failed'];
 const show = (name) => SECTIONS.forEach((s) => ($(s).hidden = s !== name));
 const kes = (n) => `KES ${Number(n).toLocaleString('en-KE')}`;
 
@@ -42,6 +42,10 @@ async function call(method, path, body) {
 let page = null; // the vehicle and route, from FarePay
 let chosenStop = null;
 let pollTimer = null;
+let countdownTimer = null;
+
+const QUICK_SECONDS = 3;
+const spaced = (phone) => phone.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 $2 $3');
 
 const normalPhone = (text) => {
   const digits = text.replace(/[\s-]/g, '');
@@ -62,7 +66,36 @@ function chooseStop(id) {
   updatePayButton();
 }
 
-function renderChoose() {
+/**
+ * Quick pay: this phone has paid before and the stop is known (the only stop, or the one it paid to last time on
+ * this route), so the M-Pesa prompt goes out by itself after a short countdown. Entering the PIN is the
+ * passenger's confirmation; "Change" stops it.
+ */
+function startQuickPay(stop, phone) {
+  $('q-plate').textContent = page.vehicle.plate;
+  $('q-route').textContent = page.route.name;
+  $('q-amount').textContent = kes(stop.fare);
+  $('q-stop').textContent = stop.name;
+  $('q-phone').textContent = spaced(phone);
+  show('quick');
+  let left = QUICK_SECONDS;
+  $('q-count').textContent = String(left);
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    left -= 1;
+    $('q-count').textContent = String(Math.max(left, 0));
+    if (left <= 0) {
+      clearInterval(countdownTimer);
+      pay();
+    }
+  }, 1000);
+}
+
+function stopQuickPay() {
+  clearInterval(countdownTimer);
+}
+
+function renderChoose({ quick = false } = {}) {
   $('sacco').textContent = page.sacco_name;
   $('plate').textContent = page.vehicle.plate;
   $('route').textContent = `${page.route.name}${page.vehicle.description ? ` · ${page.vehicle.description}` : ''}`;
@@ -91,6 +124,8 @@ function renderChoose() {
   if (!$('phone').value) $('phone').value = remember.get('phone') ?? '';
   $('choose-error').hidden = true;
   updatePayButton();
+  const phone = normalPhone($('phone').value);
+  if (quick && preselect && phone) return startQuickPay(preselect, phone);
   show('choose');
 }
 
@@ -118,10 +153,9 @@ async function pay() {
     remember.set('last', { token: result.status_token, qr, at: Date.now() });
     follow(result.status_token, result);
   } catch (err) {
-    if (err.code === 'FARE_CHANGED') {
-      await loadVehicle().catch(() => {});
-      renderChoose();
-    }
+    // Back to the choose screen (never quick pay again on its own) with the reason.
+    if (err.code === 'FARE_CHANGED') await loadVehicle().catch(() => {});
+    renderChoose();
     $('choose-error').textContent = err.message;
     $('choose-error').hidden = false;
     updatePayButton();
@@ -193,10 +227,18 @@ async function start() {
       // fall through to a new payment
     }
   }
-  renderChoose();
+  renderChoose({ quick: true });
 }
 
 $('phone').addEventListener('input', updatePayButton);
+$('q-now').addEventListener('click', () => {
+  stopQuickPay();
+  pay();
+});
+$('q-change').addEventListener('click', () => {
+  stopQuickPay();
+  renderChoose();
+});
 $('pay').addEventListener('click', pay);
 const payAgain = () => {
   clearTimeout(pollTimer);
