@@ -1,24 +1,113 @@
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { type BarcodeScanningResult, CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { type LayoutRectangle, StyleSheet, Text, View } from 'react-native';
 import { Button, colors, Loading, Muted, Screen } from '@/components/ui';
+
+// A scan only counts when it is clearly a FarePay sticker, the WHOLE code is inside the square, it is big
+// enough to be the sticker the passenger is pointing at (not one across the stage), and the same code is read
+// several times in a row. A glimpse of a code at the edge of the camera, or of a neighbouring matatu's sticker,
+// is ignored.
+const FAREPAY_CODE = /^farepay:\/\/pay\?v=[A-Za-z0-9_-]{6,}$/;
+const READS_NEEDED = 3;
+const READ_WINDOW_MS = 1500;
+const EDGE_ALLOWANCE = 8; // screen points the code's corners may poke past the square
+const MIN_SIZE = 0.4; // the code must fill at least this share of the square
+
+type Hint = 'aim' | 'fit' | 'closer' | 'hold' | 'other';
+const HINTS: Record<Hint, string> = {
+  aim: 'Point the camera at the FarePay QR code inside the vehicle',
+  fit: 'Fit the whole QR code inside the square',
+  closer: 'Move closer to the QR code',
+  hold: 'Hold still…',
+  other: 'That is not a FarePay code',
+};
+
+type Point = { x: number; y: number };
+
+function cornersOf(result: BarcodeScanningResult): Point[] {
+  if (result.cornerPoints?.length) return result.cornerPoints;
+  const b = result.bounds;
+  if (!b?.size?.width) return [];
+  const { x, y } = b.origin;
+  return [
+    { x, y },
+    { x: x + b.size.width, y },
+    { x, y: y + b.size.height },
+    { x: x + b.size.width, y: y + b.size.height },
+  ];
+}
+
+/** Why this read can't count yet, or null when the whole code is well inside the square. */
+function placementProblem(corners: Point[], frame: LayoutRectangle | null): Hint | null {
+  if (!frame || corners.length === 0) return null; // the camera didn't say where the code is: rely on repeated reads
+  const inside = corners.every(
+    (p) =>
+      p.x >= frame.x - EDGE_ALLOWANCE &&
+      p.x <= frame.x + frame.width + EDGE_ALLOWANCE &&
+      p.y >= frame.y - EDGE_ALLOWANCE &&
+      p.y <= frame.y + frame.height + EDGE_ALLOWANCE,
+  );
+  if (!inside) return 'fit';
+  const xs = corners.map((p) => p.x);
+  const ys = corners.map((p) => p.y);
+  const size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  return size < frame.width * MIN_SIZE ? 'closer' : null;
+}
 
 export default function Scan() {
   const [permission, requestPermission] = useCameraPermissions();
+  const [hint, setHint] = useState<Hint>('aim');
   const handled = useRef(false);
+  const frame = useRef<LayoutRectangle | null>(null);
+  const streak = useRef({ data: '', count: 0, since: 0 });
+  const quiet = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const shown = useRef<Hint>('aim');
+
+  const show = (next: Hint) => {
+    if (shown.current !== next) {
+      shown.current = next;
+      setHint(next);
+    }
+    // Back to the normal instruction when the camera stops seeing a code.
+    clearTimeout(quiet.current);
+    quiet.current = setTimeout(() => {
+      streak.current.count = 0;
+      shown.current = 'aim';
+      setHint('aim');
+    }, 800);
+  };
 
   // Allow scanning again when the passenger comes back to this screen.
   useFocusEffect(
     useCallback(() => {
       handled.current = false;
+      streak.current = { data: '', count: 0, since: 0 };
+      return () => clearTimeout(quiet.current);
     }, []),
   );
 
-  const goPay = (qr: string) => {
-    if (handled.current || !qr.trim()) return;
+  const onScanned = (result: BarcodeScanningResult) => {
+    if (handled.current) return;
+    const data = (result.data ?? '').trim();
+    if (!FAREPAY_CODE.test(data)) {
+      streak.current.count = 0;
+      return show('other');
+    }
+    const problem = placementProblem(cornersOf(result), frame.current);
+    if (problem) {
+      streak.current.count = 0;
+      return show(problem);
+    }
+    const now = Date.now();
+    const s = streak.current;
+    if (s.data === data && s.count > 0 && now - s.since <= READ_WINDOW_MS) s.count += 1;
+    else streak.current = { data, count: 1, since: now };
+    if (streak.current.count < READS_NEEDED) return show('hold');
+
     handled.current = true;
-    router.replace({ pathname: '/passenger/pay', params: { qr: qr.trim() } });
+    clearTimeout(quiet.current);
+    router.replace({ pathname: '/passenger/pay', params: { qr: data } });
   };
 
   if (!permission) return <Loading />;
@@ -34,24 +123,26 @@ export default function Scan() {
     );
   }
 
+  const frameColor = hint === 'hold' ? colors.primary : hint === 'other' || hint === 'fit' || hint === 'closer' ? colors.danger : colors.primarySoft;
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <CameraView
-        style={StyleSheet.absoluteFill}
-        facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={({ data }) => goPay(data)}
-      />
+      <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={onScanned} />
       <View style={styles.overlay} pointerEvents="none">
-        <View style={styles.frame} />
-        <Text style={styles.hint}>Point the camera at the FarePay QR code inside the vehicle</Text>
+        <View
+          style={[styles.frame, { borderColor: frameColor }]}
+          onLayout={(e) => {
+            frame.current = e.nativeEvent.layout;
+          }}
+        />
+        <Text style={styles.hint}>{HINTS[hint]}</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  frame: { width: 240, height: 240, borderWidth: 3, borderColor: colors.primarySoft, borderRadius: 20 },
-  hint: { color: '#fff', marginTop: 24, textAlign: 'center', fontSize: 16, fontWeight: '600' },
+  // The frame sits in the middle of the screen; the hint hangs below it without moving it.
+  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
+  frame: { width: 260, height: 260, borderWidth: 4, borderRadius: 20 },
+  hint: { position: 'absolute', top: '50%', marginTop: 150, left: 32, right: 32, color: '#fff', textAlign: 'center', fontSize: 16, fontWeight: '600' },
 });
