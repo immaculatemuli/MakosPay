@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { displayPhone } from '../format';
 import type { Vehicle } from '../types';
 import { Badge, Failed, Loading, PageHead } from '../ui';
@@ -9,10 +9,14 @@ export function Vehicles() {
   const { data, error, loading, reload } = useApi<Vehicle[]>('/admin/vehicles');
   return (
     <>
-      <PageHead title="Vehicles & QR stickers" subtitle="Open a vehicle to print its QR sticker." />
+      <PageHead title="Vehicles & QR stickers" subtitle="Open a vehicle to print its QR sticker, change its details or replace its QR code.">
+        <Link className="button" to="/vehicles/new">
+          Add vehicle
+        </Link>
+      </PageHead>
       {error && <Failed message={error} onRetry={reload} />}
       {loading && !data && <Loading />}
-      {data?.length === 0 && <p className="muted">No vehicles yet. Add them in the FarePay app (office) for now.</p>}
+      {data?.length === 0 && <p className="muted">No vehicles yet. Add the first one.</p>}
       {!!data?.length && (
         <div className="table-wrap">
           <table>

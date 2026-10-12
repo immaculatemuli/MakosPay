@@ -32,10 +32,16 @@ const GROUPS = [
       { to: '/audit', label: 'Audit log' },
     ],
   },
+  {
+    title: 'Accounts',
+    links: [{ to: '/staff', label: 'Office staff' }],
+  },
 ];
 
 export function Layout() {
   const { user, signOut } = useAuth();
+  // The Platform page is only for platform admins (the API refuses everyone else anyway).
+  const groups = user?.role === 'platform_admin' ? GROUPS.map((g) => (g.title === 'Accounts' ? { ...g, links: [...g.links, { to: '/platform', label: 'Platform' }] } : g)) : GROUPS;
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -44,7 +50,7 @@ export function Layout() {
           <small>SACCO office</small>
         </div>
         <nav className="nav" aria-label="Main">
-          {GROUPS.map((g) => (
+          {groups.map((g) => (
             <div key={g.title ?? 'home'}>
               {g.title && <div className="nav-group">{g.title}</div>}
               {g.links.map((l) => (

@@ -70,6 +70,8 @@ button.secondary { background: var(--card); color: var(--text); border: 1px soli
 button.secondary:hover { background: var(--bg); }
 button.danger { background: var(--danger); }
 button.link { background: none; color: var(--green); padding: 0; }
+.button.secondary-link { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+.button.secondary-link:hover { background: var(--bg); }
 
 input, select, textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); }
 label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 14px; }

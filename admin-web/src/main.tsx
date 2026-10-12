@@ -7,7 +7,9 @@ import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { MoneyCheck } from './pages/MoneyCheck';
 import { Payments } from './pages/Payments';
+import { Platform, Staff } from './pages/Accounts';
 import { Audit } from './pages/Audit';
+import { VehicleForm } from './pages/VehicleForm';
 import { PayoutDetail } from './pages/PayoutDetail';
 import { Payouts } from './pages/Payouts';
 import { Crew, Passengers } from './pages/People';
@@ -30,7 +32,11 @@ function App() {
         <Route index element={<Dashboard />} />
         <Route path="payments" element={<Payments />} />
         <Route path="vehicles" element={<Vehicles />} />
+        <Route path="vehicles/new" element={<VehicleForm />} />
         <Route path="vehicles/:id" element={<VehicleDetail />} />
+        <Route path="vehicles/:id/edit" element={<VehicleForm />} />
+        <Route path="staff" element={<Staff />} />
+        {user.role === 'platform_admin' && <Route path="platform" element={<Platform />} />}
         <Route path="money-check" element={<MoneyCheck />} />
         <Route path="payouts" element={<Payouts />} />
         <Route path="payouts/:id" element={<PayoutDetail />} />
