@@ -86,7 +86,9 @@ async function sendPrompt(id, { phone, amount, accountReference, description }) 
   try {
     response = await mpesa.stkPush({ phone, amount, accountReference, description });
   } catch (err) {
-    console.error('[mpesa] PIN prompt failed:', err.message);
+    // "fetch failed" alone says nothing: the cause says why (DNS, connection refused, reset, timeout...).
+    const cause = err.cause ? ` (${[err.cause.code, err.cause.message].filter(Boolean).join(': ')})` : '';
+    console.error('[mpesa] PIN prompt failed:', `${err.message}${cause}`);
     await db.run("UPDATE mpesa_payments SET status = 'failed', result_desc = ? WHERE id = ?", String(err.message), id);
     throw new HttpError(502, 'MPESA_UNAVAILABLE', 'Could not reach M-Pesa. Please try again.');
   }

@@ -33,14 +33,29 @@ export const isConfigured = viaIntaSend
 // Safaricom refuses callback addresses containing words like "mpesa" or "safaricom", so they go to /hooks.
 const callbackUrl = (path) => `${cfg.callbackBaseUrl}/hooks/${cfg.callbackSecret}/${path}`;
 
+// Failures before a connection to Safaricom exists: the request was never sent, so trying again can't send a
+// PIN prompt or payment twice. (Connecting to Safaricom can take over 10 seconds on a slow network.)
+const NOT_CONNECTED = new Set(['UND_ERR_CONNECT_TIMEOUT', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH']);
+
+/** fetch to Safaricom, trying once more if the connection itself could not be made. */
+async function darajaFetch(url, init) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
+    } catch (err) {
+      if (attempt >= 2 || !NOT_CONNECTED.has(err.cause?.code)) throw err;
+      console.warn(`[mpesa] could not connect to Safaricom (${err.cause.code}), trying again`);
+    }
+  }
+}
+
 let cachedToken = null; // { value, expiresAt }
 
 async function accessToken() {
   if (cachedToken && cachedToken.expiresAt > Date.now()) return cachedToken.value;
   const auth = Buffer.from(`${cfg.consumerKey}:${cfg.consumerSecret}`).toString('base64');
-  const res = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+  const res = await darajaFetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
     headers: { Authorization: `Basic ${auth}` },
-    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`Daraja auth failed: HTTP ${res.status}`);
   const data = await res.json();
@@ -50,11 +65,10 @@ async function accessToken() {
 }
 
 async function post(path, body) {
-  const res = await fetch(`${baseUrl}${path}`, {
+  const res = await darajaFetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${await accessToken()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || (data.ResponseCode !== undefined && String(data.ResponseCode) !== '0')) {
