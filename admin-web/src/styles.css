@@ -30,7 +30,8 @@ a { color: var(--green); }
 .sidebar { width: 220px; background: var(--card); border-right: 1px solid var(--border); padding: 20px 12px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
 .brand { font-weight: 800; font-size: 20px; color: var(--green); padding: 0 10px 16px; }
 .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); }
-.nav a { display: block; padding: 10px 12px; border-radius: 10px; color: var(--text); text-decoration: none; font-weight: 500; }
+.nav-group { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 14px 12px 4px; }
+.nav a { display: block; padding: 8px 12px; border-radius: 10px; color: var(--text); text-decoration: none; font-weight: 500; }
 .nav a:hover { background: var(--bg); }
 .nav a.active { background: var(--green-soft); color: var(--green-dark); font-weight: 700; }
 .sidebar .who { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid var(--border); font-size: 14px; }
@@ -42,6 +43,8 @@ a { color: var(--green); }
   .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--border); padding: 10px; }
   .brand { padding: 0 8px; }
   .nav { display: flex; flex-wrap: wrap; gap: 2px; }
+  .nav > div { display: contents; }
+  .nav-group { display: none; }
   .sidebar .who { margin: 0 0 0 auto; border: 0; padding: 0 8px; }
   .main { padding: 18px 16px 48px; }
 }

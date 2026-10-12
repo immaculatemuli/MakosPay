@@ -119,3 +119,135 @@ export interface Reconciliation {
     withdrawals_being_sent: number;
   };
 }
+
+export interface PayoutDestination {
+  method: 'mpesa' | 'bank';
+  bank_name: string | null;
+  bank_paybill: string | null;
+  bank_account: string | null;
+}
+
+export interface OwnerOwed extends PayoutDestination {
+  owner_name: string;
+  owner_phone: string;
+  amount: number;
+  fares: number;
+  deducted: number;
+  trip_count: number;
+  plates: string[];
+}
+
+export interface Payout extends PayoutDestination {
+  id: number;
+  owner_name: string;
+  owner_phone: string;
+  amount: number;
+  trip_count: number;
+  status: 'processing' | 'manual' | 'completed' | 'failed';
+  reference: string | null;
+  result_desc: string | null;
+  created_by: number | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface Withdrawal {
+  id: number;
+  phone: string;
+  amount: number;
+  status: 'processing' | 'manual' | 'completed' | 'failed';
+  reference: string | null;
+  result_desc: string | null;
+  created_at: string;
+  completed_at: string | null;
+  passenger_name: string;
+  handled_by_name: string | null;
+}
+
+export interface FareChange {
+  id: number;
+  stop_id: number;
+  stop_name: string;
+  route_name: string;
+  old_cash_fare: number;
+  old_app_fare: number;
+  new_cash_fare: number;
+  new_app_fare: number;
+  effective_from: string;
+  applied_at: string | null;
+  cancelled_at: string | null;
+  reason: string | null;
+  changed_by_name: string;
+  created_at: string;
+}
+
+export interface CrewMember {
+  id: number;
+  name: string;
+  phone: string;
+  is_active: number;
+  created_at: string;
+  vehicle_id: number | null;
+  vehicle_plate: string | null;
+}
+
+export interface PassengerRow {
+  id: number;
+  name: string;
+  phone: string;
+  is_active: number;
+  created_at: string;
+  wallet_balance: number | null;
+  trips: number;
+}
+
+export type ReportCategory = 'payment_problem' | 'wrong_fare' | 'duplicate_charge' | 'wrong_route' | 'other';
+
+export interface ProblemReport {
+  id: number;
+  category: ReportCategory;
+  message: string;
+  status: 'open' | 'in_progress' | 'resolved';
+  office_note: string | null;
+  trip_id: number | null;
+  ticket_code: string | null;
+  plate: string | null;
+  fare: number | null;
+  reporter_name: string;
+  reporter_phone: string;
+  reporter_role: Role;
+  handled_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditEntry {
+  id: number;
+  actor_name: string | null;
+  actor_role: string;
+  action: string;
+  entity: string | null;
+  entity_id: number | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface StatementLine {
+  receipt: string;
+  amount?: number;
+  statement?: number;
+  farepay?: number;
+  time?: string | null;
+  details?: string;
+  what?: string;
+}
+
+export interface StatementCheck {
+  period: { from: string | null; to: string | null };
+  transactions: number;
+  money_in: { matched: number; amount: number; wrong_amount: StatementLine[]; not_in_farepay: StatementLine[] };
+  money_out: { matched: number; amount: number; wrong_amount: StatementLine[]; not_in_farepay: StatementLine[] };
+  charges: { count: number; amount: number };
+  not_in_statement: StatementLine[];
+  all_ok: boolean;
+}

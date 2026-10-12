@@ -7,7 +7,16 @@ import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { MoneyCheck } from './pages/MoneyCheck';
 import { Payments } from './pages/Payments';
+import { Audit } from './pages/Audit';
+import { PayoutDetail } from './pages/PayoutDetail';
+import { Payouts } from './pages/Payouts';
+import { Crew, Passengers } from './pages/People';
+import { Reports } from './pages/Reports';
+import { RouteEdit } from './pages/RouteEdit';
+import { Routes as RoutesPage } from './pages/Routes';
+import { Statement } from './pages/Statement';
 import { VehicleDetail } from './pages/VehicleDetail';
+import { Withdrawals } from './pages/Withdrawals';
 import { Vehicles } from './pages/Vehicles';
 import './styles.css';
 
@@ -23,6 +32,16 @@ function App() {
         <Route path="vehicles" element={<Vehicles />} />
         <Route path="vehicles/:id" element={<VehicleDetail />} />
         <Route path="money-check" element={<MoneyCheck />} />
+        <Route path="payouts" element={<Payouts />} />
+        <Route path="payouts/:id" element={<PayoutDetail />} />
+        <Route path="withdrawals" element={<Withdrawals />} />
+        <Route path="statement" element={<Statement />} />
+        <Route path="routes" element={<RoutesPage />} />
+        <Route path="routes/:id" element={<RouteEdit />} />
+        <Route path="crew" element={<Crew />} />
+        <Route path="passengers" element={<Passengers />} />
+        <Route path="reports" element={<Reports />} />
+        <Route path="audit" element={<Audit />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
