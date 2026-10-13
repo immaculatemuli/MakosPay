@@ -48,7 +48,7 @@ export function Dashboard() {
             <Stat label="Collected" value={kes(d.totals.collected)} note={change(d.totals.collected, d.previous.collected, d.days)} />
             <Stat label="Fare payments" value={d.totals.payments} />
             <Stat label="Passengers who paid" value={d.totals.passengers} />
-            <Stat label="Passengers saved vs cash" value={kes(d.totals.passengers_saved)} />
+            <Stat label="Average fare" value={d.totals.payments ? kes(Math.round(d.totals.collected / d.totals.payments)) : '—'} />
             <Stat label="Wallet top-ups" value={kes(d.topups.amount)} note={plural(d.topups.count, 'top-up')} />
           </div>
           {d.refunds.count > 0 && <p className="muted">{plural(d.refunds.count, 'fare')} refunded ({kes(d.refunds.amount)}), not counted above.</p>}

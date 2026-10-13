@@ -100,7 +100,7 @@ test('a fare change reaches passengers who use the route, not others', async () 
   const n = await latest(s.passenger);
   assert.equal(n.kind, 'fare.changed');
   assert.equal(n.title, 'New fare to Ruiru (Thika Road)');
-  assert.equal(n.body, 'FarePay fare KES 50 → KES 60 (cash KES 60 → KES 70), from today.');
+  assert.equal(n.body, 'Fare KES 50 → KES 60, from today.');
   assert.equal((await inbox(s.other)).items.length, before, 'Olive never used this route');
 });
 

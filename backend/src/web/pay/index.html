@@ -39,21 +39,11 @@
         <p class="muted small">You will get the M-Pesa PIN prompt on this number. Nothing is paid until you enter your PIN.</p>
       </section>
 
-      <section id="quick" hidden>
-        <div class="vehicle">
-          <div class="plate" id="q-plate"></div>
-          <div class="muted" id="q-route"></div>
-        </div>
-        <p class="quick-line">Pay <strong id="q-amount"></strong> to <strong id="q-stop"></strong></p>
-        <p class="muted center">M-Pesa PIN prompt to <span id="q-phone"></span> in <strong id="q-count">3</strong>…</p>
-        <button id="q-now" type="button">Send the M-Pesa prompt now</button>
-        <button id="q-change" type="button" class="secondary">Change stop or number</button>
-      </section>
-
       <section id="waiting" hidden>
         <div class="spinner" aria-hidden="true"></div>
         <h1>Check your phone</h1>
         <p>Enter your M-Pesa PIN to pay <strong id="waiting-amount"></strong>.</p>
+        <p class="muted" id="waiting-what" hidden></p>
         <p class="muted small" id="waiting-note">Keep this page open. Your ticket appears here as soon as M-Pesa confirms.</p>
         <button id="give-up" type="button" class="secondary" hidden>The prompt never came: try again</button>
       </section>

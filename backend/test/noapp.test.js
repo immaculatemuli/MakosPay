@@ -152,3 +152,14 @@ test('the in-app scanner also accepts the link sticker', async () => {
   assert.equal(res.status, 200);
   assert.equal(res.body.vehicle.plate, 'KDA 123A');
 });
+
+test('one fare per stop: routes and fare changes take { fare }, and every screen gets that one fare', async () => {
+  const route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'One Fare Road', origin: 'Town', stops: [{ name: 'Kitengela', fare: 120 }] } })).body;
+  const [stop] = route.stops;
+  assert.deepEqual([stop.fare, stop.app_fare, stop.cash_fare, stop.you_save], [120, 120, 120, 0]);
+  const change = await api('POST', `/admin/stops/${stop.id}/fare-change`, { token: s.admin, body: { fare: 130, effective_date: new Date().toISOString().slice(0, 10) } });
+  assert.equal(change.status, 201);
+  const after = (await api('GET', `/admin/routes/${route.id}`, { token: s.admin })).body.stops[0];
+  assert.deepEqual([after.fare, after.app_fare, after.cash_fare], [130, 130, 130]);
+  assert.equal((await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Bad', origin: 'Town', stops: [{ name: 'X1', fare: 0 }] } })).status, 400);
+});

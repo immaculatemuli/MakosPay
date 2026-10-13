@@ -24,12 +24,8 @@ export default function FareChanges() {
             </Text>
             <Badge text={coming ? `Starts ${dateTime(c.effective_from)}` : `Since ${dateTime(c.applied_at!)}`} tone={coming ? 'warning' : 'neutral'} />
             <Text style={{ color: colors.text, marginTop: 6 }}>
-              Member Fare {kes(c.old_app_fare)} → <Text style={{ fontWeight: '700', color: up ? colors.danger : colors.primary }}>{kes(c.new_app_fare)}</Text>
+              Fare {kes(c.old_app_fare)} → <Text style={{ fontWeight: '700', color: up ? colors.danger : colors.primary }}>{kes(c.new_app_fare)}</Text>
             </Text>
-            <Muted>
-              Cash fare {kes(c.old_cash_fare)} → {kes(c.new_cash_fare)}
-              {c.new_cash_fare > c.new_app_fare ? ` · you save ${kes(c.new_cash_fare - c.new_app_fare)}` : ''}
-            </Muted>
           </Card>
         );
       })}

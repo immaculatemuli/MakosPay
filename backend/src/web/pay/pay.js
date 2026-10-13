@@ -23,7 +23,7 @@ const remember = {
   },
 };
 
-const SECTIONS = ['loading', 'problem', 'choose', 'quick', 'waiting', 'paid', 'failed'];
+const SECTIONS = ['loading', 'problem', 'choose', 'waiting', 'paid', 'failed'];
 const show = (name) => SECTIONS.forEach((s) => ($(s).hidden = s !== name));
 const kes = (n) => `KES ${Number(n).toLocaleString('en-KE')}`;
 
@@ -42,9 +42,9 @@ async function call(method, path, body) {
 let page = null; // the vehicle and route, from FarePay
 let chosenStop = null;
 let pollTimer = null;
-let countdownTimer = null;
+// What is being paid, shown while waiting for the PIN: { plate, stop, phone }.
+let current = null;
 
-const QUICK_SECONDS = 3;
 const spaced = (phone) => phone.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 $2 $3');
 
 const normalPhone = (text) => {
@@ -64,35 +64,6 @@ function chooseStop(id) {
   chosenStop = id;
   for (const el of $('stops').children) el.setAttribute('aria-checked', String(Number(el.dataset.id) === id));
   updatePayButton();
-}
-
-/**
- * Quick pay: this phone has paid before and the stop is known (the only stop, or the one it paid to last time on
- * this route), so the M-Pesa prompt goes out by itself after a short countdown. Entering the PIN is the
- * passenger's confirmation; "Change" stops it.
- */
-function startQuickPay(stop, phone) {
-  $('q-plate').textContent = page.vehicle.plate;
-  $('q-route').textContent = page.route.name;
-  $('q-amount').textContent = kes(stop.fare);
-  $('q-stop').textContent = stop.name;
-  $('q-phone').textContent = spaced(phone);
-  show('quick');
-  let left = QUICK_SECONDS;
-  $('q-count').textContent = String(left);
-  clearInterval(countdownTimer);
-  countdownTimer = setInterval(() => {
-    left -= 1;
-    $('q-count').textContent = String(Math.max(left, 0));
-    if (left <= 0) {
-      clearInterval(countdownTimer);
-      pay();
-    }
-  }, 1000);
-}
-
-function stopQuickPay() {
-  clearInterval(countdownTimer);
 }
 
 function renderChoose({ quick = false } = {}) {
@@ -124,8 +95,10 @@ function renderChoose({ quick = false } = {}) {
   if (!$('phone').value) $('phone').value = remember.get('phone') ?? '';
   $('choose-error').hidden = true;
   updatePayButton();
+  // This phone has paid before and the stop is known (the only stop, or the one it paid to last time on this
+  // route): straight to the M-Pesa PIN prompt. Entering the PIN is the passenger's confirmation.
   const phone = normalPhone($('phone').value);
-  if (quick && preselect && phone) return startQuickPay(preselect, phone);
+  if (quick && preselect && phone) return pay();
   show('choose');
 }
 
@@ -146,6 +119,8 @@ async function pay() {
   button.disabled = true;
   button.textContent = 'Sending the M-Pesa prompt…';
   $('choose-error').hidden = true;
+  current = { plate: page.vehicle.plate, stop: stop.name, phone };
+  showWaiting(stop.fare, 'Sending the M-Pesa PIN prompt to your phone…');
   try {
     const result = await call('POST', '/pay-api/pay', { qr, stop_id: stop.id, expected_fare: stop.fare, phone, idempotency_key: newKey() });
     remember.set('phone', phone);
@@ -160,6 +135,16 @@ async function pay() {
     $('choose-error').hidden = false;
     updatePayButton();
   }
+}
+
+/** "Enter your PIN to pay KES 70 · KDA 123A to Juja · prompt sent to 0733 444 555". */
+function showWaiting(amount, note) {
+  $('waiting-amount').textContent = kes(amount);
+  $('waiting-what').textContent = current ? `${current.plate} · to ${current.stop}\nPrompt sent to ${spaced(current.phone)}` : '';
+  $('waiting-what').hidden = !current;
+  $('waiting-note').textContent = note;
+  $('give-up').hidden = true;
+  show('waiting');
 }
 
 function showTicket(ticket) {
@@ -184,15 +169,14 @@ function follow(token, state) {
       $('failed-text').textContent = `${s.reason || 'M-Pesa did not complete the payment'}. No money was taken.`;
       return show('failed');
     }
-    $('waiting-amount').textContent = kes(s.amount);
     // M-Pesa's prompt on the phone expires after about a minute, so only then may the passenger start again
     // (earlier, they could end up entering their PIN for both).
     const slow = Date.now() - started > 90_000;
-    $('waiting-note').textContent = slow
-      ? 'Still waiting for M-Pesa. If you cancelled the prompt or it never came, try again.'
-      : 'Keep this page open. Your ticket appears here as soon as M-Pesa confirms.';
+    showWaiting(
+      s.amount,
+      slow ? 'Still waiting for M-Pesa. If you cancelled the prompt or it never came, try again.' : 'Keep this page open. Your ticket appears here as soon as M-Pesa confirms.',
+    );
     $('give-up').hidden = !slow;
-    show('waiting');
     pollTimer = setTimeout(async () => {
       try {
         render(await call('GET', `/pay-api/payment/${encodeURIComponent(token)}`));
@@ -231,14 +215,6 @@ async function start() {
 }
 
 $('phone').addEventListener('input', updatePayButton);
-$('q-now').addEventListener('click', () => {
-  stopQuickPay();
-  pay();
-});
-$('q-change').addEventListener('click', () => {
-  stopQuickPay();
-  renderChoose();
-});
 $('pay').addEventListener('click', pay);
 const payAgain = () => {
   clearTimeout(pollTimer);

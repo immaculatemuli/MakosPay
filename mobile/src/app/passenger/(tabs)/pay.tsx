@@ -15,7 +15,7 @@ export default function PayTab() {
   const chosen = useChosenStop(pickKey);
   if (summary.loading && !summary.data) return <Loading />;
   const s = summary.data;
-  // The chosen drop-off's Member Fare, if it is one of the passenger's saved or frequent ones.
+  // The chosen drop-off's fare, if it is one of the passenger's saved or frequent ones.
   const fareInfo = s && chosen ? [...s.saved, ...s.frequent].find((x) => x.stop_id === chosen.stop_id) : undefined;
 
   return (
@@ -25,9 +25,7 @@ export default function PayTab() {
       <WhereGoing chosen={chosen} saved={s?.saved ?? []} frequent={s?.frequent ?? []} onChosen={() => setPickKey((k) => k + 1)} />
       {fareInfo && (
         <Card>
-          <KeyValue label="Cash fare" value={kes(fareInfo.cash_fare)} />
-          <KeyValue label="Member Fare" value={kes(fareInfo.app_fare)} />
-          {fareInfo.you_save > 0 && <KeyValue label="You save" value={kes(fareInfo.you_save)} />}
+          <KeyValue label="Fare" value={kes(fareInfo.app_fare)} />
         </Card>
       )}
 

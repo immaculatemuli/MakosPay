@@ -40,7 +40,6 @@ export default function Ticket() {
         <KeyValue label="Route" value={p.route} />
         {!!p.stop && <KeyValue label="Getting off at" value={p.stop} />}
         <KeyValue label="Fare" value={kes(Number(p.fare))} />
-        {Number(p.saved) > 0 && <KeyValue label="You saved" value={`${kes(Number(p.saved))} vs cash`} />}
         <KeyValue label="Time" value={p.at ? dateTime(p.at) : ''} />
         {p.balance !== undefined && <KeyValue label="Wallet balance" value={kes(Number(p.balance))} />}
       </Card>

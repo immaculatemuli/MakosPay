@@ -35,7 +35,7 @@ export function WhereGoing({
         <Ionicons name="map-outline" size={24} color={colors.primary} />
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.title}>{chosen ? `Get off at ${chosen.stop_name}` : 'Choose your route and drop-off'}</Text>
-          <Text style={styles.hint}>{chosen ? `${chosen.route_name} · tap to change` : 'Your Member Fare depends on where you get off'}</Text>
+          <Text style={styles.hint}>{chosen ? `${chosen.route_name} · tap to change` : 'Your fare depends on where you get off'}</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
       </Pressable>

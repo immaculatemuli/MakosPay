@@ -9,7 +9,7 @@ export function Routes() {
   const { data, error, loading, reload } = useApi<Route[]>('/admin/routes');
   return (
     <>
-      <PageHead title="Routes & fares" subtitle="Each drop-off stop has its own cash fare and FarePay member fare.">
+      <PageHead title="Routes & fares" subtitle="Each drop-off stop has its own fare.">
         <Link className="button" to="/routes/new">
           Add route
         </Link>
@@ -24,7 +24,7 @@ export function Routes() {
               <tr>
                 <th>Route</th>
                 <th>From</th>
-                <th>Drop-off stops (member fare / cash fare)</th>
+                <th>Drop-off stops and fares</th>
                 <th />
               </tr>
             </thead>
@@ -35,7 +35,7 @@ export function Routes() {
                     <strong>{r.name}</strong>
                   </td>
                   <td>{r.origin}</td>
-                  <td>{r.stops.map((s) => `${s.name} ${kes(s.app_fare)} / ${kes(s.cash_fare)}`).join(' · ') || '—'}</td>
+                  <td>{r.stops.map((s) => `${s.name} ${kes(s.app_fare)}`).join(' · ') || '—'}</td>
                   <td>{r.is_active ? <Badge tone="success">In use</Badge> : <Badge tone="danger">Switched off</Badge>}</td>
                 </tr>
               ))}

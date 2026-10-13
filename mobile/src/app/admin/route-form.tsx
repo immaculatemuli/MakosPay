@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button, Card, colors, ErrorBox, Field, Loading, Muted, Notice, Screen, SectionTitle } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
-import { kes } from '@/lib/format';
 import type { Route } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
@@ -14,19 +13,15 @@ interface StopDraft {
   key: string;
   id?: number;
   name: string;
-  cash: string;
-  app: string;
+  fare: string;
 }
 
 let nextKey = 1;
-const blankStop = (): StopDraft => ({ key: `new-${nextKey++}`, name: '', cash: '', app: '' });
+const blankStop = (): StopDraft => ({ key: `new-${nextKey++}`, name: '', fare: '' });
 
 const stopProblem = (s: StopDraft) => {
-  const cash = Number(s.cash);
-  const app = Number(s.app);
   if (s.name.trim().length < 2) return 'Enter the stop name';
-  if (!(cash > 0) || !(app > 0)) return 'Enter both fares';
-  if (app > cash) return 'App fare cannot be more than the cash fare';
+  if (!(Number(s.fare) > 0)) return 'Enter the fare';
   return null;
 };
 
@@ -47,7 +42,7 @@ export default function RouteForm() {
     prefilled.current = true;
     setName(existing.name);
     setOrigin(existing.origin);
-    setStops(existing.stops.map((s) => ({ key: `id-${s.id}`, id: s.id, name: s.name, cash: String(s.cash_fare), app: String(s.app_fare) })));
+    setStops(existing.stops.map((s) => ({ key: `id-${s.id}`, id: s.id, name: s.name, fare: String(s.app_fare) })));
   }, [existing]);
 
   if (id && route.loading && !existing) return <Loading />;
@@ -73,7 +68,7 @@ export default function RouteForm() {
       const body = {
         name: name.trim(),
         origin: origin.trim(),
-        stops: stops.map((s) => ({ ...(s.id && { id: s.id }), name: s.name.trim(), cash_fare: Number(s.cash), app_fare: Number(s.app) })),
+        stops: stops.map((s) => ({ ...(s.id && { id: s.id }), name: s.name.trim(), fare: Number(s.fare) })),
         ...extra,
       };
       await api(id ? `/admin/routes/${id}` : '/admin/routes', { method: id ? 'PATCH' : 'POST', body });
@@ -94,7 +89,7 @@ export default function RouteForm() {
 
       <SectionTitle>Drop-off stops and fares</SectionTitle>
       <Muted>
-        Add each place passengers can get off, in order along the route. App users pay the Member Fare.
+        Add each place passengers can get off, in order along the route, with the fare to it.
         {id ? ' Fare changes made here start straight away; to start a new fare on a later day, use Fare history.' : ''}
       </Muted>
       {id && (
@@ -108,8 +103,7 @@ export default function RouteForm() {
       <View style={{ height: 10 }} />
 
       {stops.map((s, index) => {
-        const problem = (s.name || s.cash || s.app) && stopProblem(s);
-        const saving = Number(s.cash) - Number(s.app);
+        const problem = (s.name || s.fare) && stopProblem(s);
         return (
           <Card key={s.key}>
             <View style={styles.stopHeader}>
@@ -133,21 +127,9 @@ export default function RouteForm() {
               </View>
             </View>
             <TextInput style={styles.input} placeholder="Stop name, e.g. Juja" placeholderTextColor="#9CA3AF" value={s.name} onChangeText={(t) => update(s.key, { name: t })} />
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.small}>Cash fare</Text>
-                <TextInput style={styles.input} keyboardType="number-pad" placeholder="KES" placeholderTextColor="#9CA3AF" value={s.cash} onChangeText={(t) => update(s.key, { cash: digits(t) })} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.small}>App fare</Text>
-                <TextInput style={styles.input} keyboardType="number-pad" placeholder="KES" placeholderTextColor="#9CA3AF" value={s.app} onChangeText={(t) => update(s.key, { app: digits(t) })} />
-              </View>
-            </View>
-            {problem ? (
-              <Text style={{ color: colors.danger, fontSize: 13 }}>{problem}</Text>
-            ) : saving > 0 ? (
-              <Text style={{ color: colors.primary, fontSize: 13 }}>App users save {kes(saving)}</Text>
-            ) : null}
+            <Text style={styles.small}>Fare</Text>
+            <TextInput style={styles.input} keyboardType="number-pad" placeholder="KES" placeholderTextColor="#9CA3AF" value={s.fare} onChangeText={(t) => update(s.key, { fare: digits(t) })} />
+            {problem ? <Text style={{ color: colors.danger, fontSize: 13 }}>{problem}</Text> : null}
           </Card>
         );
       })}

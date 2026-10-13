@@ -1,4 +1,5 @@
-// Routes and their drop-off stops (each stop has its own cash fare and app fare).
+// Routes and their drop-off stops. Each stop has ONE fare: what every passenger pays. (The database keeps two
+// columns from an earlier design, cash_fare and app_fare; both now hold the fare, and app_fare is what is charged.)
 import { z } from 'zod';
 import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
@@ -9,7 +10,7 @@ import { kesText, notify, prettyDate } from './notifications.js';
 // Removed stops are only kept for past trips, so routes always list their current stops.
 const stopsOf = (routeId) =>
   db.all(
-    `SELECT id, name, cash_fare, app_fare, cash_fare - app_fare AS you_save, position
+    `SELECT id, name, app_fare AS fare, cash_fare, app_fare, cash_fare - app_fare AS you_save, position
      FROM route_stops WHERE route_id = ? AND is_active = TRUE ORDER BY position, id`,
     routeId,
   );
@@ -31,9 +32,16 @@ export async function listRoutes({ activeOnly = false } = {}) {
 
 export const getStop = (stopId) => db.get('SELECT * FROM route_stops WHERE id = ?', stopId);
 
-export const stopSchema = z
-  .object({ id: id.optional(), name, cash_fare: kes, app_fare: kes })
-  .refine((s) => s.app_fare <= s.cash_fare, { path: ['app_fare'], message: 'App fare cannot be more than the cash fare' });
+/** { fare } sets both stored columns to the one fare. Apps installed before this still send { cash_fare, app_fare }. */
+export const withOneFare = (value) =>
+  value && typeof value === 'object' && 'fare' in value ? { ...value, cash_fare: value.fare, app_fare: value.fare } : value;
+
+export const stopSchema = z.preprocess(
+  withOneFare,
+  z
+    .object({ id: id.optional(), name, cash_fare: kes, app_fare: kes })
+    .refine((s) => s.app_fare <= s.cash_fare, { path: ['app_fare'], message: 'App fare cannot be more than the cash fare' }),
+);
 
 export const stopsSchema = z
   .array(stopSchema)
@@ -198,7 +206,7 @@ async function notifyFareChange(stop, { cash_fare, app_fare, effective_date }) {
   await notify(passengers, {
     kind: 'fare.changed',
     title: `New fare to ${stop.name} (${route.name})`,
-    body: `FarePay fare ${kesText(stop.app_fare)} → ${kesText(app_fare)} (cash ${kesText(stop.cash_fare)} → ${kesText(cash_fare)}), ${when}.`,
+    body: `Fare ${kesText(stop.app_fare)} → ${kesText(app_fare)}, ${when}.`,
     target: 'fare-changes',
   });
 }

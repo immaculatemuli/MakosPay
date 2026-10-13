@@ -56,12 +56,8 @@ export default function ChooseRoute() {
                     <Ionicons name={selected ? 'checkmark-circle' : 'location-outline'} size={20} color={selected ? colors.primary : colors.muted} />
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       <Text style={styles.stopName}>{s.name}</Text>
-                      <Text style={styles.routeSub}>Cash {kes(s.cash_fare)}</Text>
                     </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={styles.fare}>{kes(s.app_fare)}</Text>
-                      {s.you_save > 0 && <Badge text={`Save ${kes(s.you_save)}`} tone="success" />}
-                    </View>
+                    <Text style={styles.fare}>{kes(s.app_fare)}</Text>
                     <Pressable onPress={() => toggleSaved(s.id)} hitSlop={10} style={{ marginLeft: 14 }} accessibilityLabel={savedIds.has(s.id) ? 'Remove from saved' : 'Save this drop-off'}>
                       <Ionicons name={savedIds.has(s.id) ? 'star' : 'star-outline'} size={22} color={savedIds.has(s.id) ? colors.primary : colors.muted} />
                     </Pressable>

@@ -21,6 +21,7 @@ import {
   scheduleFareChange,
   stopsSchema,
   updateRoute,
+  withOneFare,
 } from '../services/routes.js';
 import { REPORT_SELECT, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
@@ -224,12 +225,12 @@ router.get('/routes/:id/fare-changes', async (req, res) => {
   res.json(await routeFareChanges(parse(id, req.params.id)));
 });
 
-// Set a stop's fares from a date (YYYY-MM-DD, Kenyan time). Today or earlier applies at once; past payments keep their fares.
+// Set a stop's fare ({ fare }) from a date (YYYY-MM-DD, Kenyan time). Today or earlier applies at once; past payments keep their fares.
 router.post('/stops/:id/fare-change', async (req, res) => {
   const body = parse(
     z
-      .object({ cash_fare: kes, app_fare: kes, effective_date: z.string().date(), reason: z.string().trim().max(200).optional() })
-      .refine((f) => f.app_fare <= f.cash_fare, { path: ['app_fare'], message: 'Member Fare cannot be more than the cash fare' })
+      .preprocess(withOneFare, z.object({ cash_fare: kes, app_fare: kes, effective_date: z.string().date(), reason: z.string().trim().max(200).optional() }))
+      .refine((f) => f.app_fare <= f.cash_fare, { path: ['app_fare'], message: 'App fare cannot be more than the cash fare' })
       .refine((f) => f.effective_date <= nairobiDate(366), { path: ['effective_date'], message: 'Choose a date within the next year' }),
     req.body,
   );

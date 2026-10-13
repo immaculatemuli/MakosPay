@@ -6,8 +6,9 @@ import type { FareChange, Route, Stop } from '../types';
 import { Badge, Banner, Dialog, Failed, Loading, PageHead } from '../ui';
 import { useApi } from '../useApi';
 
-type StopDraft = { id?: number; name: string; cash_fare: string; app_fare: string };
-const toDraft = (s: Stop): StopDraft => ({ id: s.id, name: s.name, cash_fare: String(s.cash_fare), app_fare: String(s.app_fare) });
+// Each stop has one fare: what every passenger pays.
+type StopDraft = { id?: number; name: string; fare: string };
+const toDraft = (s: Stop): StopDraft => ({ id: s.id, name: s.name, fare: String(s.app_fare) });
 const whole = (v: string) => (/^\d+$/.test(v.trim()) ? Number(v.trim()) : NaN);
 
 /** Add a route, or change one: its name, start, drop-off stops and their fares. Fare history and scheduled changes below. */
@@ -19,7 +20,7 @@ export function RouteEdit() {
   const history = useApi<FareChange[]>(isNew ? null : `/admin/routes/${id}/fare-changes`);
   const [name, setName] = useState('');
   const [origin, setOrigin] = useState('');
-  const [stops, setStops] = useState<StopDraft[]>([{ name: '', cash_fare: '', app_fare: '' }]);
+  const [stops, setStops] = useState<StopDraft[]>([{ name: '', fare: '' }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -44,10 +45,8 @@ export function RouteEdit() {
   if (origin.trim().length < 2) problems.push('Say where it starts.');
   if (stops.length === 0) problems.push('Add at least one drop-off stop.');
   stops.forEach((s, i) => {
-    const [cash, app] = [whole(s.cash_fare), whole(s.app_fare)];
     if (s.name.trim().length < 2) problems.push(`Stop ${i + 1}: give it a name.`);
-    if (!(cash > 0) || !(app > 0)) problems.push(`Stop ${i + 1}: fares must be whole shillings above 0.`);
-    else if (app > cash) problems.push(`Stop ${i + 1}: the member fare can't be more than the cash fare.`);
+    if (!(whole(s.fare) > 0)) problems.push(`Stop ${i + 1}: the fare must be whole shillings above 0.`);
   });
   if (new Set(stops.map((s) => s.name.trim().toLowerCase())).size !== stops.length) problems.push('Each stop needs a different name.');
 
@@ -58,7 +57,7 @@ export function RouteEdit() {
     const body = {
       name: name.trim(),
       origin: origin.trim(),
-      stops: stops.map((s) => ({ ...(s.id && { id: s.id }), name: s.name.trim(), cash_fare: whole(s.cash_fare), app_fare: whole(s.app_fare) })),
+      stops: stops.map((s) => ({ ...(s.id && { id: s.id }), name: s.name.trim(), fare: whole(s.fare) })),
     };
     try {
       if (isNew) {
@@ -114,8 +113,7 @@ export function RouteEdit() {
             <thead>
               <tr>
                 <th>Stop</th>
-                <th>Cash fare (KES)</th>
-                <th>FarePay member fare (KES)</th>
+                <th>Fare (KES)</th>
                 <th />
               </tr>
             </thead>
@@ -126,10 +124,7 @@ export function RouteEdit() {
                     <input value={s.name} onChange={(e) => setStop(i, { name: e.target.value })} placeholder="e.g. Juja" aria-label={`Stop ${i + 1} name`} />
                   </td>
                   <td>
-                    <input value={s.cash_fare} onChange={(e) => setStop(i, { cash_fare: e.target.value })} inputMode="numeric" style={{ width: 110 }} aria-label={`Stop ${i + 1} cash fare`} />
-                  </td>
-                  <td>
-                    <input value={s.app_fare} onChange={(e) => setStop(i, { app_fare: e.target.value })} inputMode="numeric" style={{ width: 110 }} aria-label={`Stop ${i + 1} member fare`} />
+                    <input value={s.fare} onChange={(e) => setStop(i, { fare: e.target.value })} inputMode="numeric" style={{ width: 110 }} aria-label={`Stop ${i + 1} fare`} />
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="secondary" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
@@ -153,7 +148,7 @@ export function RouteEdit() {
           </table>
         </div>
         <p>
-          <button className="secondary" onClick={() => setStops((all) => [...all, { name: '', cash_fare: '', app_fare: '' }])}>
+          <button className="secondary" onClick={() => setStops((all) => [...all, { name: '', fare: '' }])}>
             + Add a stop
           </button>
         </p>
@@ -179,8 +174,7 @@ export function RouteEdit() {
                 <thead>
                   <tr>
                     <th>Stop</th>
-                    <th>Member fare</th>
-                    <th>Cash fare</th>
+                    <th>Fare</th>
                     <th>From</th>
                     <th>By</th>
                     <th>Status</th>
@@ -192,9 +186,6 @@ export function RouteEdit() {
                       <td>{f.stop_name}</td>
                       <td>
                         {kes(f.old_app_fare)} → {kes(f.new_app_fare)}
-                      </td>
-                      <td>
-                        {kes(f.old_cash_fare)} → {kes(f.new_cash_fare)}
                       </td>
                       <td>{dateTime(f.effective_from)}</td>
                       <td>
@@ -238,7 +229,7 @@ export function RouteEdit() {
           onClose={() => setCancel(null)}
         >
           <p className="muted">
-            It was to start {dateTime(cancel.effective_from)}. The fare stays {kes(cancel.old_app_fare)} (member) / {kes(cancel.old_cash_fare)} (cash).
+            It was to start {dateTime(cancel.effective_from)}. The fare stays {kes(cancel.old_app_fare)}.
           </p>
         </Dialog>
       )}
@@ -263,36 +254,29 @@ export function RouteEdit() {
 
 /** A new fare for one stop from a date (Kenyan time, from midnight that day). Today applies at once. */
 function ScheduleFare({ stop, onClose, onDone }: { stop: Stop; onClose: () => void; onDone: () => Promise<unknown> }) {
-  const [cash, setCash] = useState(String(stop.cash_fare));
-  const [app, setApp] = useState(String(stop.app_fare));
+  const [fareText, setFareText] = useState(String(stop.app_fare));
   const [date, setDate] = useState(nairobiToday());
   const [reason, setReason] = useState('');
-  const [c, a] = [whole(cash), whole(app)];
-  const ok = c > 0 && a > 0 && a <= c && /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const fare = whole(fareText);
+  const ok = fare > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date);
   return (
     <Dialog
       title={`New fare for ${stop.name}`}
       actionLabel={date <= nairobiToday() ? 'Change fare now' : `Change from ${prettyDate(date)}`}
       disabled={!ok}
       action={async () => {
-        await api(`/admin/stops/${stop.id}/fare-change`, { method: 'POST', body: { cash_fare: c, app_fare: a, effective_date: date, ...(reason.trim() && { reason: reason.trim() }) } });
+        await api(`/admin/stops/${stop.id}/fare-change`, { method: 'POST', body: { fare, effective_date: date, ...(reason.trim() && { reason: reason.trim() }) } });
         await onDone();
       }}
       onClose={onClose}
     >
       <p className="muted">
-        Now {kes(stop.app_fare)} member / {kes(stop.cash_fare)} cash. Passengers who use this route are told about the change.
+        Now {kes(stop.app_fare)}. Passengers who use this route are told about the change.
       </p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <label>
-          Cash fare (KES)
-          <input value={cash} onChange={(e) => setCash(e.target.value)} inputMode="numeric" />
-        </label>
-        <label>
-          Member fare (KES)
-          <input value={app} onChange={(e) => setApp(e.target.value)} inputMode="numeric" />
-        </label>
-      </div>
+      <label>
+        New fare (KES)
+        <input value={fareText} onChange={(e) => setFareText(e.target.value)} inputMode="numeric" />
+      </label>
       <label>
         From (Kenyan time, start of that day)
         <input type="date" value={date} min={nairobiToday()} onChange={(e) => setDate(e.target.value)} />
@@ -301,7 +285,6 @@ function ScheduleFare({ stop, onClose, onDone }: { stop: Stop; onClose: () => vo
         Reason (optional)
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Fuel price change" />
       </label>
-      {a > c && <Banner>The member fare can't be more than the cash fare.</Banner>}
     </Dialog>
   );
 }

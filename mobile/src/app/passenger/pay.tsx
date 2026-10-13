@@ -132,11 +132,6 @@ export default function Pay() {
           <View style={{ alignItems: 'center', marginVertical: 8 }}>
             <Text style={{ color: colors.muted }}>You pay to {stop.name}</Text>
             <Text style={{ fontSize: 40, fontWeight: '800', color: colors.text }}>{kes(stop.app_fare)}</Text>
-            {stop.you_save > 0 && (
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>
-                {kes(stop.you_save)} less than cash ({kes(stop.cash_fare)})
-              </Text>
-            )}
           </View>
           <KeyValue label="Wallet balance" value={kes(q.wallet_balance)} />
           {canPay && <KeyValue label="Balance after" value={kes(q.wallet_balance - stop.app_fare)} />}

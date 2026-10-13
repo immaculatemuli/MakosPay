@@ -58,7 +58,7 @@ export default function DashboardScreen() {
           <StatGrid>
             <Stat label="Fare payments" value={String(d.totals.payments)} />
             <Stat label="Passengers who paid" value={String(d.totals.passengers)} />
-            <Stat label="Passengers saved vs cash" value={kes(d.totals.passengers_saved)} />
+            <Stat label="Average fare" value={d.totals.payments ? kes(Math.round(d.totals.collected / d.totals.payments)) : '—'} />
             <Stat label="Wallet top-ups" value={kes(d.topups.amount)} />
           </StatGrid>
           {d.refunds.count > 0 && (

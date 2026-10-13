@@ -14,7 +14,7 @@ import { useApi } from '@/lib/useApi';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** Passenger home: balance, Add money / Pay fare, savings, where they're going, recent payments. */
+/** Passenger home: balance, Add money / Pay fare, trips and spending, where they're going, recent payments. */
 export default function PassengerHome() {
   const { user } = useAuth();
   const summary = useApi<PassengerSummary>('/passenger/summary');
@@ -51,12 +51,12 @@ export default function PassengerHome() {
       {s && (
         <View style={styles.stats}>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{kes(s.this_month.saved)}</Text>
-            <Text style={styles.statLabel}>Saved this month</Text>
+            <Text style={styles.statValue}>{kes(s.this_month.spent)}</Text>
+            <Text style={styles.statLabel}>Spent this month</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{kes(s.since_joining.saved)}</Text>
-            <Text style={styles.statLabel}>Saved since {joined ? `${MONTHS[joined.getMonth()]} ${joined.getFullYear()}` : 'joining'}</Text>
+            <Text style={styles.statValue}>{s.since_joining.trips}</Text>
+            <Text style={styles.statLabel}>Trips since {joined ? `${MONTHS[joined.getMonth()]} ${joined.getFullYear()}` : 'joining'}</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{s.this_month.trips}</Text>
@@ -64,7 +64,6 @@ export default function PassengerHome() {
           </View>
         </View>
       )}
-      {s && s.since_joining.trips === 0 && <Muted>Member Fare is lower than the cash fare. Your savings show here after your first trip.</Muted>}
 
       <SectionTitle>Where are you going?</SectionTitle>
       <WhereGoing chosen={chosen} saved={s?.saved ?? []} frequent={s?.frequent ?? []} onChosen={() => setPickKey((k) => k + 1)} />
@@ -80,7 +79,7 @@ export default function PassengerHome() {
               title={`${t.plate} · to ${t.stop_name ?? t.route_name}`}
               subtitle={dateTime(t.created_at)}
               right={kes(t.fare)}
-              rightSub={t.status === 'refunded' ? <Badge text="Refunded" tone="danger" /> : t.saved > 0 ? <Badge text={`Saved ${kes(t.saved)}`} tone="success" /> : undefined}
+              rightSub={t.status === 'refunded' ? <Badge text="Refunded" tone="danger" /> : undefined}
               onPress={() => openTicket(t)}
             />
           ))}

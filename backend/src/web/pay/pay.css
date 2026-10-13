@@ -54,7 +54,7 @@ button.secondary { background: transparent; color: var(--brand); border: 2px sol
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 #waiting, #failed { text-align: center; }
-.quick-line { font-size: 20px; text-align: center; margin: 18px 0 6px; }
+#waiting-what { white-space: pre-line; }
 .ticket { text-align: center; border: 2px dashed var(--brand); border-radius: 14px; padding: 18px; }
 .ticket .ok { color: var(--brand); font-weight: 800; font-size: 20px; }
 .ticket .code { font-size: 40px; font-weight: 800; letter-spacing: 0.12em; margin: 6px 0; font-family: ui-monospace, Menlo, Consolas, monospace; }
