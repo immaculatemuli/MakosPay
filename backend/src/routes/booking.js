@@ -1,9 +1,12 @@
-// The website's seat booking (/book-api). Nobody signs in: the M-Pesa PIN prompt proves who is paying, and the
+// The website's seat booking and parcel tracking (/book-api). Nobody signs in: the M-Pesa PIN prompt proves who is paying, and the
 // booking link (a signed token) is what the passenger keeps.
 import { Router } from 'express';
 import { z } from 'zod';
-import { noAppPromptsByIp, noAppPromptsByPhone } from '../ratelimit.js';
+import { limitBy, limiter, noAppPromptsByIp, noAppPromptsByPhone } from '../ratelimit.js';
 import { bookingStatusByToken, cancelBooking, MAX_SEATS_PER_BOOKING, routesForBooking, startBooking } from '../services/bookings.js';
+import { trackParcel } from '../services/parcels.js';
+
+const trackingByIp = limiter({ windowMs: 10 * 60_000, max: 60, message: (m) => `Too many look-ups. Try again in ${m} minute${m === 1 ? '' : 's'}.` });
 import { id, kes, parse, phone } from '../validate.js';
 
 const router = Router();
@@ -44,6 +47,12 @@ router.get('/bookings/:token', async (req, res) => {
 
 router.post('/bookings/:token/cancel', async (req, res) => {
   res.json(await cancelBooking(req.params.token));
+});
+
+// Parcel tracking by its code (no names in full, phone numbers, fee or collection code). Limited per network
+// address so codes can't be guessed by trying many.
+router.get('/parcels/:code', limitBy(trackingByIp, (req) => req.ip), async (req, res) => {
+  res.json(await trackParcel(req.params.code));
 });
 
 export default router;

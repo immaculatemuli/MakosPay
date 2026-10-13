@@ -17,6 +17,10 @@ const GROUPS = [
     ],
   },
   {
+    title: 'Parcels',
+    links: [{ to: '/parcels', label: 'Parcels' }],
+  },
+  {
     title: 'Setup',
     links: [
       { to: '/routes', label: 'Routes & fares' },

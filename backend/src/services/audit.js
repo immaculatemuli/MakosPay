@@ -18,7 +18,8 @@ export async function audit(actor, action, entity = null, entityId = null, detai
 }
 
 // Never stored in the audit log, whatever endpoint they come through.
-const SECRET_KEYS = /password|pin|secret|token|credential|passkey/i;
+// ("code" = a parcel's collection code, which only the receiver may know.)
+const SECRET_KEYS = /password|pin|secret|token|credential|passkey|^code$/i;
 
 // Long text (e.g. an uploaded M-Pesa statement) is not copied into the log, only its length.
 const MAX_TEXT = 1000;

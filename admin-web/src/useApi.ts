@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, errorText } from './api';
 
-/** Loads `path` (again whenever it changes); `reload` fetches it again, e.g. after a change. */
+/**
+ * Loads `path` (again whenever it changes); `reload` fetches it again, e.g. after a change, and `setData` shows
+ * what an action answered without asking again.
+ */
 export function useApi<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,5 +32,5 @@ export function useApi<T>(path: string | null) {
     void load();
   }, [load]);
 
-  return { data, error, loading, reload: load };
+  return { data, setData, error, loading, reload: load };
 }

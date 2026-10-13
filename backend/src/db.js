@@ -428,6 +428,56 @@ CREATE TABLE IF NOT EXISTS load_stops (
 CREATE INDEX IF NOT EXISTS idx_load_stops_stop ON load_stops(stop_id, reached_at);
 `);
 
+// Parcels (the same as migrations/004_parcels.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS parcels (
+  id                INTEGER PRIMARY KEY,
+  tracking_code     TEXT NOT NULL UNIQUE,
+  collection_code   TEXT NOT NULL,
+  sender_name       TEXT NOT NULL,
+  sender_phone      TEXT NOT NULL,
+  receiver_name     TEXT NOT NULL,
+  receiver_phone    TEXT NOT NULL,
+  route_id          INTEGER NOT NULL REFERENCES routes(id),
+  stop_id           INTEGER NOT NULL REFERENCES route_stops(id),
+  description       TEXT,
+  fee               INTEGER NOT NULL CHECK (fee > 0),
+  status            TEXT NOT NULL DEFAULT 'awaiting_payment'
+                    CHECK (status IN ('awaiting_payment', 'received', 'on_the_way', 'arrived', 'collected', 'cancelled')),
+  payment_method    TEXT CHECK (payment_method IN ('mpesa_prompt', 'mpesa_code', 'cash')),
+  payment_reference TEXT,
+  paid_at           TEXT,
+  vehicle_id        INTEGER REFERENCES vehicles(id),
+  load_id           INTEGER REFERENCES loads(id),
+  created_by        INTEGER NOT NULL REFERENCES users(id),
+  collected_by      INTEGER REFERENCES users(id),
+  cancel_reason     TEXT,
+  created_at        TEXT NOT NULL DEFAULT (${NOW}),
+  loaded_at         TEXT,
+  arrived_at        TEXT,
+  collected_at      TEXT,
+  cancelled_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_parcels_status_route ON parcels(status, route_id);
+CREATE INDEX IF NOT EXISTS idx_parcels_vehicle ON parcels(vehicle_id, status);
+
+CREATE TABLE IF NOT EXISTS parcel_payments (
+  id                  INTEGER PRIMARY KEY,
+  parcel_id           INTEGER NOT NULL REFERENCES parcels(id),
+  phone               TEXT NOT NULL,
+  amount              INTEGER NOT NULL CHECK (amount > 0),
+  status              TEXT NOT NULL CHECK (status IN ('initiating', 'pending', 'completed', 'failed')),
+  checkout_request_id TEXT UNIQUE,
+  merchant_request_id TEXT,
+  mpesa_receipt       TEXT UNIQUE,
+  result_desc         TEXT,
+  last_queried_at     TEXT,
+  created_at          TEXT NOT NULL DEFAULT (${NOW}),
+  completed_at        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_parcel_payments_status ON parcel_payments(status);
+`);
+
 /**
  * Runs fn inside a write transaction. fn must be synchronous (no await inside),
  * which together with node:sqlite's synchronous API makes it atomic.

@@ -254,3 +254,36 @@ export interface StatementCheck {
   not_in_statement: StatementLine[];
   all_ok: boolean;
 }
+
+/** A parcel sent through the SACCO office (its fee is SACCO income). */
+export type ParcelStatus = 'awaiting_payment' | 'received' | 'on_the_way' | 'arrived' | 'collected' | 'cancelled';
+export interface Parcel {
+  id: number;
+  tracking_code: string;
+  collection_code: string;
+  sender_name: string;
+  sender_phone: string;
+  receiver_name: string;
+  receiver_phone: string;
+  route_id: number;
+  route_name: string;
+  origin: string;
+  stop_id: number;
+  stop_name: string;
+  description: string | null;
+  fee: number;
+  status: ParcelStatus;
+  payment_method: 'mpesa_prompt' | 'mpesa_code' | 'cash' | null;
+  payment_reference: string | null;
+  paid_at: string | null;
+  plate: string | null;
+  created_by_name: string;
+  collected_by_name: string | null;
+  cancel_reason: string | null;
+  created_at: string;
+  loaded_at: string | null;
+  arrived_at: string | null;
+  collected_at: string | null;
+  cancelled_at: string | null;
+  payments?: { id: number; phone: string; amount: number; status: string; mpesa_receipt: string | null; result_desc: string | null; created_at: string }[];
+}

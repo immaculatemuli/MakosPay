@@ -6,6 +6,7 @@ import { Layout } from './Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { MoneyCheck } from './pages/MoneyCheck';
+import { ParcelDetail, ParcelNew, Parcels } from './pages/Parcels';
 import { Payments } from './pages/Payments';
 import { Platform, Staff } from './pages/Accounts';
 import { Audit } from './pages/Audit';
@@ -41,6 +42,9 @@ function App() {
         <Route path="payouts" element={<Payouts />} />
         <Route path="payouts/:id" element={<PayoutDetail />} />
         <Route path="withdrawals" element={<Withdrawals />} />
+        <Route path="parcels" element={<Parcels />} />
+        <Route path="parcels/new" element={<ParcelNew />} />
+        <Route path="parcels/:id" element={<ParcelDetail />} />
         <Route path="statement" element={<Statement />} />
         <Route path="routes" element={<RoutesPage />} />
         <Route path="routes/:id" element={<RouteEdit />} />

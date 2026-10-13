@@ -230,7 +230,7 @@ function tripStops(load) {
  * Usual minutes from leaving the stage to reaching a stop: the middle value of the last 20 trips that reached it
  * (ignoring anything over 6 hours, e.g. a stop ticked the next day). null when no trip has reached it yet.
  */
-async function typicalMinutes(stopId) {
+export async function typicalMinutes(stopId) {
   const rows = await db.all(
     `SELECT l.departed_at, ls.reached_at FROM load_stops ls JOIN loads l ON l.id = ls.load_id
      WHERE ls.stop_id = ? AND l.departed_at IS NOT NULL ORDER BY ls.id DESC LIMIT 20`,
@@ -346,6 +346,8 @@ export async function reachStop(vehicle, stopId) {
   const stop = await db.get('SELECT id FROM route_stops WHERE id = ? AND route_id = ?', stopId, road.route_id);
   if (!stop) throw notFound('Stop');
   await db.run('INSERT INTO load_stops (load_id, stop_id) VALUES (?, ?) ON CONFLICT DO NOTHING', road.id, stop.id);
+  // Parcels on this car for this stop are there now.
+  await db.run(`UPDATE parcels SET status = 'arrived', arrived_at = ${NOW} WHERE vehicle_id = ? AND stop_id = ? AND status = 'on_the_way'`, vehicle.id, stop.id);
   return crewLoad(vehicle);
 }
 

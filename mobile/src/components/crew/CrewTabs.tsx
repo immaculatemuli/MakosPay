@@ -4,7 +4,7 @@ import { Tabs } from 'expo-router/js-tabs';
 import { HeaderActions } from '../AccountButton';
 import { tabOptions } from '../navigation';
 
-/** Bottom tabs for conductors and drivers: Payments, seat Bookings and Check ticket, with My account at the top right. */
+/** Bottom tabs for conductors and drivers: Payments, seat Bookings, Parcels and Check ticket, with My account at the top right. */
 export function CrewTabs({ accountHref }: { accountHref: Href }) {
   return (
     <Tabs screenOptions={{ ...tabOptions, headerRight: () => <HeaderActions accountHref={accountHref} /> }}>
@@ -15,6 +15,10 @@ export function CrewTabs({ accountHref }: { accountHref: Href }) {
       <Tabs.Screen
         name="bookings"
         options={{ title: 'Bookings', tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="parcels"
+        options={{ title: 'Parcels', tabBarIcon: ({ color, size }) => <Ionicons name="cube-outline" color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="check"

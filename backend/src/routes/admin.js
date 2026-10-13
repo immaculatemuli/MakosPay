@@ -23,6 +23,7 @@ import {
   updateRoute,
   withOneFare,
 } from '../services/routes.js';
+import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
 import { REPORT_SELECT, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
 import { createUser, resetPassword } from '../services/users.js';
@@ -508,6 +509,67 @@ router.post('/vehicles/:id/rotate-qr', async (req, res) => {
   const vehicleId = parse(id, req.params.id);
   await updateRow('vehicles', vehicleId, { qr_token: newQrToken() });
   res.json(await getVehicle(vehicleId));
+});
+
+// ---------- Parcels (fees are the SACCO's income, not fares) ----------
+
+const mpesaCode = z.string().trim().regex(/^[A-Za-z0-9]{8,12}$/, 'The M-Pesa code (8 to 12 letters and numbers)');
+const parcelPayment = z.discriminatedUnion('payment', [
+  z.object({ payment: z.literal('prompt') }),
+  z.object({ payment: z.literal('cash') }),
+  z.object({ payment: z.literal('mpesa_code'), mpesa_code: mpesaCode }),
+]);
+
+router.get('/parcels', async (req, res) => {
+  const q = parse(
+    z.object({ status: z.enum(['awaiting_payment', 'received', 'on_the_way', 'arrived', 'collected', 'cancelled']).optional(), search: z.string().trim().max(60).optional() }),
+    req.query,
+  );
+  res.json(await listParcels(q));
+});
+
+router.post('/parcels', async (req, res) => {
+  const details = parse(
+    z.object({
+      sender_name: name,
+      sender_phone: phone,
+      receiver_name: name,
+      receiver_phone: phone,
+      route_id: id,
+      stop_id: id,
+      description: z.string().trim().max(200).transform((t) => t || null).optional(),
+      fee: kes.max(100_000),
+    }),
+    req.body,
+  );
+  const payment = parse(parcelPayment, req.body);
+  res.status(201).json(await createParcel({ ...details, ...payment }, req.user.id));
+});
+
+router.get('/parcels/:id', async (req, res) => {
+  res.json(await refreshedParcel(parse(id, req.params.id)));
+});
+
+// Send the M-Pesa PIN prompt for the fee (again) to the sender's phone.
+router.post('/parcels/:id/prompt', async (req, res) => {
+  res.json(await sendParcelPrompt(parse(id, req.params.id)));
+});
+
+// The fee was paid in cash, or by M-Pesa another way (with its code).
+router.post('/parcels/:id/payment', async (req, res) => {
+  const body = parse(z.discriminatedUnion('method', [z.object({ method: z.literal('cash') }), z.object({ method: z.literal('mpesa_code'), mpesa_code: mpesaCode })]), req.body);
+  res.json(await recordPayment(parse(id, req.params.id), { method: body.method, reference: body.mpesa_code }));
+});
+
+router.post('/parcels/:id/cancel', async (req, res) => {
+  const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
+  res.json(await cancelParcel(parse(id, req.params.id), reason));
+});
+
+// Handed to the receiver at the office, who showed the collection code.
+router.post('/parcels/:id/collect', async (req, res) => {
+  const { code } = parse(z.object({ code: z.string().trim().regex(/^\d{6}$/, 'The 6-digit collection code') }), req.body);
+  res.json(await collectParcel(parse(id, req.params.id), code, req.user.id));
 });
 
 // The QR sticker to print and put inside the vehicle.

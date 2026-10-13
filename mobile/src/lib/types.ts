@@ -78,6 +78,26 @@ export interface CrewBooking {
   boarded_at: string | null;
 }
 
+/** A parcel as the crew see it (no collection code, part-hidden receiver number). */
+export interface CrewParcel {
+  id: number;
+  tracking_code: string;
+  status: 'received' | 'on_the_way' | 'arrived';
+  description: string | null;
+  stop_name: string;
+  receiver_name: string;
+  receiver_phone: string;
+  created_at: string;
+  loaded_at: string | null;
+  arrived_at: string | null;
+}
+
+/** Paid parcels waiting at the office for the crew's route, and the parcels on their car. */
+export interface CrewParcels {
+  waiting: CrewParcel[];
+  on_car: CrewParcel[];
+}
+
 /** The car loading at the stage (null when not taking bookings), and its last trip still on the road (or null). */
 export interface CrewLoad {
   loading: { id: number; started_at: string; seats: number; seats_booked: number; seats_left: number } | null;

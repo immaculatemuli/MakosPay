@@ -6,6 +6,7 @@ import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from './mpesa.js';
 import { kesText, notify } from './notifications.js';
+import { handleParcelStkCallback, reconcileParcelPayments } from './parcels.js';
 import { checkFare, findTrip, getTrip, recordTrip } from './trips.js';
 import { getBalance, postWalletEntry } from './wallet.js';
 
@@ -130,7 +131,8 @@ export async function handleStkCallback(body) {
   await tx(async () => {
     const payment = await db.get('SELECT * FROM mpesa_payments WHERE checkout_request_id = ?', cb.CheckoutRequestID);
     if (!payment) {
-      console.warn('[mpesa] confirmation for an unknown payment', JSON.stringify(cb));
+      // Not a passenger's payment: a parcel fee's, or unknown.
+      if (!(await handleParcelStkCallback(cb))) console.warn('[mpesa] confirmation for an unknown payment', JSON.stringify(cb));
       return;
     }
     const items = Object.fromEntries((cb.CallbackMetadata?.Item ?? []).map((i) => [i.Name, i.Value]));
@@ -248,6 +250,7 @@ export async function reconcilePendingPayments({ expireAfterMs = config.mpesa.pe
       if (expired.changes) await notifyTopupFailed(current, 'No answer from M-Pesa');
     }
   }
+  await reconcileParcelPayments({ expireAfterMs });
 }
 
 /** A passenger's own payment, refreshed, with the ticket once a fare is confirmed. */

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, startLoading } from '../services/bookings.js';
+import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
 import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
 import { TRIP_SELECT } from '../services/trips.js';
@@ -115,6 +116,29 @@ router.post('/road/stops/:id', async (req, res) => {
 
 router.post('/road/finish', async (req, res) => {
   res.json(await finishTrip(await myVehicle(req.user)));
+});
+
+// ---------- Parcels ----------
+
+// Paid parcels waiting for this car's route, and the parcels on this car.
+router.get('/parcels', async (req, res) => {
+  res.json(await crewParcels(await myVehicle(req.user)));
+});
+
+router.post('/parcels/:id/load', async (req, res) => {
+  res.json(await loadParcel(await myVehicle(req.user), parse(id, req.params.id)));
+});
+
+router.post('/parcels/:id/arrive', async (req, res) => {
+  res.json(await arriveParcel(await myVehicle(req.user), parse(id, req.params.id)));
+});
+
+// Handed to the receiver, who showed the collection code.
+router.post('/parcels/:id/collect', async (req, res) => {
+  const vehicle = await myVehicle(req.user);
+  const { code } = parse(z.object({ code: z.string().trim().regex(/^\d{6}$/, 'The 6-digit collection code') }), req.body);
+  await collectParcel(parse(id, req.params.id), code, req.user.id, { vehicleId: vehicle.id });
+  res.json(await crewParcels(vehicle));
 });
 
 // The vehicle is plying a different route today: passengers who scan after this pay that route's fares. Conductor only.
