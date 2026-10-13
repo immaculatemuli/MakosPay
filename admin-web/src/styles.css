@@ -1,7 +1,7 @@
 :root {
-  --green: #0a7a3d;
-  --green-dark: #075c2e;
-  --green-soft: #e7f5ec;
+  --brand: #d4268f; /* Makos Sacco magenta */
+  --brand-dark: #a8166e;
+  --brand-soft: #fce7f3;
   --text: #111827;
   --muted: #6b7280;
   --border: #e5e7eb;
@@ -21,19 +21,19 @@
 body { margin: 0; background: var(--bg); }
 h1 { font-size: 24px; margin: 0 0 4px; }
 h2 { font-size: 15px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.03em; margin: 28px 0 10px; }
-a { color: var(--green); }
+a { color: var(--brand); }
 .muted { color: var(--muted); font-size: 14px; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ---------- Layout ---------- */
 .shell { display: flex; min-height: 100vh; }
 .sidebar { width: 220px; background: var(--card); border-right: 1px solid var(--border); padding: 20px 12px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
-.brand { font-weight: 800; font-size: 20px; color: var(--green); padding: 0 10px 16px; }
+.brand { font-weight: 800; font-size: 20px; color: var(--brand); padding: 0 10px 16px; }
 .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); }
 .nav-group { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 14px 12px 4px; }
 .nav a { display: block; padding: 8px 12px; border-radius: 10px; color: var(--text); text-decoration: none; font-weight: 500; }
 .nav a:hover { background: var(--bg); }
-.nav a.active { background: var(--green-soft); color: var(--green-dark); font-weight: 700; }
+.nav a.active { background: var(--brand-soft); color: var(--brand-dark); font-weight: 700; }
 .sidebar .who { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid var(--border); font-size: 14px; }
 .main { flex: 1; padding: 28px 32px 60px; max-width: 1180px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
@@ -57,19 +57,19 @@ a { color: var(--green); }
 .banner { border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; font-size: 14px; }
 .banner.warning { background: var(--warning-soft); color: var(--warning); }
 .banner.danger { background: var(--danger-soft); color: var(--danger); }
-.banner.success { background: var(--green-soft); color: var(--green-dark); }
+.banner.success { background: var(--brand-soft); color: var(--brand-dark); }
 .badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; background: var(--bg); color: var(--muted); }
-.badge.success { background: var(--green-soft); color: var(--green-dark); }
+.badge.success { background: var(--brand-soft); color: var(--brand-dark); }
 .badge.danger { background: var(--danger-soft); color: var(--danger); }
 .badge.warning { background: var(--warning-soft); color: var(--warning); }
 
-button, .button { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; background: var(--green); color: #fff; text-decoration: none; display: inline-block; }
-button:hover { background: var(--green-dark); }
+button, .button { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; background: var(--brand); color: #fff; text-decoration: none; display: inline-block; }
+button:hover { background: var(--brand-dark); }
 button:disabled { opacity: 0.5; cursor: default; }
 button.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
 button.secondary:hover { background: var(--bg); }
 button.danger { background: var(--danger); }
-button.link { background: none; color: var(--green); padding: 0; }
+button.link { background: none; color: var(--brand); padding: 0; }
 .button.secondary-link { background: var(--card); color: var(--text); border: 1px solid var(--border); }
 .button.secondary-link:hover { background: var(--bg); }
 
@@ -78,7 +78,7 @@ label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 14px; 
 label input, label select, label textarea { display: block; width: 100%; margin-top: 6px; font-weight: 400; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chips button { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; font-weight: 500; }
-.chips button.on { background: var(--green); color: #fff; border-color: var(--green); }
+.chips button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
 
 table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; font-size: 14px; }
 th { text-align: left; font-size: 12px; text-transform: uppercase; color: var(--muted); background: #fafafa; }
@@ -90,11 +90,11 @@ tr.clickable:hover td { background: #fafafa; }
 
 .bars { display: flex; align-items: flex-end; gap: 4px; height: 160px; }
 .bars button { flex: 1; height: 100%; display: flex; align-items: flex-end; background: none; padding: 0; border-radius: 0; }
-.bars span { display: block; width: 100%; border-radius: 4px 4px 0 0; background: var(--green); min-height: 2px; }
+.bars span { display: block; width: 100%; border-radius: 4px 4px 0 0; background: var(--brand); min-height: 2px; }
 .bars span.empty { background: var(--border); }
-.bars button.on span { background: var(--green-dark); }
+.bars button.on span { background: var(--brand-dark); }
 .share { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: 6px; }
-.share > div { height: 100%; background: var(--green); }
+.share > div { height: 100%; background: var(--brand); }
 
 .dialog-backdrop { position: fixed; inset: 0; background: rgba(17, 24, 39, 0.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
 .dialog { background: var(--card); border-radius: 16px; padding: 22px; width: 100%; max-width: 440px; }
@@ -106,7 +106,7 @@ tr.clickable:hover td { background: #fafafa; }
 .check { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .check:last-child { border-bottom: 0; }
 .dot { width: 22px; height: 22px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 800; }
-.dot.ok { background: var(--green); }
+.dot.ok { background: var(--brand); }
 .dot.bad { background: var(--danger); }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
 .kv:last-child { border-bottom: 0; }
@@ -114,7 +114,7 @@ tr.clickable:hover td { background: #fafafa; }
 
 /* ---------- QR sticker: only the sticker is printed ---------- */
 .sticker { width: 100%; max-width: 360px; margin: 0 auto; text-align: center; border: 2px dashed var(--border); border-radius: 18px; padding: 22px; background: #fff; }
-.sticker .title { font-size: 22px; font-weight: 800; color: var(--green); }
+.sticker .title { font-size: 22px; font-weight: 800; color: var(--brand); }
 .sticker img { width: 100%; max-width: 300px; display: block; margin: 12px auto; image-rendering: pixelated; }
 .sticker .plate { font-size: 28px; font-weight: 800; letter-spacing: 0.04em; }
 .sticker .hint { font-size: 14px; color: var(--muted); margin-top: 6px; }

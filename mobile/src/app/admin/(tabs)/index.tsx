@@ -147,7 +147,7 @@ export default function AdminHome() {
 
 const styles = StyleSheet.create({
   heroTotals: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
-  heroLabel: { color: '#D1FAE5', fontSize: 13 },
+  heroLabel: { color: colors.primarySoft, fontSize: 13 },
   heroValue: { color: '#fff', fontSize: 26, fontWeight: '800' },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 4 },
   tile: {

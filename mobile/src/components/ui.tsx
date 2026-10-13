@@ -14,9 +14,10 @@ import {
 } from 'react-native';
 
 export const colors = {
-  primary: '#0A7A3D',
-  primaryDark: '#075C2E',
-  primarySoft: '#E7F5EC',
+  // Makos Sacco magenta (white text on it is easy to read).
+  primary: '#D4268F',
+  primaryDark: '#A8166E',
+  primarySoft: '#FCE7F3',
   text: '#111827',
   muted: '#6B7280',
   border: '#E5E7EB',

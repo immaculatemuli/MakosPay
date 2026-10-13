@@ -119,7 +119,7 @@ export function CrewHome() {
 
 const styles = StyleSheet.create({
   totals: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
-  totalLabel: { color: '#D1FAE5', fontSize: 13 },
+  totalLabel: { color: colors.primarySoft, fontSize: 13 },
   total: { color: '#fff', fontSize: 30, fontWeight: '800' },
   routeCard: {
     flexDirection: 'row',

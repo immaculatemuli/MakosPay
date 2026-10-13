@@ -91,7 +91,7 @@ export default function PassengerHome() {
 }
 
 const styles = StyleSheet.create({
-  balanceLabel: { color: '#D1FAE5', fontSize: 13, marginTop: 16 },
+  balanceLabel: { color: colors.primarySoft, fontSize: 13, marginTop: 16 },
   balance: { color: '#fff', fontSize: 34, fontWeight: '800' },
   heroButtons: { flexDirection: 'row', gap: 10, marginTop: 14 },
   heroButton: {
