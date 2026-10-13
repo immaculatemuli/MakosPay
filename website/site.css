@@ -1,0 +1,108 @@
+/* FarePay website, Makos Sacco colours. Shared by every page (no inline styles: the server's security rules forbid them). */
+:root {
+  --brand: #d4268f;
+  --brand-dark: #a8166e;
+  --brand-soft: #fce7f3;
+  --on-brand: #ffffff;
+  --text: #1f1219;
+  --muted: #5e4e57;
+  --line: #e9dde4;
+  --bg: #f7f4f6;
+  --card: #ffffff;
+  --hero-from: #d4268f;
+  --hero-to: #8f1460;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand: #f06bb5;
+    --brand-dark: #f9a8d4;
+    --brand-soft: #3a1229;
+    --on-brand: #2a0718;
+    --text: #f1ebef;
+    --muted: #b9a9b2;
+    --line: #3a2e35;
+    --bg: #141013;
+    --card: #1e181c;
+    --hero-from: #8f1460;
+    --hero-to: #4a0a31;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; font: 16px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: var(--text); background: var(--bg); }
+a { color: var(--brand); }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+
+/* Header: logo and links; on phones the links become one scrollable row under the logo. */
+header { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; flex-wrap: wrap; }
+.logo { display: flex; flex-direction: column; text-decoration: none; line-height: 1.1; }
+.logo b { font-size: 24px; font-weight: 800; color: var(--brand); letter-spacing: -0.5px; }
+.logo small { font-size: 13px; color: var(--muted); font-weight: 600; }
+.links { display: flex; align-items: center; gap: 6px; overflow-x: auto; }
+.links a { color: var(--text); text-decoration: none; font-weight: 600; font-size: 15px; padding: 8px 10px; border-radius: 8px; white-space: nowrap; }
+.links a:hover { background: var(--brand-soft); }
+.nav .links { margin-left: auto; }
+a.cta { background: var(--brand); color: var(--on-brand); text-decoration: none; font-weight: 600; font-size: 15px; padding: 9px 14px; border-radius: 10px; white-space: nowrap; }
+a.cta:hover { background: var(--brand-dark); }
+/* Phones: logo and sign-in on the first row, the links in a row of their own below. */
+@media (max-width: 720px) {
+  .nav { padding: 10px 0 8px; }
+  .nav .links { order: 3; width: 100%; margin-left: 0; padding-bottom: 2px; }
+  a.cta { padding: 8px 12px; font-size: 14px; }
+}
+
+/* Hero */
+.hero { background: linear-gradient(160deg, var(--hero-from) 0%, var(--hero-to) 100%); color: #ffffff; padding: 64px 0 72px; }
+.hero h1 { font-size: clamp(32px, 6vw, 54px); line-height: 1.08; margin: 0 0 16px; letter-spacing: -1px; max-width: 760px; }
+.hero p { font-size: 19px; max-width: 640px; margin: 0 0 28px; color: #fde7f3; }
+.badges { display: flex; flex-wrap: wrap; gap: 10px; }
+.badge { background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.3); padding: 8px 14px; border-radius: 999px; font-size: 15px; font-weight: 600; }
+
+section { padding: 60px 0; }
+section.alt { background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+h2 { font-size: clamp(26px, 4vw, 34px); margin: 0 0 8px; letter-spacing: -0.5px; }
+.lead { color: var(--muted); font-size: 18px; margin: 0 0 32px; max-width: 660px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+section.alt .card { background: var(--bg); }
+.card h3 { margin: 0 0 8px; font-size: 19px; }
+.card p { margin: 0; color: var(--muted); }
+.card ul { margin: 0; padding-left: 20px; color: var(--muted); }
+.card li { margin-bottom: 6px; }
+
+.steps { counter-reset: step; }
+.steps .card::before {
+  counter-increment: step; content: counter(step);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 10px; background: var(--brand-soft); color: var(--brand-dark);
+  font-weight: 800; margin-bottom: 12px;
+}
+.soon { display: inline-block; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--brand-dark); background: var(--brand-soft); padding: 4px 10px; border-radius: 999px; margin-bottom: 10px; }
+
+.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+.flow div { border-left: 4px solid var(--brand); padding: 6px 0 6px 14px; }
+.flow strong { display: block; font-size: 17px; }
+.flow span { color: var(--muted); }
+
+.contact a.big { font-size: 19px; font-weight: 700; text-decoration: none; word-break: break-word; }
+.label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 6px; }
+.big { font-size: 19px; font-weight: 700; }
+
+footer { padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+
+/* Text pages (privacy policy) */
+.page { max-width: 780px; padding-top: 32px; padding-bottom: 56px; }
+.page h1 { font-size: 32px; margin: 0 0 4px; }
+.page h2 { font-size: 20px; margin: 32px 0 8px; color: var(--brand-dark); }
+.updated { color: var(--muted); margin: 0 0 28px; }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+
+@media (max-width: 520px) {
+  .hero { padding: 44px 0 52px; }
+  section { padding: 44px 0; }
+}

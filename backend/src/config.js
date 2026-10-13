@@ -13,6 +13,8 @@ export const config = {
   webSessionHours: num(env.WEB_SESSION_HOURS, 12),
   // The built office dashboard (admin-web/dist), served at /office/ when it exists.
   officeWebDir: env.OFFICE_WEB_DIR || fileURLToPath(new URL('../../admin-web/dist', import.meta.url)),
+  // The public website (website/), served at the main address: /, /privacy.html ...
+  websiteDir: env.WEBSITE_DIR || fileURLToPath(new URL('../../website', import.meta.url)),
   dbPath: env.DB_PATH ?? './data/farepay.db',
   // Which database the app uses: 'sqlite' (DB_PATH, today) or 'postgres' (DATABASE_URL, being prepared).
   dbEngine: env.DB_ENGINE ?? 'sqlite',

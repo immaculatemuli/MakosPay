@@ -39,6 +39,26 @@ function serveOfficeDashboard(app) {
   );
 }
 
+// The public website: its own stylesheet, script and pictures only.
+const WEBSITE_CSP =
+  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; " +
+  "base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+
+function serveWebsite(app) {
+  const dir = config.websiteDir;
+  if (!existsSync(join(dir, 'index.html'))) return;
+  app.use(
+    (req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      res.set('Content-Security-Policy', WEBSITE_CSP);
+      // Pages and their files may be cached briefly (they hold nothing private).
+      res.set('Cache-Control', 'public, max-age=300');
+      next();
+    },
+    express.static(dir, { index: 'index.html', redirect: false }),
+  );
+}
+
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
@@ -88,6 +108,8 @@ export function createApp() {
 
   // The office web dashboard (admin-web, built with `yarn build`), at the same address as the API.
   serveOfficeDashboard(app);
+  // The public website at the main address (last, so it never hides an API address).
+  serveWebsite(app);
 
   app.use((_req, _res, next) => next(new HttpError(404, 'NOT_FOUND', 'Endpoint not found')));
 
