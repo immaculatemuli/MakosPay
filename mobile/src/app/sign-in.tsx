@@ -1,11 +1,11 @@
 import { Link, Redirect } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { AuthForm } from '@/components/AuthForm';
 import { ServerSetting } from '@/components/ServerSetting';
 import { Button, colors, ErrorBox, Field } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
+import { lastPhoneNumber, useAuth } from '@/lib/auth';
 
 export default function SignIn() {
   const { user, signIn } = useAuth();
@@ -13,6 +13,13 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The app always asks to sign in when it opens; the number used last time is filled in (2547... -> 07...).
+  useEffect(() => {
+    lastPhoneNumber().then((last) => {
+      if (last) setPhone((typed) => typed || last.replace(/^254/, '0'));
+    });
+  }, []);
 
   if (user) return <Redirect href="/" />;
 

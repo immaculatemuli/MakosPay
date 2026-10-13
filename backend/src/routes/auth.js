@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, checkWebRequest, clearOfficeCookie, OFFICE_ROLES, setOfficeCookie, signToken } from '../auth.js';
+import { config } from '../config.js';
 import { HttpError } from '../errors.js';
 import { limitBy, passwordChecksByUser, signUpByIp, wrongPasswordByIp, wrongPasswordByPhone } from '../ratelimit.js';
 import { audit } from '../services/audit.js';
@@ -48,7 +49,7 @@ router.post('/web/login', async (req, res) => {
   const user = await signIn(req);
   if (!OFFICE_ROLES.includes(user.role)) throw new HttpError(403, 'OFFICE_ONLY', 'The web dashboard is for the SACCO office. Please use the FarePay app.');
   await setOfficeCookie(req, res, user);
-  res.json({ user });
+  res.json({ user, sacco_name: config.saccoName });
 });
 
 // Who is signed in on this browser, if anyone: { user } or { user: null }. (Not an error when nobody is, so
@@ -60,7 +61,7 @@ router.get('/web/session', async (req, res) => {
     if (err.status === 401) return res.json({ user: null });
     throw err;
   }
-  res.json({ user: req.user });
+  res.json({ user: req.user, sacco_name: config.saccoName });
 });
 
 router.post('/web/logout', (req, res) => {

@@ -1,9 +1,15 @@
 import * as SecureStore from 'expo-secure-store';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, ApiError, configureAuth, loadApiUrl } from './api';
+import { api, configureAuth, loadApiUrl } from './api';
 import type { User } from './types';
 
-const SESSION_KEY = 'farepay.session';
+// Older versions kept the sign-in on the phone; it is deleted at start-up. Now a sign-in lasts only while
+// the app is open: every time the app starts, it asks for the phone number and password.
+const OLD_SESSION_KEY = 'farepay.session';
+// The last phone number signed in with (not the password), to fill in the sign-in form.
+const LAST_PHONE_KEY = 'farepay.lastPhone';
+
+export const lastPhoneNumber = () => SecureStore.getItemAsync(LAST_PHONE_KEY).catch(() => null);
 
 interface Session {
   token: string;
@@ -25,11 +31,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Kept in memory only, never saved on the phone.
   const save = useCallback(async (next: Session | null) => {
     configureAuth(next?.token ?? null);
     setSession(next);
-    if (next) await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(next));
-    else await SecureStore.deleteItemAsync(SESSION_KEY);
+    if (next) await SecureStore.setItemAsync(LAST_PHONE_KEY, next.user.phone).catch(() => {});
   }, []);
 
   const signOut = useCallback(() => save(null), [save]);
@@ -39,23 +45,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         await loadApiUrl(); // the server address saved on this phone, if any
-        const stored = await SecureStore.getItemAsync(SESSION_KEY);
-        if (!stored) return;
-        const cached: Session = JSON.parse(stored);
-        configureAuth(cached.token);
-        setSession(cached); // open immediately with the cached user, then refresh it
-        try {
-          const { user } = await api<{ user: User }>('/auth/me');
-          await save({ token: cached.token, user });
-        } catch (err) {
-          if (err instanceof ApiError && err.status === 401) await save(null);
-          // Network errors: keep the cached session; screens will show their own errors.
-        }
+        await SecureStore.deleteItemAsync(OLD_SESSION_KEY).catch(() => {});
       } finally {
         setLoading(false);
       }
     })();
-  }, [save, signOut]);
+  }, [signOut]);
 
   const signIn = useCallback(
     async (phone: string, password: string) => {

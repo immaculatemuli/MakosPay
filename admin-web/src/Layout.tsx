@@ -39,7 +39,7 @@ const GROUPS = [
 ];
 
 export function Layout() {
-  const { user, signOut } = useAuth();
+  const { user, saccoName, signOut } = useAuth();
   // The Platform page is only for platform admins (the API refuses everyone else anyway).
   const groups = user?.role === 'platform_admin' ? GROUPS.map((g) => (g.title === 'Accounts' ? { ...g, links: [...g.links, { to: '/platform', label: 'Platform' }] } : g)) : GROUPS;
   return (
@@ -47,7 +47,7 @@ export function Layout() {
       <aside className="sidebar">
         <div className="brand">
           FarePay
-          <small>SACCO office</small>
+          <small>{saccoName ? `${saccoName} office` : 'SACCO office'}</small>
         </div>
         <nav className="nav" aria-label="Main">
           {groups.map((g) => (

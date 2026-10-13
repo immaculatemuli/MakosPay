@@ -63,7 +63,7 @@ export default function ChooseRoute() {
                       {s.you_save > 0 && <Badge text={`Save ${kes(s.you_save)}`} tone="success" />}
                     </View>
                     <Pressable onPress={() => toggleSaved(s.id)} hitSlop={10} style={{ marginLeft: 14 }} accessibilityLabel={savedIds.has(s.id) ? 'Remove from saved' : 'Save this drop-off'}>
-                      <Ionicons name={savedIds.has(s.id) ? 'star' : 'star-outline'} size={22} color={savedIds.has(s.id) ? '#D97706' : colors.muted} />
+                      <Ionicons name={savedIds.has(s.id) ? 'star' : 'star-outline'} size={22} color={savedIds.has(s.id) ? colors.primary : colors.muted} />
                     </Pressable>
                   </Pressable>
                 );
