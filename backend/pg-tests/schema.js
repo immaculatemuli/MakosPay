@@ -18,7 +18,7 @@ const refused = async (sql, params) => {
 };
 
 const TABLES = [
-  'audit_log', 'bookings', 'fare_changes', 'job_runs', 'loads', 'mpesa_payments', 'notifications', 'owner_deductions', 'payouts', 'reports',
+  'audit_log', 'bookings', 'fare_changes', 'job_runs', 'load_stops', 'loads', 'mpesa_payments', 'notifications', 'owner_deductions', 'payouts', 'reports',
   'route_stops', 'routes', 'saved_stops', 'trips', 'users', 'vehicles', 'wallet_transactions', 'wallets', 'withdrawals',
 ];
 
@@ -28,7 +28,7 @@ before(async () => {
 });
 after(() => pool.end());
 
-const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql'];
+const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql', '003_arrival_updates.sql'];
 
 test('the migrations apply once; running them again changes nothing', async () => {
   assert.deepEqual(await migrate(pool), MIGRATIONS);
@@ -37,7 +37,7 @@ test('the migrations apply once; running them again changes nothing', async () =
   assert.deepEqual(rows.map((r) => r.name).sort(), MIGRATIONS);
 });
 
-test('all 19 FarePay tables exist, with the same columns as SQLite', async () => {
+test('all 20 FarePay tables exist, with the same columns as SQLite', async () => {
   const { rows } = await q("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name <> 'schema_migrations' ORDER BY 1");
   assert.deepEqual(rows.map((r) => r.table_name), TABLES);
   const cols = async (t) => (await q('SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY 1', [t])).rows.map((r) => r.column_name);

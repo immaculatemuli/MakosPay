@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
-import { boardBooking, crewLoad, departLoad, isLoading, startLoading } from '../services/bookings.js';
+import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, startLoading } from '../services/bookings.js';
 import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
 import { TRIP_SELECT } from '../services/trips.js';
@@ -106,6 +106,15 @@ router.post('/loading/depart', async (req, res) => {
 // A booked passenger got on.
 router.post('/bookings/:id/board', async (req, res) => {
   res.json(await boardBooking(await myVehicle(req.user), parse(id, req.params.id)));
+});
+
+// On the road: the car reached a stop (passengers who booked see it), and the end of the trip.
+router.post('/road/stops/:id', async (req, res) => {
+  res.json(await reachStop(await myVehicle(req.user), parse(id, req.params.id)));
+});
+
+router.post('/road/finish', async (req, res) => {
+  res.json(await finishTrip(await myVehicle(req.user)));
 });
 
 // The vehicle is plying a different route today: passengers who scan after this pay that route's fares. Conductor only.

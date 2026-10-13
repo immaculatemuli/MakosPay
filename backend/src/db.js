@@ -415,6 +415,19 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE INDEX IF NOT EXISTS idx_bookings_load ON bookings(load_id);
 `);
 
+// Arrival updates (the same as migrations/003_arrival_updates.sql for PostgreSQL).
+if (!hasColumn('loads', 'finished_at')) db.exec('ALTER TABLE loads ADD COLUMN finished_at TEXT');
+db.exec(`
+CREATE TABLE IF NOT EXISTS load_stops (
+  id         INTEGER PRIMARY KEY,
+  load_id    INTEGER NOT NULL REFERENCES loads(id),
+  stop_id    INTEGER NOT NULL REFERENCES route_stops(id),
+  reached_at TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE (load_id, stop_id)
+);
+CREATE INDEX IF NOT EXISTS idx_load_stops_stop ON load_stops(stop_id, reached_at);
+`);
+
 /**
  * Runs fn inside a write transaction. fn must be synchronous (no await inside),
  * which together with node:sqlite's synchronous API makes it atomic.

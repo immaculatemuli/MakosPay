@@ -78,11 +78,17 @@ export interface CrewBooking {
   boarded_at: string | null;
 }
 
-/** The car's current loading at the stage (null when not taking bookings). */
+/** The car loading at the stage (null when not taking bookings), and its last trip still on the road (or null). */
 export interface CrewLoad {
   loading: { id: number; started_at: string; seats: number; seats_booked: number; seats_left: number } | null;
   vehicle_seats: number;
-  bookings?: CrewBooking[];
+  bookings: CrewBooking[];
+  on_road: {
+    id: number;
+    departed_at: string;
+    stops: { id: number; name: string; reached_at: string | null }[];
+    bookings: CrewBooking[];
+  } | null;
 }
 
 export type PublicRoute = Pick<Route, 'id' | 'name' | 'origin' | 'stops'>;

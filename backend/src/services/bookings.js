@@ -177,6 +177,10 @@ export async function bookingStatus(bookingId) {
   if (payment) await refreshPayment(payment);
   const b = await db.get(`${BOOKING_SELECT} WHERE b.id = ?`, bookingId);
   const status = statusOf(b);
+  const load = await db.get('SELECT * FROM loads WHERE id = ?', b.load_id);
+  const stops = await tripStops(load);
+  const mine = stops.find((x) => x.id === b.stop_id);
+  const minutes = b.departed_at && mine && !mine.reached_at && !load.finished_at ? await typicalMinutes(b.stop_id) : null;
   // Cars that started loading on this route before this one and are still loading (they leave first).
   const ahead =
     b.car_status === 'loading'
@@ -198,10 +202,45 @@ export async function bookingStatus(bookingId) {
       status: b.car_status, // loading | departed
       loading_since: b.loading_since,
       departed_at: b.departed_at,
+      finished_at: load.finished_at,
       cars_ahead: ahead,
+      seats_left: b.car_status === 'loading' ? Math.max(0, load.seats - (await seatsTaken(load.id))) : null,
+      // The route's stops in order, with when the car reached each on this trip (null = not yet).
+      stops: stops.map((x) => ({ name: x.name, reached_at: x.reached_at, mine: x.id === b.stop_id })),
+      reached_my_stop: Boolean(mine?.reached_at),
+      // From how long past trips on this route took; null until there are some, or once the car is there.
+      expected_at_my_stop: minutes === null ? null : new Date(Date.parse(b.departed_at) + minutes * 60_000).toISOString(),
     },
     can_cancel: status === 'confirmed',
   };
+}
+
+/** The route's current stops in order, each with when this trip's car reached it (null = not yet). */
+function tripStops(load) {
+  return db.all(
+    `SELECT s.id, s.name, ls.reached_at FROM route_stops s
+     LEFT JOIN load_stops ls ON ls.stop_id = s.id AND ls.load_id = ?
+     WHERE s.route_id = ? AND s.is_active = TRUE ORDER BY s.position, s.id`,
+    load.id,
+    load.route_id,
+  );
+}
+
+/**
+ * Usual minutes from leaving the stage to reaching a stop: the middle value of the last 20 trips that reached it
+ * (ignoring anything over 6 hours, e.g. a stop ticked the next day). null when no trip has reached it yet.
+ */
+async function typicalMinutes(stopId) {
+  const rows = await db.all(
+    `SELECT l.departed_at, ls.reached_at FROM load_stops ls JOIN loads l ON l.id = ls.load_id
+     WHERE ls.stop_id = ? AND l.departed_at IS NOT NULL ORDER BY ls.id DESC LIMIT 20`,
+    stopId,
+  );
+  const minutes = rows
+    .map((r) => (Date.parse(r.reached_at) - Date.parse(r.departed_at)) / 60_000)
+    .filter((m) => m > 0 && m < 360)
+    .sort((a, b) => a - b);
+  return minutes.length ? Math.round(minutes[Math.floor(minutes.length / 2)]) : null;
 }
 
 export const bookingStatusByToken = (token) => bookingStatus(bookingIdFrom(token));
@@ -222,13 +261,15 @@ export async function cancelBooking(token) {
 
 const openLoad = (vehicleId) => db.get("SELECT * FROM loads WHERE vehicle_id = ? AND status = 'loading'", vehicleId);
 
-/** The car's current loading (or null), its seats, and every booking on it that is paid or being paid. */
-export async function crewLoad(vehicle) {
-  const load = await openLoad(vehicle.id);
-  if (!load) return { loading: null, vehicle_seats: vehicle.seats };
-  const rows = await db.all(`${BOOKING_SELECT} WHERE b.load_id = ? ORDER BY b.id`, load.id);
-  const bookings = rows
-    .map((b) => ({ b, status: statusOf(b) }))
+// The car's last trip that left the stage and has not been marked finished.
+const onRoad = (vehicleId) =>
+  db.get("SELECT * FROM loads WHERE vehicle_id = ? AND status = 'departed' AND finished_at IS NULL ORDER BY departed_at DESC, id DESC LIMIT 1", vehicleId);
+
+/** Every booking on a load that is paid or being paid, as the crew see it (a paid one on the road shows as paid). */
+async function crewBookings(loadId) {
+  const rows = await db.all(`${BOOKING_SELECT} WHERE b.load_id = ? ORDER BY b.id`, loadId);
+  return rows
+    .map((b) => ({ b, status: statusOf(b) === 'departed' ? 'confirmed' : statusOf(b) }))
     .filter(({ status }) => ['paying', 'confirmed', 'boarded'].includes(status))
     .map(({ b, status }) => ({
       id: b.id,
@@ -242,11 +283,28 @@ export async function crewLoad(vehicle) {
       booked_at: b.created_at,
       boarded_at: b.boarded_at,
     }));
-  const taken = await seatsTaken(load.id);
+}
+
+/**
+ * What the crew see: the car loading at the stage (or null) with its bookings, and the trip on the road (or null)
+ * with the route's stops to tick off as the car reaches them, and who gets off where.
+ */
+export async function crewLoad(vehicle) {
+  const load = await openLoad(vehicle.id);
+  const road = await onRoad(vehicle.id);
+  const taken = load ? await seatsTaken(load.id) : 0;
   return {
-    loading: { id: load.id, started_at: load.started_at, seats: load.seats, seats_booked: taken, seats_left: Math.max(0, load.seats - taken) },
+    loading: load ? { id: load.id, started_at: load.started_at, seats: load.seats, seats_booked: taken, seats_left: Math.max(0, load.seats - taken) } : null,
     vehicle_seats: vehicle.seats,
-    bookings,
+    bookings: load ? await crewBookings(load.id) : [],
+    on_road: road
+      ? {
+          id: road.id,
+          departed_at: road.departed_at,
+          stops: (await tripStops(road)).map((s) => ({ id: s.id, name: s.name, reached_at: s.reached_at })),
+          bookings: await crewBookings(road.id),
+        }
+      : null,
   };
 }
 
@@ -257,6 +315,8 @@ export async function startLoading(vehicle, userId) {
   if (!route?.is_active || route.stops.length === 0) throw new HttpError(409, 'NO_ROUTE', 'This vehicle has no route in use. Ask the SACCO office.');
   await tx(async () => {
     if (await openLoad(vehicle.id)) throw new HttpError(409, 'ALREADY_LOADING', 'This car is already taking bookings.');
+    // Back at a stage: the last trip is over, even if nobody marked it.
+    await db.run(`UPDATE loads SET finished_at = ${NOW} WHERE vehicle_id = ? AND status = 'departed' AND finished_at IS NULL`, vehicle.id);
     await db.insert('INSERT INTO loads (vehicle_id, route_id, seats, started_by) VALUES (?, ?, ?, ?)', vehicle.id, route.id, vehicle.seats, userId);
   });
   return crewLoad(vehicle);
@@ -269,13 +329,30 @@ export async function departLoad(vehicle) {
   return crewLoad(vehicle);
 }
 
-/** A booked passenger got on. */
+/** A booked passenger got on (ticked at the stage, or just after leaving). */
 export async function boardBooking(vehicle, bookingId) {
-  const load = await openLoad(vehicle.id);
-  const b = load && (await db.get(`${BOOKING_SELECT} WHERE b.id = ? AND b.load_id = ?`, bookingId, load.id));
-  if (!b) throw notFound('Booking');
-  if (statusOf(b) !== 'confirmed') throw new HttpError(409, 'NOT_PAID', 'Only a paid booking can board.');
+  const loadIds = [await openLoad(vehicle.id), await onRoad(vehicle.id)].filter(Boolean).map((l) => l.id);
+  const b = await db.get(`${BOOKING_SELECT} WHERE b.id = ?`, bookingId);
+  if (!b || !loadIds.includes(b.load_id)) throw notFound('Booking');
+  if (!['confirmed', 'departed'].includes(statusOf(b))) throw new HttpError(409, 'NOT_PAID', 'Only a paid booking can board.');
   await db.run(`UPDATE bookings SET boarded_at = ${NOW} WHERE id = ? AND boarded_at IS NULL`, bookingId);
+  return crewLoad(vehicle);
+}
+
+/** The car on the road reached a stop on its route. Ticking it again changes nothing. */
+export async function reachStop(vehicle, stopId) {
+  const road = await onRoad(vehicle.id);
+  if (!road) throw new HttpError(409, 'NOT_ON_ROAD', 'Mark the car as left the stage first.');
+  const stop = await db.get('SELECT id FROM route_stops WHERE id = ? AND route_id = ?', stopId, road.route_id);
+  if (!stop) throw notFound('Stop');
+  await db.run('INSERT INTO load_stops (load_id, stop_id) VALUES (?, ?) ON CONFLICT DO NOTHING', road.id, stop.id);
+  return crewLoad(vehicle);
+}
+
+/** The trip is over (the car is free to load again). */
+export async function finishTrip(vehicle) {
+  const done = await db.run(`UPDATE loads SET finished_at = ${NOW} WHERE vehicle_id = ? AND status = 'departed' AND finished_at IS NULL`, vehicle.id);
+  if (!done.changes) throw new HttpError(409, 'NOT_ON_ROAD', 'There is no trip on the road to finish.');
   return crewLoad(vehicle);
 }
 

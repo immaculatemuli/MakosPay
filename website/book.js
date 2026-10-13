@@ -175,16 +175,48 @@ const STATUS_TEXT = {
   paid_late: 'Paid too late',
 };
 
+const hm = (iso) => new Date(iso).toLocaleTimeString('en-KE', { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit' });
+
+/** Where the car is once it has left: last stop passed, and the expected time at the passenger's stop. */
+function progressLine(b) {
+  const c = b.car;
+  if (c.finished_at) return 'This trip has finished.';
+  if (c.reached_my_stop) return `Your car reached ${b.stop_name} at ${hm(c.stops.find((s) => s.mine).reached_at)}.`;
+  const passed = c.stops.filter((s) => s.reached_at).pop();
+  let line = `Left ${b.route.origin} at ${hm(c.departed_at)}.`;
+  if (passed) line += ` Passed ${passed.name} at ${hm(passed.reached_at)}.`;
+  if (c.expected_at_my_stop) line += ` Expected at ${b.stop_name} about ${hm(c.expected_at_my_stop)}.`;
+  return line;
+}
+
 function carLine(b) {
   if (b.status === 'paying') return 'Enter your M-Pesa PIN on your phone to finish booking.';
   if (b.status === 'failed') return `${b.reason || 'M-Pesa did not complete the payment'}. No money was taken, and no seat is held.`;
   if (b.status === 'paid_late') return 'M-Pesa confirmed your payment too late for this car, so it is kept as FarePay credit. Sign up in the FarePay app with this number to use it, or ask the office.';
   if (b.status === 'cancelled') return 'This booking was cancelled and the money returned to your FarePay wallet.';
-  if (b.status === 'boarded') return 'Enjoy your trip.';
-  if (b.car.status === 'departed' || b.status === 'departed') return 'This car has left the stage.';
+  if (b.car.status === 'departed') return progressLine(b);
+  if (b.status === 'boarded') return `You're on board. The car leaves ${b.route.origin} when it is ready.`;
+  const seats = b.car.seats_left === 0 ? 'The car is full.' : `${b.car.seats_left} seat${b.car.seats_left === 1 ? '' : 's'} still free.`;
   if (b.car.cars_ahead > 0) return `Your car is loading at ${b.route.origin}. ${b.car.cars_ahead} car${b.car.cars_ahead === 1 ? '' : 's'} ahead of it will leave first.`;
-  return `Your car is loading at ${b.route.origin} now. Go to the stage and show this code to the conductor.`;
+  return `Your car is loading at ${b.route.origin} now. ${seats} Go to the stage and show this code to the conductor.`;
 }
+
+/** The route's stops with the time the car reached each, once it has left the stage. */
+function renderStops(b) {
+  const list = $('b-stops');
+  list.replaceChildren();
+  const onTheRoad = b.car.status === 'departed' && ['boarded', 'departed', 'confirmed'].includes(b.status);
+  list.hidden = !onTheRoad;
+  if (!onTheRoad) return;
+  for (const s of b.car.stops) {
+    const li = el('li', s.reached_at ? 'done' : '');
+    li.append(el('span', 'stop-name', `${s.name}${s.mine ? ' (your stop)' : ''}`), el('span', 'stop-time', s.reached_at ? hm(s.reached_at) : s.mine && b.car.expected_at_my_stop ? `about ${hm(b.car.expected_at_my_stop)}` : '—'));
+    list.append(li);
+  }
+}
+
+// Something can still change: being paid, waiting at the stage, or on the road and not yet finished.
+const stillMoving = (b) => b.status === 'paying' || b.status === 'confirmed' || (['boarded', 'departed'].includes(b.status) && !b.car.finished_at);
 
 function renderBooking(b) {
   $('b-status').textContent = STATUS_TEXT[b.status] ?? b.status;
@@ -193,6 +225,7 @@ function renderBooking(b) {
   $('b-trip').textContent = `${b.route.name} to ${b.stop_name} · ${b.seats} seat${b.seats === 1 ? '' : 's'} · ${kes(b.amount)}`;
   $('b-paid').textContent = `Booked ${new Date(b.booked_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi', dateStyle: 'medium', timeStyle: 'short' })}`;
   $('b-car').textContent = carLine(b);
+  renderStops(b);
   $('cancel').hidden = !b.can_cancel;
   show('booking');
 }
@@ -207,7 +240,7 @@ function openBooking(t, state) {
       if (token !== t) return;
       renderBooking(b);
       // Keep it fresh while something can still change.
-      if (['paying', 'confirmed'].includes(b.status)) pollTimer = setTimeout(step, b.status === 'paying' ? 3000 : 15000);
+      if (stillMoving(b)) pollTimer = setTimeout(step, b.status === 'paying' ? 3000 : 15000);
     } catch (err) {
       if (err.network) pollTimer = setTimeout(step, 8000);
       else {
@@ -218,7 +251,7 @@ function openBooking(t, state) {
   };
   if (state) {
     renderBooking(state);
-    if (['paying', 'confirmed'].includes(state.status)) pollTimer = setTimeout(step, state.status === 'paying' ? 3000 : 15000);
+    if (stillMoving(state)) pollTimer = setTimeout(step, state.status === 'paying' ? 3000 : 15000);
   } else step();
 }
 

@@ -158,3 +158,12 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
 
 .inline-cta { display: inline-block; margin-top: 14px; }
 
+
+/* The car's trip on the booking page */
+.trip { list-style: none; margin: 16px 0 0; padding: 0; border-left: 3px solid var(--line); }
+.trip li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0 8px 16px; position: relative; color: var(--muted); }
+.trip li::before { content: ''; position: absolute; left: -8px; top: 14px; width: 13px; height: 13px; border-radius: 50%; background: var(--card); border: 3px solid var(--line); }
+.trip li.done { color: var(--text); }
+.trip li.done::before { background: var(--brand); border-color: var(--brand); }
+.trip .stop-name { font-weight: 600; }
+.trip .stop-time { white-space: nowrap; }

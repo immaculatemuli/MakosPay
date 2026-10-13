@@ -63,6 +63,8 @@ const AUDIT: [RegExp, string][] = [
   [/^POST \/crew\/loading\/start$/, 'Started taking seat bookings at the stage'],
   [/^POST \/crew\/loading\/depart$/, 'Marked the car as left the stage'],
   [/^POST \/crew\/bookings\/:id\/board$/, 'Ticked in a booked passenger'],
+  [/^POST \/crew\/road\/stops\/:id$/, 'Marked a stop as reached'],
+  [/^POST \/crew\/road\/finish$/, 'Finished a trip'],
   [/^payout\.confirmed$/, 'M-Pesa confirmed a payout'],
   [/^payout\.failed$/, 'M-Pesa rejected a payout'],
   [/^payout\.daily_run$/, 'Daily owner payouts ran'],
