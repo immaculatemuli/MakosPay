@@ -25,7 +25,9 @@ function every(ms, label, fn) {
   }, ms);
 }
 
-createApp().listen(config.port, '0.0.0.0', () => {
+// No host given: Node listens on every address, IPv6 and IPv4. (Only 0.0.0.0 left out IPv6 "localhost" (::1),
+// which the Cloudflare tunnel sometimes uses, so some scans got "502 Bad Gateway".)
+createApp().listen(config.port, () => {
   console.log(`FarePay API listening on port ${config.port} (M-Pesa: ${providerLabel})`);
   // Phones on the same Wi-Fi reach the API through one of these addresses.
   for (const nets of Object.values(networkInterfaces())) {
