@@ -42,6 +42,8 @@ export interface Vehicle {
   route_id: number | null;
   route_name: string | null;
   qr_token: string;
+  /** Passenger seats, for seat booking. */
+  seats: number;
   is_active: number;
 }
 

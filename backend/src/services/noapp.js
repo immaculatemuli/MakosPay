@@ -29,7 +29,7 @@ export async function vehicleForPayPage(qr) {
 }
 
 /** The passenger account for this M-Pesa number: theirs if they have the app, otherwise one without a password. */
-async function passengerFor(phone) {
+export async function passengerFor(phone) {
   return tx(async () => {
     const user = await db.get('SELECT id, role, is_active FROM users WHERE phone = ?', phone);
     if (user) {

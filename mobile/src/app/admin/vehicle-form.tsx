@@ -26,6 +26,7 @@ export default function VehicleForm() {
   const [bankName, setBankName] = useState('');
   const [bankPaybill, setBankPaybill] = useState('');
   const [bankAccount, setBankAccount] = useState('');
+  const [seats, setSeats] = useState('14');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const prefilled = useRef(false);
@@ -43,6 +44,7 @@ export default function VehicleForm() {
     setBankName(existing.owner_bank_name ?? '');
     setBankPaybill(existing.owner_bank_paybill ?? '');
     setBankAccount(existing.owner_bank_account ?? '');
+    setSeats(String(existing.seats ?? 14));
   }, [existing]);
 
   if ((id && vehicle.loading && !existing) || (routes.loading && !routes.data) || (conductors.loading && !conductors.data) || (drivers.loading && !drivers.data)) return <Loading />;
@@ -54,7 +56,9 @@ export default function VehicleForm() {
   const activeRoutes = (routes.data ?? []).filter((r) => r.is_active || r.id === existing?.route_id);
 
   const bankValid = payoutMethod === 'mpesa' || (bankName.trim().length >= 2 && /^\d{5,7}$/.test(bankPaybill.trim()) && bankAccount.trim().length >= 4);
-  const valid = (id || plate.trim().length >= 3) && ownerName.trim().length >= 2 && ownerPhone.trim().length >= 9 && bankValid;
+  const seatCount = Number(seats);
+  const seatsValid = Number.isInteger(seatCount) && seatCount >= 1 && seatCount <= 80;
+  const valid = (id || plate.trim().length >= 3) && ownerName.trim().length >= 2 && ownerPhone.trim().length >= 9 && bankValid && seatsValid;
 
   const save = async () => {
     setBusy(true);
@@ -73,6 +77,7 @@ export default function VehicleForm() {
         conductor_id: conductorId,
         driver_id: driverId,
         route_id: routeId,
+        seats: seatCount,
       };
       if (id) {
         await api(`/admin/vehicles/${id}`, { method: 'PATCH', body });
@@ -99,6 +104,13 @@ export default function VehicleForm() {
         value={description}
         onChangeText={setDescription}
         hint="Helps passengers check they are in the right vehicle"
+      />
+      <Field
+        label="Passenger seats"
+        keyboardType="number-pad"
+        value={seats}
+        onChangeText={(t) => setSeats(t.replace(/\D/g, ''))}
+        hint={seatsValid ? 'How many seats passengers can book on this vehicle' : 'A number from 1 to 80'}
       />
 
       <SectionTitle>Owner (receives the fares)</SectionTitle>

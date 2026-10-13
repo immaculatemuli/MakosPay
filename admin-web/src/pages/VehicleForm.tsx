@@ -17,6 +17,7 @@ type Form = {
   route_id: string;
   conductor_id: string;
   driver_id: string;
+  seats: string;
 };
 
 const EMPTY: Form = {
@@ -31,6 +32,7 @@ const EMPTY: Form = {
   route_id: '',
   conductor_id: '',
   driver_id: '',
+  seats: '14',
 };
 
 const fromVehicle = (v: Vehicle): Form => ({
@@ -45,6 +47,7 @@ const fromVehicle = (v: Vehicle): Form => ({
   route_id: v.route_id ? String(v.route_id) : '',
   conductor_id: v.conductor_id ? String(v.conductor_id) : '',
   driver_id: v.driver_id ? String(v.driver_id) : '',
+  seats: String(v.seats ?? 14),
 });
 
 /** Add a vehicle, or change one: owner and how they're paid, route, conductor and driver. */
@@ -76,6 +79,8 @@ export function VehicleForm() {
   if (bank && (!form.owner_bank_name.trim() || !/^\d{5,7}$/.test(form.owner_bank_paybill.trim()) || !/^[A-Za-z0-9-]{4,30}$/.test(form.owner_bank_account.trim()))) {
     problems.push("For bank payouts: the bank's name, its M-Pesa paybill (5–7 digits) and the owner's account number.");
   }
+  const seats = /^\d+$/.test(form.seats.trim()) ? Number(form.seats.trim()) : NaN;
+  if (!(seats >= 1 && seats <= 80)) problems.push('Passenger seats: a whole number from 1 to 80.');
 
   // Crew already on another vehicle can't be chosen (one vehicle each); switched-off accounts aren't offered.
   const available = (list: CrewMember[] | null, current: string) => (list ?? []).filter((c) => c.is_active && (!c.vehicle_id || String(c.vehicle_id) === id || String(c.id) === current));
@@ -96,6 +101,7 @@ export function VehicleForm() {
       route_id: num(form.route_id),
       conductor_id: num(form.conductor_id),
       driver_id: num(form.driver_id),
+      seats,
     };
     try {
       const saved = await api<Vehicle>(isNew ? '/admin/vehicles' : `/admin/vehicles/${id}`, { method: isNew ? 'POST' : 'PATCH', body });
@@ -187,6 +193,10 @@ export function VehicleForm() {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Passenger seats (for booking)
+            <input value={form.seats} onChange={(e) => set({ seats: e.target.value })} inputMode="numeric" placeholder="e.g. 14" />
           </label>
         </div>
         <p className="muted">Crew already working on another vehicle aren't listed: each conductor and driver works on one vehicle at a time.</p>

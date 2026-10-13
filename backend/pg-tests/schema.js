@@ -18,7 +18,7 @@ const refused = async (sql, params) => {
 };
 
 const TABLES = [
-  'audit_log', 'fare_changes', 'job_runs', 'mpesa_payments', 'notifications', 'owner_deductions', 'payouts', 'reports',
+  'audit_log', 'bookings', 'fare_changes', 'job_runs', 'loads', 'mpesa_payments', 'notifications', 'owner_deductions', 'payouts', 'reports',
   'route_stops', 'routes', 'saved_stops', 'trips', 'users', 'vehicles', 'wallet_transactions', 'wallets', 'withdrawals',
 ];
 
@@ -28,21 +28,23 @@ before(async () => {
 });
 after(() => pool.end());
 
-test('the migration applies once; running it again changes nothing', async () => {
-  assert.deepEqual(await migrate(pool), ['001_initial_schema.sql']);
+const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql'];
+
+test('the migrations apply once; running them again changes nothing', async () => {
+  assert.deepEqual(await migrate(pool), MIGRATIONS);
   assert.deepEqual(await migrate(pool), []);
   const { rows } = await q('SELECT name FROM schema_migrations');
-  assert.deepEqual(rows.map((r) => r.name), ['001_initial_schema.sql']);
+  assert.deepEqual(rows.map((r) => r.name).sort(), MIGRATIONS);
 });
 
-test('all 17 FarePay tables exist, with the same columns as SQLite', async () => {
+test('all 19 FarePay tables exist, with the same columns as SQLite', async () => {
   const { rows } = await q("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name <> 'schema_migrations' ORDER BY 1");
   assert.deepEqual(rows.map((r) => r.table_name), TABLES);
   const cols = async (t) => (await q('SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY 1', [t])).rows.map((r) => r.column_name);
   assert.deepEqual(await cols('wallets'), ['balance', 'updated_at', 'user_id']);
   assert.deepEqual(await cols('users'), ['created_at', 'id', 'is_active', 'name', 'password_hash', 'phone', 'role', 'session_version']);
   assert.equal((await cols('trips')).length, 18);
-  assert.equal((await cols('vehicles')).length, 15);
+  assert.equal((await cols('vehicles')).length, 16); // 15 + seats (seat booking)
   assert.equal((await cols('mpesa_payments')).length, 17);
 });
 

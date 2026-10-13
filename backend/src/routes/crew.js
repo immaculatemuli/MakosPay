@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
+import { boardBooking, crewLoad, departLoad, isLoading, startLoading } from '../services/bookings.js';
 import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
 import { TRIP_SELECT } from '../services/trips.js';
@@ -85,11 +86,34 @@ router.get('/routes', async (_req, res) => {
   res.json((await listRoutes({ activeOnly: true })).map(({ id: routeId, name, origin, stops }) => ({ id: routeId, name, origin, stops })));
 });
 
+// ---------- Seat bookings: the car loading at the stage ----------
+
+// The car's current loading and its booked passengers (or { loading: null }).
+router.get('/loading', async (req, res) => {
+  res.json(await crewLoad(await myVehicle(req.user)));
+});
+
+// The car is at the stage: passengers can book seats on it.
+router.post('/loading/start', async (req, res) => {
+  res.status(201).json(await startLoading(await myVehicle(req.user), req.user.id));
+});
+
+// The car has left: no more bookings on it.
+router.post('/loading/depart', async (req, res) => {
+  res.json(await departLoad(await myVehicle(req.user)));
+});
+
+// A booked passenger got on.
+router.post('/bookings/:id/board', async (req, res) => {
+  res.json(await boardBooking(await myVehicle(req.user), parse(id, req.params.id)));
+});
+
 // The vehicle is plying a different route today: passengers who scan after this pay that route's fares. Conductor only.
 router.put('/vehicle/route', async (req, res) => {
   if (req.user.role !== 'conductor') throw new HttpError(403, 'FORBIDDEN', 'Only the conductor can change the route');
   const { route_id } = parse(z.object({ route_id: id }), req.body);
   const vehicle = await myVehicle(req.user);
+  if (await isLoading(vehicle.id)) throw new HttpError(409, 'LOADING', 'The car is taking bookings. Mark it as left before changing the route.');
   const route = await getRoute(route_id);
   if (!route || !route.is_active || route.stops.length === 0) throw notFound('Route');
   await db.run('UPDATE vehicles SET route_id = ? WHERE id = ?', route.id, vehicle.id);

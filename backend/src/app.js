@@ -8,6 +8,7 @@ import { HttpError } from './errors.js';
 import { auditChanges } from './services/audit.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
+import bookingRoutes from './routes/booking.js';
 import crewRoutes from './routes/crew.js';
 import mpesaRoutes from './routes/mpesa.js';
 import notificationRoutes from './routes/notifications.js';
@@ -98,6 +99,8 @@ export function createApp() {
   // Passengers without the app: the QR sticker's link opens the pay page, which uses /pay-api.
   app.use(payPage);
   app.use('/pay-api', payApi);
+  // Seat booking on the website.
+  app.use('/book-api', bookingRoutes);
   // M-Pesa's callbacks: /hooks/<secret>/... (sent to Safaricom); /mpesa/callback/<secret>/... still works for
   // payments started before the address changed.
   app.use('/hooks', (req, _res, next) => {

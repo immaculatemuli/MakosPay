@@ -60,6 +60,29 @@ export interface Vehicle extends OwnerPayoutDetails {
   route_name: string | null;
   qr_token: string;
   is_active: number;
+  /** Passenger seats, for seat booking. */
+  seats: number;
+}
+
+/** A seat booking on the car loading at the stage, as the crew see it. */
+export interface CrewBooking {
+  id: number;
+  code: string;
+  status: 'paying' | 'confirmed' | 'boarded';
+  seats: number;
+  amount: number;
+  stop_name: string;
+  passenger_name: string;
+  passenger_phone: string;
+  booked_at: string;
+  boarded_at: string | null;
+}
+
+/** The car's current loading at the stage (null when not taking bookings). */
+export interface CrewLoad {
+  loading: { id: number; started_at: string; seats: number; seats_booked: number; seats_left: number } | null;
+  vehicle_seats: number;
+  bookings?: CrewBooking[];
 }
 
 export type PublicRoute = Pick<Route, 'id' | 'name' | 'origin' | 'stops'>;

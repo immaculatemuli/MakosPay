@@ -381,6 +381,40 @@ for (const column of ['bank_name', 'bank_paybill', 'bank_account']) {
   if (!hasColumn('payouts', column)) db.exec(`ALTER TABLE payouts ADD COLUMN ${column} TEXT`);
 }
 
+// Seat booking (the same as migrations/002_seat_booking.sql for PostgreSQL).
+if (!hasColumn('vehicles', 'seats')) db.exec('ALTER TABLE vehicles ADD COLUMN seats INTEGER NOT NULL DEFAULT 14 CHECK (seats BETWEEN 1 AND 80)');
+db.exec(`
+CREATE TABLE IF NOT EXISTS loads (
+  id          INTEGER PRIMARY KEY,
+  vehicle_id  INTEGER NOT NULL REFERENCES vehicles(id),
+  route_id    INTEGER NOT NULL REFERENCES routes(id),
+  seats       INTEGER NOT NULL CHECK (seats > 0),
+  status      TEXT NOT NULL DEFAULT 'loading' CHECK (status IN ('loading', 'departed')),
+  started_by  INTEGER REFERENCES users(id),
+  started_at  TEXT NOT NULL DEFAULT (${NOW}),
+  departed_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_loads_one_loading_per_vehicle ON loads(vehicle_id) WHERE status = 'loading';
+CREATE INDEX IF NOT EXISTS idx_loads_route_status ON loads(route_id, status, started_at);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id               INTEGER PRIMARY KEY,
+  code             TEXT NOT NULL UNIQUE,
+  load_id          INTEGER NOT NULL REFERENCES loads(id),
+  passenger_id     INTEGER NOT NULL REFERENCES users(id),
+  stop_id          INTEGER NOT NULL REFERENCES route_stops(id),
+  seats            INTEGER NOT NULL CHECK (seats BETWEEN 1 AND 10),
+  fare_each        INTEGER NOT NULL CHECK (fare_each > 0),
+  amount           INTEGER NOT NULL CHECK (amount > 0),
+  mpesa_payment_id INTEGER REFERENCES mpesa_payments(id),
+  idempotency_key  TEXT NOT NULL,
+  boarded_at       TEXT,
+  created_at       TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE (passenger_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_bookings_load ON bookings(load_id);
+`);
+
 /**
  * Runs fn inside a write transaction. fn must be synchronous (no await inside),
  * which together with node:sqlite's synchronous API makes it atomic.

@@ -54,6 +54,7 @@ export function VehicleDetail() {
           </div>
           <div className="kv"><span>Conductor</span><span>{v.conductor_name ?? 'None'}</span></div>
           <div className="kv"><span>Driver</span><span>{v.driver_name ?? 'None'}</span></div>
+          <div className="kv"><span>Passenger seats</span><span>{v.seats}</span></div>
         </div>
 
         <div>

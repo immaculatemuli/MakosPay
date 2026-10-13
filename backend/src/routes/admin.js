@@ -383,6 +383,8 @@ const plate = z
   .max(20)
   .transform((p) => p.toUpperCase().replace(/\s+/g, ' '));
 const optionalText = z.string().trim().max(100).transform((t) => t || null);
+// Passenger seats, for seat booking.
+const seatCount = z.number().int().min(1, 'At least 1 seat').max(80, 'At most 80 seats');
 
 // How the owner is paid: M-Pesa (to owner_phone) or a bank account (through the bank's M-Pesa paybill).
 const payoutFields = {
@@ -443,6 +445,7 @@ router.post('/vehicles', async (req, res) => {
       owner_name: name,
       owner_phone: phone,
       ...payoutFields,
+      seats: seatCount.optional(),
       conductor_id: id.nullable().optional(),
       driver_id: id.nullable().optional(),
       route_id: id.nullable().optional(),
@@ -457,8 +460,8 @@ router.post('/vehicles', async (req, res) => {
   const bank = body.owner_payout_method === 'bank';
   const vehicleId = await db.insert(
     `INSERT INTO vehicles (plate, description, owner_name, owner_phone, owner_payout_method, owner_bank_name, owner_bank_paybill,
-                           owner_bank_account, conductor_id, driver_id, route_id, qr_token)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                           owner_bank_account, seats, conductor_id, driver_id, route_id, qr_token)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     body.plate,
     body.description ?? null,
     body.owner_name,
@@ -467,6 +470,7 @@ router.post('/vehicles', async (req, res) => {
     bank ? body.owner_bank_name : null,
     bank ? body.owner_bank_paybill : null,
     bank ? body.owner_bank_account : null,
+    body.seats ?? 14,
     body.conductor_id ?? null,
     body.driver_id ?? null,
     body.route_id ?? null,
@@ -483,6 +487,7 @@ router.patch('/vehicles/:id', async (req, res) => {
       owner_name: name.optional(),
       owner_phone: phone.optional(),
       ...payoutFields,
+      seats: seatCount.optional(),
       conductor_id: id.nullable().optional(),
       driver_id: id.nullable().optional(),
       route_id: id.nullable().optional(),

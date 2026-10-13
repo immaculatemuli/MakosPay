@@ -31,7 +31,7 @@ function notifyTopupFailed(payment, reason) {
   });
 }
 
-function requireMpesa() {
+export function requireMpesa() {
   if (!mpesa.isConfigured.stk) throw new HttpError(503, 'MPESA_NOT_CONFIGURED', 'M-Pesa payments are not set up yet. Please try again later.');
 }
 
@@ -81,7 +81,8 @@ export async function startFarePayment(userId, { qr, stopId, expectedFare, idemp
   return { payment: await getPayment(id) };
 }
 
-async function sendPrompt(id, { phone, amount, accountReference, description }) {
+/** Sends the PIN prompt for a payment row already recorded as 'initiating'. Used for wallet top-ups, fares and seat bookings. */
+export async function sendPrompt(id, { phone, amount, accountReference, description }) {
   let response;
   try {
     response = await mpesa.stkPush({ phone, amount, accountReference, description });
