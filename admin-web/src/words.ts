@@ -80,6 +80,7 @@ const AUDIT: [RegExp, string][] = [
   [/^money_check\.nightly$/, 'Nightly money check ran'],
   [/^account\.delete$/, 'A passenger deleted their account'],
   [/^account\.password_changed$/, 'Changed their own password'],
+  [/^account\.password_reset_by_sms$/, 'Set a new password with an SMS code'],
 ];
 
 export const auditLabel = (action: string) => AUDIT.find(([re]) => re.test(action))?.[1] ?? action;

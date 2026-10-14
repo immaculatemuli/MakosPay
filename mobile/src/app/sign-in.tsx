@@ -41,7 +41,10 @@ export default function SignIn() {
       <Field label="Phone number" placeholder="07XX XXX XXX" keyboardType="phone-pad" autoComplete="tel" value={phone} onChangeText={setPhone} />
       <Field label="Password" secureTextEntry autoComplete="password" value={password} onChangeText={setPassword} onSubmitEditing={submit} />
       <Button title="Sign in" onPress={submit} loading={busy} disabled={!phone || !password} />
-      <Link href="/register" style={{ textAlign: 'center', marginTop: 12, padding: 8 }}>
+      <Link href={{ pathname: '/forgot-password', params: { phone: phone.trim() } }} style={{ textAlign: 'center', marginTop: 4, padding: 8 }}>
+        <Text style={{ color: colors.primary, fontWeight: '600' }}>Forgot password?</Text>
+      </Link>
+      <Link href="/register" style={{ textAlign: 'center', marginTop: 4, padding: 8 }}>
         <Text style={{ color: colors.muted }}>
           New passenger? <Text style={{ color: colors.primary, fontWeight: '700' }}>Create an account</Text>
         </Text>

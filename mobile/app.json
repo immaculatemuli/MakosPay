@@ -48,6 +48,12 @@
           "backgroundColor": "#FFFFFF"
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "color": "#D4268F"
+        }
+      ],
       "expo-font",
       "expo-sharing"
     ],

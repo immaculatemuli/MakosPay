@@ -415,6 +415,44 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE INDEX IF NOT EXISTS idx_bookings_load ON bookings(load_id);
 `);
 
+// SMS, push notifications and "forgot password" (the same as migrations/006_sms_push_reset.sql).
+db.exec(`
+CREATE TABLE IF NOT EXISTS sms_outbox (
+  id                  INTEGER PRIMARY KEY,
+  phone               TEXT NOT NULL,
+  kind                TEXT NOT NULL,
+  message             TEXT,
+  status              TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent', 'failed', 'logged')),
+  provider_message_id TEXT,
+  error               TEXT,
+  attempts            INTEGER NOT NULL DEFAULT 0,
+  created_at          TEXT NOT NULL DEFAULT (${NOW}),
+  sent_at             TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sms_outbox_status ON sms_outbox(status, created_at);
+
+CREATE TABLE IF NOT EXISTS push_tokens (
+  id           INTEGER PRIMARY KEY,
+  user_id      INTEGER NOT NULL REFERENCES users(id),
+  token        TEXT NOT NULL UNIQUE,
+  created_at   TEXT NOT NULL DEFAULT (${NOW}),
+  last_seen_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  id         INTEGER PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id),
+  code_hash  TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  attempts   INTEGER NOT NULL DEFAULT 0,
+  used_at    TEXT,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id, created_at);
+`);
+if (!hasColumn('notifications', 'pushed_at')) db.exec('ALTER TABLE notifications ADD COLUMN pushed_at TEXT');
+
 // Bookings paid from the wallet point straight at their fare (migrations/005_wallet_bookings.sql).
 if (!hasColumn('bookings', 'trip_id')) db.exec('ALTER TABLE bookings ADD COLUMN trip_id INTEGER REFERENCES trips(id)');
 

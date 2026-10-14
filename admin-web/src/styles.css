@@ -126,3 +126,10 @@ tr.clickable:hover td { background: #fafafa; }
   .sticker { position: absolute; left: 0; top: 0; right: 0; border: 2px solid #000; max-width: 10cm; }
   .sticker .title { color: #000; }
 }
+
+/* Password box with a show/hide (eye) button */
+.password-box { position: relative; display: block; }
+.password-box input { padding-right: 46px; }
+.password-box .eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: transparent; color: var(--muted); padding: 6px 8px; border-radius: 8px; line-height: 0; }
+.password-box .eye:hover { background: var(--bg); color: var(--text); }
+

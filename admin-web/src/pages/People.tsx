@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { dateTime, displayPhone, kes } from '../format';
 import type { CrewMember, PassengerRow } from '../types';
-import { Badge, Chips, Dialog, Failed, Loading, PageHead } from '../ui';
+import { Badge, Chips, Dialog, Failed, Loading, PageHead, PasswordInput } from '../ui';
 import { useApi } from '../useApi';
 
 /** The office sets a new password for someone who forgot theirs (they are signed out everywhere). */
@@ -29,7 +29,7 @@ export function SetPassword({ person, onClose }: { person: { id: number; name: s
     >
       <label>
         New password (at least 6 characters)
-        <input type="text" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <PasswordInput value={password} onChange={setPassword} />
       </label>
     </Dialog>
   );
@@ -119,7 +119,7 @@ export function Crew() {
           </label>
           <label>
             Password (at least 6 characters)
-            <input type="text" autoComplete="off" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            <PasswordInput value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
           </label>
         </Dialog>
       )}

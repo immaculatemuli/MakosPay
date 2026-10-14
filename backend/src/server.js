@@ -8,6 +8,8 @@ import { startNightlyBackup } from './services/backup.js';
 import { startNightlyMoneyCheck } from './services/reconciliation.js';
 import { reconcileProcessingWithdrawals } from './services/withdrawals.js';
 import { applyDueFareChanges } from './services/routes.js';
+import { flushPush } from './services/push.js';
+import { flushSms } from './services/sms.js';
 
 /** Runs fn on a timer in the background, never two runs at once. */
 function every(ms, label, fn) {
@@ -58,4 +60,14 @@ createApp().listen(config.port, () => {
   console.log(`  Database backed up every night at ${config.backupDailyAt} into ${config.backupDir}`);
   // Fare changes scheduled for a date take effect on their own (they are also applied before any fare is charged).
   every(60_000, 'fare changes', () => applyDueFareChanges());
+  // Texts and push notifications waiting to go out (also sent straight after they are made).
+  every(5_000, 'sms', () => flushSms());
+  if (config.push.enabled) every(5_000, 'push', () => flushPush());
+  console.log(
+    config.sms.provider === 'africastalking'
+      ? `  SMS: Africa's Talking (${config.sms.username === 'sandbox' ? 'sandbox: texts appear in its simulator' : 'live'})`
+      : config.sms.provider === 'log'
+        ? '  SMS: development mode, texts are written here instead of sent'
+        : '! SMS is off: password reset by SMS and parcel texts are not available',
+  );
 });

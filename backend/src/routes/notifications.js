@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { listNotifications, markRead, unreadCount } from '../services/notifications.js';
+import { registerPushToken, removePushToken } from '../services/push.js';
 import { id, parse } from '../validate.js';
 
 const router = Router();
@@ -20,6 +21,20 @@ router.get('/unread', async (req, res) => {
 router.post('/read', async (req, res) => {
   const { id: notificationId } = parse(z.object({ id: id.optional() }), req.body ?? {});
   res.json(await markRead(req.user.id, notificationId ?? null));
+});
+
+// This phone wants push notifications for the signed-in person ({ token }: its Expo push token), or no longer
+// does (signing out).
+router.post('/push-token', async (req, res) => {
+  const { token } = parse(z.object({ token: z.string().min(10).max(200) }), req.body);
+  await registerPushToken(req.user.id, token);
+  res.json({ ok: true });
+});
+
+router.post('/push-token/remove', async (req, res) => {
+  const { token } = parse(z.object({ token: z.string().min(10).max(200) }), req.body);
+  await removePushToken(req.user.id, token);
+  res.json({ ok: true });
 });
 
 export default router;

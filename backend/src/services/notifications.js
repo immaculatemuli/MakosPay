@@ -3,6 +3,7 @@
 //   wallet | trips | reports | fare-changes | payouts | payout:<id> | money-check | withdrawals
 // Notifications are never required for money to move: they only tell people what already happened.
 import { db, NOW } from '../database.js';
+import { flushPush } from './push.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -14,11 +15,23 @@ export function prettyDate(ymd) {
 
 export const kesText = (n) => `KES ${n.toLocaleString('en-KE')}`;
 
-/** Sends one notification to each user (duplicates removed). */
+/** Sends one notification to each user (duplicates removed). It is also pushed to their phones once saved. */
 export async function notify(userIds, { kind, title, body = null, target = null }) {
   for (const userId of new Set(userIds)) {
     await db.run('INSERT INTO notifications (user_id, kind, title, body, target) VALUES (?, ?, ?, ?, ?)', userId, kind, title, body, target);
   }
+  kickPush();
+}
+
+// Push soon after (the notification has normally been saved by then; the timer catches anything later).
+let pushTimer = null;
+function kickPush() {
+  if (pushTimer) return;
+  pushTimer = setTimeout(() => {
+    pushTimer = null;
+    flushPush().catch((err) => console.error('[push]', err.message));
+  }, 500);
+  pushTimer.unref?.();
 }
 
 /** Everyone who works in the SACCO office (and platform admins), so nothing waits on one person. */

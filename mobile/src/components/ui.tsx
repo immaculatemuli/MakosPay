@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ComponentProps, ReactNode } from 'react';
+import { ComponentProps, ReactNode, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -108,11 +108,33 @@ export function Button({
   );
 }
 
-export function Field({ label, hint, style, ...props }: TextInputProps & { label: string; hint?: string }) {
+/** A labelled text box. A password box (secureTextEntry) gets an eye button to show or hide what was typed. */
+export function Field({ label, hint, style, secureTextEntry, ...props }: TextInputProps & { label: string; hint?: string }) {
+  const [shown, setShown] = useState(false);
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput placeholderTextColor="#9CA3AF" style={[styles.input, style]} {...props} />
+      <View>
+        <TextInput
+          placeholderTextColor="#9CA3AF"
+          style={[styles.input, secureTextEntry && { paddingRight: 48 }, style]}
+          secureTextEntry={secureTextEntry && !shown}
+          autoCapitalize={secureTextEntry ? 'none' : props.autoCapitalize}
+          autoCorrect={secureTextEntry ? false : props.autoCorrect}
+          {...props}
+        />
+        {secureTextEntry && (
+          <Pressable
+            onPress={() => setShown((s) => !s)}
+            hitSlop={8}
+            style={styles.eye}
+            accessibilityRole="button"
+            accessibilityLabel={shown ? 'Hide password' : 'Show password'}
+          >
+            <Ionicons name={shown ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.muted} />
+          </Pressable>
+        )}
+      </View>
       {hint && <Text style={styles.hint}>{hint}</Text>}
     </View>
   );
@@ -288,6 +310,7 @@ export const styles = StyleSheet.create({
   field: { marginBottom: 14 },
   label: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 6 },
   hint: { fontSize: 12, color: colors.muted, marginTop: 4 },
+  eye: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 46, alignItems: 'center', justifyContent: 'center' },
   input: {
     backgroundColor: colors.card,
     borderWidth: 1,

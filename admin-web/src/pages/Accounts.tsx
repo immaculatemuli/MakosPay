@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { dateTime, displayPhone, kes } from '../format';
-import { Badge, Banner, Dialog, Failed, Loading, PageHead, Stat } from '../ui';
+import { Badge, Banner, Dialog, Failed, Loading, PageHead, PasswordInput, Stat } from '../ui';
 import { useApi } from '../useApi';
 
 interface Account {
@@ -85,7 +85,7 @@ function AccountList({ path, what, intro }: { path: string; what: string; intro:
           </label>
           <label>
             Password (at least 6 characters)
-            <input type="text" autoComplete="off" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            <PasswordInput value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
           </label>
         </Dialog>
       )}

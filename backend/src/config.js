@@ -60,6 +60,24 @@ export const config = {
     baseUrlOverride: env.INTASEND_BASE_URL || null, // tests point this at a fake IntaSend server
   },
 
+  // SMS (password reset codes, parcel codes): 'africastalking' (AT_USERNAME 'sandbox' = Africa's Talking's free
+  // test system, whose texts appear in its online simulator), 'log' (development only: texts are written to the
+  // server's log) or 'off'.
+  sms: {
+    provider: env.SMS_PROVIDER || (env.NODE_ENV === 'production' ? 'off' : 'log'),
+    username: env.AT_USERNAME || 'sandbox',
+    apiKey: env.AT_API_KEY || '',
+    senderId: env.AT_SENDER_ID || null, // a registered sender name, e.g. MAKOS (live only)
+    baseUrlOverride: env.AT_BASE_URL || null, // tests point this at a fake Africa's Talking
+  },
+
+  // Push notifications through Expo's push service (the app's notices also arrive when the app is closed).
+  push: {
+    enabled: env.PUSH_ENABLED !== '0',
+    url: env.EXPO_PUSH_URL || 'https://exp.host/--/api/v2/push/send',
+    accessToken: env.EXPO_ACCESS_TOKEN || null, // optional: only if "enhanced push security" is on in Expo
+  },
+
   mpesa: {
     mode: env.MPESA_MODE ?? 'sandbox', // sandbox | production | mock (tests only: no Safaricom calls)
     baseUrlOverride: env.MPESA_BASE_URL || null, // tests point this at a fake Daraja server
@@ -91,6 +109,9 @@ if (config.env === 'production') {
   if (config.mpesa.mode === 'mock') throw new Error('MPESA_MODE=mock is for tests only');
   if (config.paymentProvider === 'daraja' && !/^https:\/\//.test(config.mpesa.callbackBaseUrl)) throw new Error('MPESA_CALLBACK_BASE_URL must be an https:// address in production');
   if (config.dbPath === ':memory:') throw new Error('DB_PATH must be a file in production');
+  // 'log' writes password reset codes into the server's log: never on the real server.
+  if (config.sms.provider === 'log') throw new Error('SMS_PROVIDER=log is for development only: use africastalking or off');
+  if (config.sms.provider === 'africastalking' && !config.sms.apiKey) throw new Error('SMS_PROVIDER=africastalking needs AT_API_KEY');
 }
 // Real money only with every production safety check above switched on.
 if (isRealMoney() && config.env !== 'production') throw new Error('Real money (MPESA_MODE=production or INTASEND_MODE=live) needs NODE_ENV=production');
@@ -101,5 +122,6 @@ if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.payoutDailyAt)) throw new Error('PA
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.moneyCheckDailyAt)) throw new Error('MONEY_CHECK_DAILY_AT must be HH:MM, e.g. 23:00');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.backupDailyAt)) throw new Error('BACKUP_DAILY_AT must be HH:MM, e.g. 03:00');
 if (!['sqlite', 'postgres'].includes(config.dbEngine)) throw new Error('DB_ENGINE must be sqlite or postgres');
+if (!['africastalking', 'log', 'off'].includes(config.sms.provider)) throw new Error('SMS_PROVIDER must be africastalking, log or off');
 if (!(Number.isInteger(config.webSessionHours) && config.webSessionHours >= 1 && config.webSessionHours <= 24)) throw new Error('WEB_SESSION_HOURS must be a whole number from 1 to 24');
 if (config.dbEngine === 'postgres' && !config.databaseUrl) throw new Error('DB_ENGINE=postgres needs DATABASE_URL');

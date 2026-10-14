@@ -8,6 +8,7 @@ import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { maskPhone, randomCode } from '../util.js';
 import { passengerFor } from './noapp.js';
+import { arriveAtStop } from './parcels.js';
 import { getPayment, refreshPayment, requireMpesa, sendPrompt } from './payments.js';
 import { applyDueFareChanges, getRoute, listRoutes, requireActiveStop } from './routes.js';
 import { recordTrip, refundTrip } from './trips.js';
@@ -489,9 +490,11 @@ export async function reachStop(vehicle, stopId) {
   if (!road) throw new HttpError(409, 'NOT_ON_ROAD', 'Mark the car as left the stage first.');
   const stop = await db.get('SELECT id FROM route_stops WHERE id = ? AND route_id = ?', stopId, road.route_id);
   if (!stop) throw notFound('Stop');
-  await db.run('INSERT INTO load_stops (load_id, stop_id) VALUES (?, ?) ON CONFLICT DO NOTHING', road.id, stop.id);
-  // Parcels on this car for this stop are there now.
-  await db.run(`UPDATE parcels SET status = 'arrived', arrived_at = ${NOW} WHERE vehicle_id = ? AND stop_id = ? AND status = 'on_the_way'`, vehicle.id, stop.id);
+  await tx(async () => {
+    await db.run('INSERT INTO load_stops (load_id, stop_id) VALUES (?, ?) ON CONFLICT DO NOTHING', road.id, stop.id);
+    // Parcels on this car for this stop are there now (their receivers get a text).
+    await arriveAtStop(vehicle.id, stop.id);
+  });
   return crewLoad(vehicle);
 }
 

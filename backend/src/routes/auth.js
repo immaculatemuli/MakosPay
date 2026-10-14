@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { HttpError } from '../errors.js';
 import { limitBy, passwordChecksByUser, signUpByIp, wrongPasswordByIp, wrongPasswordByPhone } from '../ratelimit.js';
 import { audit } from '../services/audit.js';
+import { confirmReset, requestReset } from '../services/passwordReset.js';
 import { changePassword, createUser, deleteOwnAccount, verifyCredentials } from '../services/users.js';
 import { name, parse, password, phone } from '../validate.js';
 
@@ -68,6 +69,18 @@ router.post('/web/logout', (req, res) => {
   checkWebRequest(req);
   clearOfficeCookie(req, res);
   res.json({ ok: true });
+});
+
+// Forgot password: a code by SMS, then a new password with it. Works for every kind of account; for a passenger
+// who has only paid without the app, it sets their first password (the SMS proves the number is theirs).
+router.post('/password-reset/request', async (req, res) => {
+  const body = parse(z.object({ phone }), req.body);
+  res.json(await requestReset(body.phone, req.ip));
+});
+
+router.post('/password-reset/confirm', async (req, res) => {
+  const body = parse(z.object({ phone, code: z.string().trim().regex(/^\d{6}$/, 'The 6-digit code from the SMS'), new_password: password }), req.body);
+  res.json(await confirmReset(body.phone, body.code, body.new_password));
 });
 
 router.get('/me', authenticate, (req, res) => {

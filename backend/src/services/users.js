@@ -48,7 +48,7 @@ export async function resetPassword(userId, newPassword) {
 }
 
 /** Saves a new password and signs out every phone using the old one. */
-const setPassword = (userId, hash) => db.run('UPDATE users SET password_hash = ?, session_version = session_version + 1 WHERE id = ?', hash, userId);
+export const setPassword = (userId, hash) => db.run('UPDATE users SET password_hash = ?, session_version = session_version + 1 WHERE id = ?', hash, userId);
 
 /**
  * A passenger deletes their account (required by Google Play). Their name and phone number are removed
