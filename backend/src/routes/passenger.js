@@ -1,10 +1,11 @@
-// Passenger: home summary and savings, saved drop-offs, problem reports, routes, scan & pay, wallet and trip history.
+// Passenger: home summary, saved drop-offs, problem reports, routes, scan & pay, seat booking, wallet and trip history.
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { limitBy, pinPromptsByUser } from '../ratelimit.js';
 import { config } from '../config.js';
 import { HttpError } from '../errors.js';
+import { cancelPassengerBooking, MAX_SEATS_PER_BOOKING, passengerBooking, passengerBookings, routesForBooking, startBooking } from '../services/bookings.js';
 import { getUserPayment, startFarePayment, startTopup } from '../services/payments.js';
 import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
 import { listRoutes, publicFareChanges } from '../services/routes.js';
@@ -142,6 +143,51 @@ router.post('/pay-mpesa', limitBy(pinPromptsByUser, (req) => req.user.id), async
   const balance = await getBalance(req.user.id);
   if (result.trip) return res.json({ trip: forPassenger(result.trip), wallet_balance: balance });
   res.status(202).json({ payment: result.payment, wallet_balance: balance });
+});
+
+// ---------- Seat booking on the car loading at the stage ----------
+
+router.get('/booking-routes', async (_req, res) => {
+  res.json(await routesForBooking());
+});
+
+router.get('/bookings', async (req, res) => {
+  res.json(await passengerBookings(req.user.id));
+});
+
+// Pay from the wallet at once, or by M-Pesa PIN prompt to the passenger's own number.
+router.post('/bookings', async (req, res) => {
+  const body = parse(
+    z.object({
+      route_id: id,
+      stop_id: id,
+      seats: z.number().int().min(1).max(MAX_SEATS_PER_BOOKING),
+      expected_fare: kes,
+      idempotency_key: z.string().min(8).max(100),
+      pay_with: z.enum(['wallet', 'mpesa']),
+    }),
+    req.body,
+  );
+  if (body.pay_with === 'mpesa') pinPromptsByUser.hit(req.user.id);
+  const booking = await startBooking({
+    routeId: body.route_id,
+    stopId: body.stop_id,
+    seats: body.seats,
+    expectedFare: body.expected_fare,
+    idempotencyKey: body.idempotency_key,
+    phone: req.user.phone,
+    passengerId: req.user.id,
+    payWith: body.pay_with,
+  });
+  res.status(201).json({ ...booking, wallet_balance: await getBalance(req.user.id) });
+});
+
+router.get('/bookings/:id', async (req, res) => {
+  res.json(await passengerBooking(req.user.id, parse(id, req.params.id)));
+});
+
+router.post('/bookings/:id/cancel', async (req, res) => {
+  res.json(await cancelPassengerBooking(req.user.id, parse(id, req.params.id)));
 });
 
 router.get('/wallet', async (req, res) => {

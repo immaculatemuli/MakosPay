@@ -415,6 +415,9 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE INDEX IF NOT EXISTS idx_bookings_load ON bookings(load_id);
 `);
 
+// Bookings paid from the wallet point straight at their fare (migrations/005_wallet_bookings.sql).
+if (!hasColumn('bookings', 'trip_id')) db.exec('ALTER TABLE bookings ADD COLUMN trip_id INTEGER REFERENCES trips(id)');
+
 // Arrival updates (the same as migrations/003_arrival_updates.sql for PostgreSQL).
 if (!hasColumn('loads', 'finished_at')) db.exec('ALTER TABLE loads ADD COLUMN finished_at TEXT');
 db.exec(`

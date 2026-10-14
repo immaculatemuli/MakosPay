@@ -440,3 +440,57 @@ export interface User {
   is_active: number;
   created_at: string;
 }
+
+/** A route as shown for seat booking: its stops and fares, and the car loading now (if any). */
+export interface BookingRoute {
+  id: number;
+  name: string;
+  origin: string;
+  stops: { id: number; name: string; fare: number }[];
+  cars_loading: number;
+  seats_left: number;
+  next_car: { plate: string; seats_left: number } | null;
+}
+
+/** A seat booking, as the passenger sees it. */
+export interface Booking {
+  id: number;
+  status: 'paying' | 'confirmed' | 'boarded' | 'departed' | 'cancelled' | 'failed' | 'paid_late';
+  code: string;
+  seats: number;
+  fare_each: number;
+  amount: number;
+  reason: string | null;
+  booked_at: string;
+  route: { name: string; origin: string };
+  stop_name: string;
+  car: {
+    plate: string;
+    description: string | null;
+    status: 'loading' | 'departed';
+    loading_since: string;
+    departed_at: string | null;
+    finished_at: string | null;
+    cars_ahead: number;
+    seats_left: number | null;
+    stops: { name: string; reached_at: string | null; mine: boolean }[];
+    reached_my_stop: boolean;
+    expected_at_my_stop: string | null;
+  };
+  can_cancel: boolean;
+  wallet_balance?: number;
+}
+
+/** Where a parcel is (public: no phone numbers, fee or collection code). */
+export interface ParcelTracking {
+  tracking_code: string;
+  status: 'awaiting_payment' | 'received' | 'on_the_way' | 'arrived' | 'collected' | 'cancelled';
+  from: string;
+  to: string;
+  route: string;
+  receiver: string;
+  sender: string;
+  plate: string | null;
+  expected_at: string | null;
+  events: { what: string; at: string }[];
+}

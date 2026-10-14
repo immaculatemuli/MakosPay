@@ -65,6 +65,11 @@ export default function PassengerHome() {
         </View>
       )}
 
+      <List>
+        <ListRow icon="people-outline" title="Book a seat" subtitle="On the next car loading at the stage" onPress={() => router.push('/passenger/book')} />
+        <ListRow icon="cube-outline" title="Track a parcel" subtitle="With the tracking code from the receipt" onPress={() => router.push('/passenger/parcel')} />
+      </List>
+
       <SectionTitle>Where are you going?</SectionTitle>
       <WhereGoing chosen={chosen} saved={s?.saved ?? []} frequent={s?.frequent ?? []} onChosen={() => setPickKey((k) => k + 1)} />
 

@@ -10,19 +10,22 @@ import { maskPhone, randomCode } from '../util.js';
 import { passengerFor } from './noapp.js';
 import { getPayment, refreshPayment, requireMpesa, sendPrompt } from './payments.js';
 import { applyDueFareChanges, getRoute, listRoutes, requireActiveStop } from './routes.js';
-import { refundTrip } from './trips.js';
+import { recordTrip, refundTrip } from './trips.js';
 
 export const MAX_SEATS_PER_BOOKING = 10;
 const TOKEN_AUDIENCE = 'farepay-booking';
 
+// A booking's fare: taken from the wallet (b.trip_id), or recorded when M-Pesa confirmed (p.trip_id).
+const PAID_TRIP = 'COALESCE(b.trip_id, p.trip_id)';
+
 // Seats a booking holds: while its PIN prompt waits for an answer, and once paid (until refunded).
 // A failed or cancelled payment frees them straight away.
-const HOLDS_SEATS = `(p.status IN ('initiating', 'pending') OR (p.status = 'completed' AND t.status = 'paid'))`;
+const HOLDS_SEATS = `(p.status IN ('initiating', 'pending') OR t.status = 'paid')`;
 
 async function seatsTaken(loadId) {
   const row = await db.get(
     `SELECT COALESCE(SUM(b.seats), 0) AS taken FROM bookings b
-     JOIN mpesa_payments p ON p.id = b.mpesa_payment_id LEFT JOIN trips t ON t.id = p.trip_id
+     LEFT JOIN mpesa_payments p ON p.id = b.mpesa_payment_id LEFT JOIN trips t ON t.id = ${PAID_TRIP}
      WHERE b.load_id = ? AND ${HOLDS_SEATS}`,
     loadId,
   );
@@ -81,16 +84,17 @@ async function uniqueBookingCode() {
 }
 
 /**
- * Books `seats` seats to `stopId` on the first car loading on the route with that many seats left, and sends the
- * M-Pesa PIN prompt for them. The seats are held while the prompt waits, and kept once paid. The same confirmation
- * sent twice (idempotencyKey) returns the first booking and sends no second prompt.
+ * Books `seats` seats to `stopId` on the first car loading on the route with that many seats left. Paid by the
+ * M-Pesa PIN prompt (the seats are held while it waits, and kept once paid), or, for a passenger signed in to the
+ * app (`passengerId`), from their FarePay wallet at once. The same confirmation sent twice (idempotencyKey) returns
+ * the first booking and charges nothing more.
  */
-export async function startBooking({ routeId, stopId, seats, expectedFare, phone, idempotencyKey }) {
-  requireMpesa();
+export async function startBooking({ routeId, stopId, seats, expectedFare, phone, idempotencyKey, passengerId: signedIn = null, payWith = 'mpesa' }) {
+  if (payWith === 'mpesa') requireMpesa();
   await applyDueFareChanges();
-  const passengerId = await passengerFor(phone);
+  const passengerId = signedIn ?? (await passengerFor(phone));
   const previous = await db.get('SELECT id FROM bookings WHERE passenger_id = ? AND idempotency_key = ?', passengerId, idempotencyKey);
-  if (previous) return { booking_token: tokenFor(previous.id), ...(await bookingStatus(previous.id)) };
+  if (previous) return { id: previous.id, booking_token: tokenFor(previous.id), ...(await bookingStatus(previous.id)) };
 
   const route = await getRoute(routeId);
   if (!route || !route.is_active) throw notFound('Route');
@@ -109,6 +113,25 @@ export async function startBooking({ routeId, stopId, seats, expectedFare, phone
       throw new HttpError(409, 'NOT_ENOUGH_SEATS', `Only ${most} seat${most === 1 ? '' : 's'} left on the car loading now. Book fewer seats, or wait for the next car.`, { seats_left: most });
     }
     const amount = stop.app_fare * seats;
+    if (payWith === 'wallet') {
+      // Taken from the wallet now, as one fare on the car (refused if the wallet is short).
+      const vehicle = await db.get('SELECT * FROM vehicles WHERE id = ?', car.vehicle_id);
+      const tripId = await recordTrip({ passengerId, vehicle, stop, fare: amount, idempotencyKey });
+      const bookingId = await db.insert(
+        `INSERT INTO bookings (code, load_id, passenger_id, stop_id, seats, fare_each, amount, trip_id, idempotency_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        await uniqueBookingCode(),
+        car.id,
+        passengerId,
+        stop.id,
+        seats,
+        stop.app_fare,
+        amount,
+        tripId,
+        idempotencyKey,
+      );
+      return { bookingId };
+    }
     // Recorded before the prompt is sent, so the seats are held and a fast confirmation always finds its payment.
     const paymentId = await db.insert(
       `INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status, vehicle_id, stop_id, idempotency_key)
@@ -135,19 +158,21 @@ export async function startBooking({ routeId, stopId, seats, expectedFare, phone
     );
     return { bookingId, paymentId, amount, plate: car.plate };
   });
-  await sendPrompt(created.paymentId, {
-    phone,
-    amount: created.amount,
-    accountReference: created.plate.replace(/\W/g, ''),
-    description: 'Seat booking',
-  });
-  return { booking_token: tokenFor(created.bookingId), ...(await bookingStatus(created.bookingId)) };
+  if (created.paymentId) {
+    await sendPrompt(created.paymentId, {
+      phone,
+      amount: created.amount,
+      accountReference: created.plate.replace(/\W/g, ''),
+      description: 'Seat booking',
+    });
+  }
+  return { id: created.bookingId, booking_token: tokenFor(created.bookingId), ...(await bookingStatus(created.bookingId)) };
 }
 
 const BOOKING_SELECT = `
   SELECT b.*, l.status AS car_status, l.vehicle_id, l.route_id, l.started_at AS loading_since, l.departed_at,
          v.plate, v.description AS vehicle_description, r.name AS route_name, r.origin, s.name AS stop_name,
-         p.status AS payment_status, p.result_desc, p.trip_id, t.status AS trip_status,
+         p.status AS payment_status, p.result_desc, ${PAID_TRIP} AS paid_trip_id, t.status AS trip_status,
          u.name AS passenger_name, u.phone AS passenger_phone
   FROM bookings b
   JOIN loads l ON l.id = b.load_id
@@ -156,13 +181,13 @@ const BOOKING_SELECT = `
   JOIN route_stops s ON s.id = b.stop_id
   JOIN users u ON u.id = b.passenger_id
   LEFT JOIN mpesa_payments p ON p.id = b.mpesa_payment_id
-  LEFT JOIN trips t ON t.id = p.trip_id`;
+  LEFT JOIN trips t ON t.id = ${PAID_TRIP}`;
 
 /** paying | confirmed | boarded | departed | cancelled | failed | paid_late */
 function statusOf(b) {
   if (b.payment_status === 'initiating' || b.payment_status === 'pending') return 'paying';
   if (b.payment_status === 'failed') return 'failed';
-  if (!b.trip_id) return 'paid_late'; // M-Pesa confirmed after FarePay gave up waiting: the money went to the wallet
+  if (!b.paid_trip_id) return 'paid_late'; // M-Pesa confirmed after FarePay gave up waiting: the money went to the wallet
   if (b.trip_status === 'refunded') return 'cancelled';
   if (b.boarded_at) return 'boarded';
   if (b.car_status === 'departed') return 'departed';
@@ -246,15 +271,41 @@ export async function typicalMinutes(stopId) {
 export const bookingStatusByToken = (token) => bookingStatus(bookingIdFrom(token));
 
 /** The passenger cancels before boarding, while the car is still at the stage: the money goes back to their FarePay wallet. */
-export async function cancelBooking(token) {
-  const bookingId = bookingIdFrom(token);
+async function cancelById(bookingId) {
   const b = await db.get(`${BOOKING_SELECT} WHERE b.id = ?`, bookingId);
   if (!b) throw notFound('Booking');
   if (statusOf(b) !== 'confirmed') {
     throw new HttpError(409, 'CANNOT_CANCEL', 'This booking can no longer be cancelled (it is not paid, the passenger has boarded, or the car has left).');
   }
-  await refundTrip(b.trip_id, `Seat booking ${b.code} cancelled by the passenger`);
+  await refundTrip(b.paid_trip_id, `Seat booking ${b.code} cancelled by the passenger`);
   return bookingStatus(bookingId);
+}
+
+export const cancelBooking = (token) => cancelById(bookingIdFrom(token));
+
+// ---------- Passengers signed in to the app ----------
+
+async function myBookingId(passengerId, bookingId) {
+  const b = await db.get('SELECT id FROM bookings WHERE id = ? AND passenger_id = ?', bookingId, passengerId);
+  if (!b) throw notFound('Booking');
+  return b.id;
+}
+
+/** One of this passenger's bookings. */
+export const passengerBooking = async (passengerId, bookingId) => ({ id: bookingId, ...(await bookingStatus(await myBookingId(passengerId, bookingId))) });
+
+export const cancelPassengerBooking = async (passengerId, bookingId) => ({ id: bookingId, ...(await cancelById(await myBookingId(passengerId, bookingId))) });
+
+/** This passenger's bookings from the last 7 days, newest first (failed ones left out). */
+export async function passengerBookings(passengerId) {
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const rows = await db.all('SELECT id FROM bookings WHERE passenger_id = ? AND created_at >= ? ORDER BY id DESC LIMIT 20', passengerId, since);
+  const result = [];
+  for (const { id: bookingId } of rows) {
+    const b = await bookingStatus(bookingId);
+    if (b.status !== 'failed') result.push({ id: bookingId, ...b });
+  }
+  return result;
 }
 
 // ---------- Crew (the conductor's app) ----------

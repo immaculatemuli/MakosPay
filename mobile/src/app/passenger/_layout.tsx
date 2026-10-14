@@ -21,6 +21,9 @@ export default function PassengerLayout() {
       <Stack.Screen name="report" options={{ title: 'Report a problem' }} />
       <Stack.Screen name="reports" options={{ title: 'My reports' }} />
       <Stack.Screen name="fare-changes" options={{ title: 'Fare changes' }} />
+      <Stack.Screen name="book" options={{ title: 'Book a seat' }} />
+      <Stack.Screen name="booking" options={{ title: 'Your booking' }} />
+      <Stack.Screen name="parcel" options={{ title: 'Track a parcel' }} />
     </Stack>
   );
 }
