@@ -287,3 +287,40 @@ export interface Parcel {
   cancelled_at: string | null;
   payments?: { id: number; phone: string; amount: number; status: string; mpesa_receipt: string | null; result_desc: string | null; created_at: string }[];
 }
+
+/** A car's loading at the stage and its trip, as the office sees it. */
+export interface TripSummary {
+  id: number;
+  plate: string;
+  route_name: string;
+  origin: string;
+  state: 'loading' | 'on_the_road' | 'finished';
+  seats: number;
+  seats_booked: number;
+  paid_bookings: number;
+  booking_money: number;
+  stops_reached: number;
+  stops_total: number;
+  started_by_name: string | null;
+  started_at: string;
+  departed_at: string | null;
+  finished_at: string | null;
+}
+
+export interface TripDetail extends TripSummary {
+  stops: { name: string; reached_at: string | null }[];
+  bookings: {
+    id: number;
+    code: string;
+    status: 'paying' | 'confirmed' | 'boarded' | 'departed' | 'cancelled' | 'paid_late';
+    seats: number;
+    amount: number;
+    paid_with: 'wallet' | 'mpesa';
+    stop_name: string;
+    passenger_name: string;
+    passenger_phone: string;
+    booked_at: string;
+    boarded_at: string | null;
+  }[];
+  parcels: { id: number; tracking_code: string; status: ParcelStatus; receiver_name: string; stop_name: string }[];
+}

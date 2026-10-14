@@ -18,6 +18,7 @@ import { Reports } from './pages/Reports';
 import { RouteEdit } from './pages/RouteEdit';
 import { Routes as RoutesPage } from './pages/Routes';
 import { Statement } from './pages/Statement';
+import { TripPage, Trips } from './pages/Trips';
 import { VehicleDetail } from './pages/VehicleDetail';
 import { Withdrawals } from './pages/Withdrawals';
 import { Vehicles } from './pages/Vehicles';
@@ -42,6 +43,8 @@ function App() {
         <Route path="payouts" element={<Payouts />} />
         <Route path="payouts/:id" element={<PayoutDetail />} />
         <Route path="withdrawals" element={<Withdrawals />} />
+        <Route path="trips" element={<Trips />} />
+        <Route path="trips/:id" element={<TripPage />} />
         <Route path="parcels" element={<Parcels />} />
         <Route path="parcels/new" element={<ParcelNew />} />
         <Route path="parcels/:id" element={<ParcelDetail />} />

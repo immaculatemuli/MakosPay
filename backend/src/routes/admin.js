@@ -23,6 +23,7 @@ import {
   updateRoute,
   withOneFare,
 } from '../services/routes.js';
+import { officeTrip, officeTrips } from '../services/bookings.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
 import { REPORT_SELECT, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
@@ -509,6 +510,19 @@ router.post('/vehicles/:id/rotate-qr', async (req, res) => {
   const vehicleId = parse(id, req.params.id);
   await updateRow('vehicles', vehicleId, { qr_token: newQrToken() });
   res.json(await getVehicle(vehicleId));
+});
+
+// ---------- Seat bookings: cars loading and trips ----------
+
+// Every car that loaded on a day (default today, Kenyan time), plus cars loading and trips on the road now.
+router.get('/trips', async (req, res) => {
+  const { date } = parse(z.object({ date: z.string().date().default(nairobiToday) }), req.query);
+  const [from, to] = nairobiDayRange(date);
+  res.json({ date, ...(await officeTrips(from, to)) });
+});
+
+router.get('/trips/:id', async (req, res) => {
+  res.json(await officeTrip(parse(id, req.params.id)));
 });
 
 // ---------- Parcels (fees are the SACCO's income, not fares) ----------

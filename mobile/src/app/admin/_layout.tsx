@@ -33,6 +33,11 @@ export default function AdminLayout() {
       <Stack.Screen name="withdrawals" options={{ title: 'Passenger withdrawals' }} />
       <Stack.Screen name="statement" options={{ title: 'M-Pesa statement check' }} />
       <Stack.Screen name="account" options={{ title: 'My account' }} />
+      <Stack.Screen name="trips" options={{ title: 'Bookings & trips' }} />
+      <Stack.Screen name="trip/[id]" options={{ title: 'Trip' }} />
+      <Stack.Screen name="parcels" options={{ title: 'Parcels' }} />
+      <Stack.Screen name="parcel-form" options={{ title: 'Record a parcel' }} />
+      <Stack.Screen name="parcel/[id]" options={{ title: 'Parcel' }} />
     </Stack>
   );
 }

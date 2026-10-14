@@ -111,3 +111,29 @@ test('the money still adds up', async () => {
   const check = (await api('GET', '/admin/reconciliation', { token: s.admin })).body;
   assert.equal(check.all_ok, true, JSON.stringify(check.checks.filter((c) => !c.ok)));
 });
+
+test('the office sees cars loading and trips, with every booking and how it was paid', async () => {
+  const day = (await api('GET', '/admin/trips', { token: s.admin })).body;
+  assert.deepEqual(day.now, { loading: 1, on_the_road: 0 });
+  assert.deepEqual(day.day, { cars: 1, seats_booked: 2, paid_bookings: 2, booking_money: 400 }, 'the cancelled booking is not counted');
+  const [t] = day.trips;
+  assert.deepEqual([t.plate, t.state, t.seats, t.seats_booked, t.stops_total], ['KAP 001A', 'loading', 6, 2, 1]);
+
+  const detail = (await api('GET', `/admin/trips/${t.id}`, { token: s.admin })).body;
+  const byCode = Object.fromEntries(detail.bookings.map((b) => [b.code, b]));
+  assert.equal(byCode[s.secondWallet.code].paid_with, 'wallet');
+  assert.equal(byCode[s.kimBooking.code].paid_with, 'mpesa');
+  assert.equal(byCode[s.kimBooking.code].passenger_phone, '254722000002', 'the office sees the full number');
+  assert.equal(byCode[s.walletBooking.code].status, 'cancelled');
+
+  await api('POST', '/crew/loading/depart', { token: s.crew });
+  await api('POST', `/crew/road/stops/${s.stop.id}`, { token: s.crew });
+  const road = (await api('GET', `/admin/trips/${t.id}`, { token: s.admin })).body;
+  assert.deepEqual([road.state, road.stops_reached], ['on_the_road', 1]);
+  assert.ok(road.stops[0].reached_at);
+  assert.deepEqual((await api('GET', '/admin/trips', { token: s.admin })).body.now, { loading: 0, on_the_road: 1 });
+
+  assert.equal((await api('GET', '/admin/trips', { token: s.crew })).status, 403, 'office only');
+  assert.equal((await api('GET', '/admin/trips/999999', { token: s.admin })).status, 404);
+  assert.equal((await api('GET', '/admin/trips?date=2026-01-01', { token: s.admin })).body.day.cars, 0, 'another day');
+});

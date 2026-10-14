@@ -106,6 +106,8 @@ export default function AdminHome() {
 
       <SectionTitle>Quick actions</SectionTitle>
       <List>
+        <ListRow icon="people-outline" title="Bookings & trips" subtitle="Cars loading at the stage and on the road" onPress={() => router.push('/admin/trips')} />
+        <ListRow icon="cube-outline" title="Parcels" subtitle="Record, find and hand over parcels" onPress={() => router.push('/admin/parcels')} />
         <ListRow icon="add-circle-outline" title="Add route" subtitle="Drop-off stops and their fares" onPress={() => router.push('/admin/route-form')} />
         <ListRow icon="add-circle-outline" title="Add vehicle" subtitle="Plate, owner's M-Pesa number, QR sticker" onPress={() => router.push('/admin/vehicle-form')} />
         <ListRow icon="person-add-outline" title="Add conductor" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'conductor' } })} />

@@ -308,6 +308,99 @@ export async function passengerBookings(passengerId) {
   return result;
 }
 
+// ---------- Office: cars loading and trips ----------
+
+const LOAD_SELECT = `
+  SELECT l.*, v.plate, r.name AS route_name, r.origin, u.name AS started_by_name
+  FROM loads l JOIN vehicles v ON v.id = l.vehicle_id JOIN routes r ON r.id = l.route_id LEFT JOIN users u ON u.id = l.started_by`;
+
+/** loading | on_the_road | finished */
+const tripState = (l) => (l.status === 'loading' ? 'loading' : l.finished_at ? 'finished' : 'on_the_road');
+
+async function loadSummary(l) {
+  const stops = await tripStops(l);
+  const money = await db.get(
+    `SELECT COUNT(*) AS bookings, COALESCE(SUM(b.amount), 0) AS amount FROM bookings b
+     LEFT JOIN mpesa_payments p ON p.id = b.mpesa_payment_id LEFT JOIN trips t ON t.id = ${PAID_TRIP}
+     WHERE b.load_id = ? AND t.status = 'paid'`,
+    l.id,
+  );
+  return {
+    id: l.id,
+    plate: l.plate,
+    route_name: l.route_name,
+    origin: l.origin,
+    state: tripState(l),
+    seats: l.seats,
+    seats_booked: await seatsTaken(l.id),
+    paid_bookings: money.bookings,
+    booking_money: money.amount,
+    stops_reached: stops.filter((s) => s.reached_at).length,
+    stops_total: stops.length,
+    started_by_name: l.started_by_name,
+    started_at: l.started_at,
+    departed_at: l.departed_at,
+    finished_at: l.finished_at,
+  };
+}
+
+/** Every car that loaded on a day (Kenyan time, `from`–`to`), and right now: cars loading and trips on the road. */
+export async function officeTrips(from, to) {
+  const loads = await db.all(
+    `${LOAD_SELECT} WHERE (l.started_at >= ? AND l.started_at < ?) OR l.status = 'loading' OR (l.status = 'departed' AND l.finished_at IS NULL)
+     ORDER BY l.started_at DESC, l.id DESC`,
+    from,
+    to,
+  );
+  const trips = [];
+  for (const l of loads) trips.push(await loadSummary(l));
+  const day = trips.filter((t) => t.started_at >= from && t.started_at < to);
+  return {
+    now: { loading: trips.filter((t) => t.state === 'loading').length, on_the_road: trips.filter((t) => t.state === 'on_the_road').length },
+    day: {
+      cars: day.length,
+      seats_booked: day.reduce((n, t) => n + t.seats_booked, 0),
+      paid_bookings: day.reduce((n, t) => n + t.paid_bookings, 0),
+      booking_money: day.reduce((n, t) => n + t.booking_money, 0),
+    },
+    trips,
+  };
+}
+
+/** One car's loading/trip: where it is, every booking on it (with how it was paid) and the parcels it carried. */
+export async function officeTrip(loadId) {
+  const l = await db.get(`${LOAD_SELECT} WHERE l.id = ?`, loadId);
+  if (!l) throw notFound('Trip');
+  const rows = await db.all(`${BOOKING_SELECT} WHERE b.load_id = ? ORDER BY b.id`, loadId);
+  const parcels = await db.all(
+    `SELECT p.id, p.tracking_code, p.status, p.receiver_name, s.name AS stop_name, p.loaded_at, p.arrived_at, p.collected_at
+     FROM parcels p JOIN route_stops s ON s.id = p.stop_id WHERE p.load_id = ? ORDER BY p.id`,
+    loadId,
+  );
+  return {
+    ...(await loadSummary(l)),
+    stops: (await tripStops(l)).map((s) => ({ name: s.name, reached_at: s.reached_at })),
+    bookings: rows
+      .map((b) => ({ b, status: statusOf(b) }))
+      .filter(({ status }) => status !== 'failed')
+      .map(({ b, status }) => ({
+        id: b.id,
+        code: b.code,
+        status,
+        seats: b.seats,
+        amount: b.amount,
+        paid_with: b.mpesa_payment_id ? 'mpesa' : 'wallet',
+        stop_name: b.stop_name,
+        passenger_name: b.passenger_name,
+        passenger_phone: b.passenger_phone,
+        booked_at: b.created_at,
+        boarded_at: b.boarded_at,
+        trip_id: b.paid_trip_id,
+      })),
+    parcels,
+  };
+}
+
 // ---------- Crew (the conductor's app) ----------
 
 const openLoad = (vehicleId) => db.get("SELECT * FROM loads WHERE vehicle_id = ? AND status = 'loading'", vehicleId);

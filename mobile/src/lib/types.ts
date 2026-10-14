@@ -494,3 +494,70 @@ export interface ParcelTracking {
   expected_at: string | null;
   events: { what: string; at: string }[];
 }
+
+/** A car's loading at the stage and its trip, as the office sees it. */
+export interface OfficeTrip {
+  id: number;
+  plate: string;
+  route_name: string;
+  origin: string;
+  state: 'loading' | 'on_the_road' | 'finished';
+  seats: number;
+  seats_booked: number;
+  paid_bookings: number;
+  booking_money: number;
+  stops_reached: number;
+  stops_total: number;
+  started_by_name: string | null;
+  started_at: string;
+  departed_at: string | null;
+  finished_at: string | null;
+}
+
+export interface OfficeTripDetail extends OfficeTrip {
+  stops: { name: string; reached_at: string | null }[];
+  bookings: {
+    id: number;
+    code: string;
+    status: 'paying' | 'confirmed' | 'boarded' | 'departed' | 'cancelled' | 'paid_late';
+    seats: number;
+    amount: number;
+    paid_with: 'wallet' | 'mpesa';
+    stop_name: string;
+    passenger_name: string;
+    passenger_phone: string;
+    booked_at: string;
+    boarded_at: string | null;
+  }[];
+  parcels: { id: number; tracking_code: string; status: OfficeParcel['status']; receiver_name: string; stop_name: string }[];
+}
+
+/** A parcel as the office sees it (with the collection code, to give the sender). */
+export interface OfficeParcel {
+  id: number;
+  tracking_code: string;
+  collection_code: string;
+  sender_name: string;
+  sender_phone: string;
+  receiver_name: string;
+  receiver_phone: string;
+  route_name: string;
+  origin: string;
+  stop_name: string;
+  description: string | null;
+  fee: number;
+  status: 'awaiting_payment' | 'received' | 'on_the_way' | 'arrived' | 'collected' | 'cancelled';
+  payment_method: 'mpesa_prompt' | 'mpesa_code' | 'cash' | null;
+  payment_reference: string | null;
+  paid_at: string | null;
+  plate: string | null;
+  created_by_name: string;
+  collected_by_name: string | null;
+  cancel_reason: string | null;
+  created_at: string;
+  loaded_at: string | null;
+  arrived_at: string | null;
+  collected_at: string | null;
+  cancelled_at: string | null;
+  payments?: { id: number; phone: string; amount: number; status: string; mpesa_receipt: string | null; result_desc: string | null; created_at: string }[];
+}
