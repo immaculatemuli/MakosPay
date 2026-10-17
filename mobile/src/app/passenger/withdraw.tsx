@@ -90,7 +90,7 @@ export default function Withdraw() {
           <Button title={valid ? `Withdraw ${kes(value)}` : 'Withdraw'} icon="arrow-up-circle-outline" onPress={send} loading={busy} disabled={!valid} />
         </>
       )}
-      <Muted>Money only goes to the number you signed up with. If it can't be sent, it comes straight back into your wallet.</Muted>
+      <Muted>Money only goes to the number you signed up with. If it can’t be sent, it comes straight back into your wallet.</Muted>
 
       <SectionTitle>Your withdrawals</SectionTitle>
       {d.withdrawals.length === 0 ? (

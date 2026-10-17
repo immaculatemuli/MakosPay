@@ -1,6 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Button, Card, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
 import { api, ApiError, errorMessage } from '@/lib/api';
@@ -27,24 +27,21 @@ export default function BookSeat() {
   const mine = useApi<Booking[]>('/passenger/bookings');
   const wallet = useApi<{ balance: number }>('/passenger/wallet');
   const [routeId, setRouteId] = useState<number | null>(null);
-  const [stopId, setStopId] = useState<number | null>(null);
-  const [seats, setSeats] = useState(1);
+  const [pickedStopId, setPickedStopId] = useState<number | null>(null);
+  const [wantedSeats, setSeats] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // One id per confirmation: a retry after a network failure returns the same booking instead of charging again.
   const idempotencyKey = useRef(Crypto.randomUUID());
 
   const route = routes.data?.find((r) => r.id === routeId) ?? null;
+  // A route with one stop needs no choosing; seats stay within what the car has left.
+  const stopId = pickedStopId ?? (route?.stops.length === 1 ? route.stops[0].id : null);
   const stop = route?.stops.find((s) => s.id === stopId) ?? null;
   const maxSeats = Math.max(1, Math.min(10, route?.next_car?.seats_left ?? 10));
+  const seats = Math.min(wantedSeats, maxSeats);
   const total = stop ? stop.fare * seats : 0;
   const balance = wallet.data?.balance ?? 0;
-
-  // A route with one stop needs no choosing; keep seats within what the car has left.
-  useEffect(() => {
-    if (route && route.stops.length === 1) setStopId(route.stops[0].id);
-    setSeats((n) => Math.min(n, Math.max(1, Math.min(10, route?.next_car?.seats_left ?? 10))));
-  }, [route]);
 
   if ((routes.loading && !routes.data) || (mine.loading && !mine.data)) return <Loading />;
 
@@ -109,7 +106,7 @@ export default function BookSeat() {
           value={routeId}
           onChange={(v) => {
             setRouteId(v);
-            setStopId(null);
+            setPickedStopId(null);
             setError(null);
           }}
         />
@@ -140,17 +137,17 @@ export default function BookSeat() {
               label="Where are you getting off?"
               options={route.stops.map((s) => ({ value: s.id as number | null, label: `${s.name} · ${kes(s.fare)}` }))}
               value={stopId}
-              onChange={setStopId}
+              onChange={setPickedStopId}
             />
           )}
           <Text style={{ fontWeight: '600', color: colors.text, marginTop: 8 }}>Seats</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 8 }}>
             <View style={{ width: 64 }}>
-              <Button title="−" variant="secondary" disabled={seats <= 1} onPress={() => setSeats((n) => Math.max(1, n - 1))} />
+              <Button title="−" variant="secondary" disabled={seats <= 1} onPress={() => setSeats(Math.max(1, seats - 1))} />
             </View>
             <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text, minWidth: 32, textAlign: 'center' }}>{seats}</Text>
             <View style={{ width: 64 }}>
-              <Button title="+" variant="secondary" disabled={seats >= maxSeats} onPress={() => setSeats((n) => Math.min(maxSeats, n + 1))} />
+              <Button title="+" variant="secondary" disabled={seats >= maxSeats} onPress={() => setSeats(Math.min(maxSeats, seats + 1))} />
             </View>
           </View>
           {stop && (

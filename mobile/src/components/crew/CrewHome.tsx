@@ -93,7 +93,7 @@ export function CrewHome() {
         </View>
         {isConductor && <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />}
       </Pressable>
-      {!v.route && <Notice>Passengers can't pay until the vehicle has a route.</Notice>}
+      {!v.route && <Notice>Passengers can’t pay until the vehicle has a route.</Notice>}
 
       <SectionTitle>Payments</SectionTitle>
       <Chips options={DAYS} value={day} onChange={setDay} />

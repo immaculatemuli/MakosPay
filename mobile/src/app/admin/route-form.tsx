@@ -83,7 +83,7 @@ export default function RouteForm() {
   return (
     <Screen>
       {route.error && <ErrorBox message={route.error} onRetry={route.reload} />}
-      {existing && !existing.is_active && <Notice>This route is not in use. Passengers can't pay on it.</Notice>}
+      {existing && !existing.is_active && <Notice>This route is not in use. Passengers can’t pay on it.</Notice>}
       <Field label="Route name" placeholder="e.g. Thika Road" value={name} onChangeText={setName} />
       <Field label="Starts from" placeholder="e.g. Town" value={origin} onChangeText={setOrigin} />
 
