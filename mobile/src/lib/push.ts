@@ -1,10 +1,15 @@
 import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { api } from './api';
 
+// Expo Go on Android can't receive push, and even loading expo-notifications there crashes the app:
+// so it is only loaded where push works (the APK, and iOS).
+const pushAvailable = !(Platform.OS === 'android' && Constants.executionEnvironment === 'storeClient');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Notifications: typeof import('expo-notifications') | null = pushAvailable ? require('expo-notifications') : null;
+
 // A notification that arrives while the app is open is shown too.
-Notifications.setNotificationHandler({
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
 });
 
@@ -17,8 +22,7 @@ let registered: string | null = null;
  * no permission, offline) the notices are still in the app under the bell.
  */
 export async function registerForPush() {
-  // Expo Go on Android can't receive push (and asking shows a warning): only the APK registers.
-  if (Platform.OS === 'android' && Constants.executionEnvironment === 'storeClient') return;
+  if (!Notifications) return;
   try {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', { name: 'FarePay', importance: Notifications.AndroidImportance.HIGH, lightColor: '#D4268F' });
@@ -33,6 +37,12 @@ export async function registerForPush() {
   } catch {
     // See above: the in-app notifications still work.
   }
+}
+
+/** Runs `onTap` when a push notification is tapped. Returns a function that stops listening. */
+export function onNotificationTap(onTap: () => void) {
+  const sub = Notifications?.addNotificationResponseReceivedListener(onTap);
+  return () => sub?.remove();
 }
 
 /** Signing out: this phone stops getting the person's notifications. */
