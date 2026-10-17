@@ -84,3 +84,14 @@ test('a passenger can change their password', async () => {
 test('without logging in you cannot see account details', async () => {
   assert.equal((await api('GET', '/auth/me')).status, 401);
 });
+test('a passenger can fix their name; crew and office cannot change theirs', async () => {
+  const token = (await api('POST', '/auth/register', { body: { name: 'Jhon Typo', phone: '0722 999 001', password: 'pass123' } })).body.token;
+  const res = await api('PATCH', '/auth/me', { token, body: { name: '  John Kamau ' } });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.user.name, 'John Kamau');
+  assert.equal((await api('GET', '/auth/me', { token })).body.user.name, 'John Kamau');
+  assert.equal((await api('PATCH', '/auth/me', { token, body: { name: 'J' } })).status, 400);
+
+  const crew = (await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'secret1' } })).body.token;
+  assert.equal((await api('PATCH', '/auth/me', { token: crew, body: { name: 'Someone Else' } })).status, 403);
+});

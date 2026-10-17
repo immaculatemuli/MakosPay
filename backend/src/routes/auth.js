@@ -6,7 +6,7 @@ import { HttpError } from '../errors.js';
 import { limitBy, passwordChecksByUser, signUpByIp, wrongPasswordByIp, wrongPasswordByPhone } from '../ratelimit.js';
 import { audit } from '../services/audit.js';
 import { confirmReset, requestReset } from '../services/passwordReset.js';
-import { changePassword, createUser, deleteOwnAccount, verifyCredentials } from '../services/users.js';
+import { changePassword, createUser, deleteOwnAccount, renameSelf, verifyCredentials } from '../services/users.js';
 import { name, parse, password, phone } from '../validate.js';
 
 const router = Router();
@@ -85,6 +85,14 @@ router.post('/password-reset/confirm', async (req, res) => {
 
 router.get('/me', authenticate, (req, res) => {
   res.json({ user: req.user });
+});
+
+// Passengers fix their own name (e.g. mistyped when signing up).
+router.patch('/me', authenticate, async (req, res) => {
+  const body = parse(z.object({ name }), req.body);
+  const user = await renameSelf(req.user, body.name);
+  await audit(req.user, 'account.rename', 'users', req.user.id, { name: body.name });
+  res.json({ user });
 });
 
 // Passengers can delete their own account (Google Play requires this for apps with sign-up).

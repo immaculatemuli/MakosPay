@@ -7,9 +7,13 @@ import { PRIVACY_POLICY_URL } from '@/lib/links';
 import { ROLE_LABEL } from '@/lib/types';
 import { Button, Card, ErrorBox, Field, KeyValue, Muted, Notice, Screen, SectionTitle } from './ui';
 
-/** Profile, password change, privacy policy, sign out, and (passengers) deleting the account; shared by all roles. */
+/** Profile, password change, privacy policy, sign out, and (passengers) fixing their name and deleting the account; shared by all roles. */
 export function AccountScreen({ children }: { children?: ReactNode }) {
-  const { user, signOut, changePassword: savePassword } = useAuth();
+  const { user, signOut, changePassword: savePassword, rename } = useAuth();
+  const [newName, setNewName] = useState(user?.name ?? '');
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renamed, setRenamed] = useState(false);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,6 +38,20 @@ export function AccountScreen({ children }: { children?: ReactNode }) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveName = async () => {
+    setRenaming(true);
+    setRenameError(null);
+    setRenamed(false);
+    try {
+      await rename(newName.trim());
+      setRenamed(true);
+    } catch (err) {
+      setRenameError(errorMessage(err));
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -73,6 +91,22 @@ export function AccountScreen({ children }: { children?: ReactNode }) {
         <KeyValue label="Phone" value={displayPhone(user.phone)} />
         <KeyValue label="Account type" value={ROLE_LABEL[user.role]} />
       </Card>
+
+      {user.role === 'passenger' && (
+        <>
+          <SectionTitle>Change name</SectionTitle>
+          {renameError && <ErrorBox message={renameError} />}
+          {renamed && <Notice tone="success">Name saved.</Notice>}
+          <Field label="Full name" value={newName} onChangeText={setNewName} autoComplete="name" />
+          <Button
+            title="Save name"
+            variant="secondary"
+            onPress={saveName}
+            loading={renaming}
+            disabled={newName.trim().length < 2 || newName.trim() === user.name}
+          />
+        </>
+      )}
 
       <SectionTitle>Change password</SectionTitle>
       {error && <ErrorBox message={error} />}

@@ -47,6 +47,13 @@ export async function resetPassword(userId, newPassword) {
   await setPassword(userId, await bcrypt.hash(newPassword, 10));
 }
 
+/** A passenger corrects their own name (crew and office names are set by the SACCO office). */
+export async function renameSelf(user, newName) {
+  if (user.role !== 'passenger') throw new HttpError(403, 'FORBIDDEN', 'Ask the SACCO office to change your name');
+  await db.run('UPDATE users SET name = ? WHERE id = ?', newName, user.id);
+  return getUser(user.id);
+}
+
 /** Saves a new password and signs out every phone using the old one. */
 export const setPassword = (userId, hash) => db.run('UPDATE users SET password_hash = ?, session_version = session_version + 1 WHERE id = ?', hash, userId);
 

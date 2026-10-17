@@ -81,6 +81,7 @@ const AUDIT: [RegExp, string][] = [
   [/^withdrawal\.failed$/, 'M-Pesa rejected a withdrawal'],
   [/^money_check\.nightly$/, 'Nightly money check ran'],
   [/^account\.delete$/, 'A passenger deleted their account'],
+  [/^account\.rename$/, 'A passenger changed their name'],
   [/^account\.password_changed$/, 'Changed their own password'],
   [/^account\.password_reset_by_sms$/, 'Set a new password with an SMS code'],
 ];
