@@ -1,10 +1,10 @@
-import * as Notifications from 'expo-notifications';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Loading } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { onNotificationTap } from '@/lib/push';
 import { isOffice } from '@/lib/types';
 
 function RootNavigator() {
@@ -14,10 +14,7 @@ function RootNavigator() {
   const section = user ? (isOffice(user.role) ? 'admin' : user.role) : null;
   useEffect(() => {
     if (!section) return;
-    const sub = Notifications.addNotificationResponseReceivedListener(() => {
-      router.push(`/${section}/notifications` as never);
-    });
-    return () => sub.remove();
+    return onNotificationTap(() => router.push(`/${section}/notifications` as never));
   }, [section]);
 
   if (loading) return <Loading />;
