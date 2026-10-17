@@ -40,7 +40,7 @@ export default function CrewList() {
 
   // Android shows at most 3 buttons, so there it closes by tapping outside (or Back) instead of a Close button.
   const manage = (c: Conductor) =>
-    Alert.alert(c.name, `${displayPhone(c.phone)}\n${c.vehicle_plate ? `Works on ${c.vehicle_plate}` : 'Not on a vehicle'}`, [
+    Alert.alert(c.name, `${displayPhone(c.phone)}${words.onVehicle ? `\n${c.vehicle_plate ? `Works on ${c.vehicle_plate}` : 'Not on a vehicle'}` : ''}`, [
       ...(Platform.OS === 'ios' ? [{ text: 'Close', style: 'cancel' as const }] : []),
       { text: 'Set new password', onPress: () => router.push({ pathname: '/admin/set-password', params: { id: c.id, name: c.name, phone: c.phone } }) },
       {
@@ -70,7 +70,7 @@ export default function CrewList() {
               key={c.id}
               icon={words.icon}
               title={c.name}
-              subtitle={`${displayPhone(c.phone)} · ${c.vehicle_plate ?? 'Not on a vehicle'}`}
+              subtitle={words.onVehicle ? `${displayPhone(c.phone)} · ${c.vehicle_plate ?? 'Not on a vehicle'}` : displayPhone(c.phone)}
               rightSub={c.is_active ? undefined : <Badge text="Switched off" tone="danger" />}
               onPress={() => manage(c)}
             />
