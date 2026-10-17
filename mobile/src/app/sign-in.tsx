@@ -6,6 +6,7 @@ import { ServerSetting } from '@/components/ServerSetting';
 import { Button, colors, ErrorBox, Field } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
 import { lastPhoneNumber, useAuth } from '@/lib/auth';
+import { loadSavedTickets } from '@/lib/savedTickets';
 
 export default function SignIn() {
   const { user, signIn } = useAuth();
@@ -13,11 +14,13 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasSaved, setHasSaved] = useState(false);
 
   // The app always asks to sign in when it opens; the number used last time is filled in (2547... -> 07...).
   useEffect(() => {
-    lastPhoneNumber().then((last) => {
+    lastPhoneNumber().then(async (last) => {
       if (last) setPhone((typed) => typed || last.replace(/^254/, '0'));
+      setHasSaved((await loadSavedTickets(last)).length > 0);
     });
   }, []);
 
@@ -49,6 +52,13 @@ export default function SignIn() {
           New passenger? <Text style={{ color: colors.primary, fontWeight: '700' }}>Create an account</Text>
         </Text>
       </Link>
+      {hasSaved && (
+        <Link href="/saved-tickets" style={{ textAlign: 'center', marginTop: 4, padding: 8 }}>
+          <Text style={{ color: colors.muted }}>
+            No internet? <Text style={{ color: colors.primary, fontWeight: '700' }}>Show my saved tickets</Text>
+          </Text>
+        </Link>
+      )}
       <ServerSetting />
     </AuthForm>
   );

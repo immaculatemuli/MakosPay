@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
 import { WhereGoing } from '@/components/WhereGoing';
@@ -8,6 +8,7 @@ import { Badge, colors, Empty, ErrorBox, List, ListRow, Loading, Muted, Screen, 
 import { useAuth } from '@/lib/auth';
 import { useChosenStop } from '@/lib/chosenRoute';
 import { dateTime, kes } from '@/lib/format';
+import { saveTickets } from '@/lib/savedTickets';
 import { openTicket } from '@/lib/ticket';
 import type { Paged, PassengerSummary, Trip } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
@@ -21,6 +22,10 @@ export default function PassengerHome() {
   const recent = useApi<Paged<Trip>>('/passenger/trips?limit=3');
   const [pickKey, setPickKey] = useState(0);
   const chosen = useChosenStop(pickKey);
+  // The latest tickets are kept on the phone, to open without internet.
+  useEffect(() => {
+    if (recent.data?.items.length) void saveTickets(recent.data.items);
+  }, [recent.data]);
 
   if (summary.loading && !summary.data) return <Loading />;
   const s = summary.data;

@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { saveTickets } from './savedTickets';
 import type { Trip } from './types';
 
 export type TicketParams = {
@@ -15,8 +16,9 @@ export type TicketParams = {
   reason?: string;
 };
 
-/** Opens the ticket for a trip (after paying, or from payment history). */
+/** Opens the ticket for a trip (after paying, or from payment history); it is also saved on the phone. */
 export function openTicket(trip: Trip, walletBalance?: number, replace = false) {
+  void saveTickets([trip]);
   const params: TicketParams = {
     id: String(trip.id),
     code: trip.ticket_code,
