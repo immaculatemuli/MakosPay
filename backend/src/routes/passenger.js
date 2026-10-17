@@ -7,6 +7,7 @@ import { config } from '../config.js';
 import { HttpError } from '../errors.js';
 import { cancelPassengerBooking, MAX_SEATS_PER_BOOKING, passengerBooking, passengerBookings, routesForBooking, startBooking } from '../services/bookings.js';
 import { getUserPayment, startFarePayment, startTopup } from '../services/payments.js';
+import { bookSeats, cancelSeat, MAX_SEATS, mySeat, mySeats, passengerHere, seatRoutes } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { listRoutes, publicFareChanges } from '../services/routes.js';
 import { getBalance } from '../services/wallet.js';
@@ -198,6 +199,60 @@ router.get('/bookings/:id', async (req, res) => {
 
 router.post('/bookings/:id/cancel', async (req, res) => {
   res.json(await cancelPassengerBooking(req.user.id, parse(id, req.params.id)));
+});
+
+// ---------- Seat booking from anywhere (the stage queue) ----------
+
+router.get('/seat-routes', async (_req, res) => {
+  res.json(await seatRoutes());
+});
+
+router.get('/seats', async (req, res) => {
+  res.json(await mySeats(req.user.id));
+});
+
+// Book seats to a drop-off, picked at the stage (pickup_stop_id null) or on the road; paid by M-Pesa or the wallet.
+router.post('/seats', async (req, res) => {
+  const body = parse(
+    z.object({
+      route_id: id,
+      pickup_stop_id: id.nullable().default(null),
+      stop_id: id,
+      seats: z.number().int().min(1).max(MAX_SEATS),
+      expected_fare: kes,
+      idempotency_key: z.string().min(8).max(100),
+      pay_with: z.enum(['wallet', 'mpesa']),
+    }),
+    req.body,
+  );
+  if (body.pay_with === 'mpesa') pinPromptsByUser.hit(req.user.id);
+  const booking = await bookSeats({
+    passengerId: req.user.id,
+    phone: req.user.phone,
+    routeId: body.route_id,
+    pickupStopId: body.pickup_stop_id,
+    stopId: body.stop_id,
+    seats: body.seats,
+    expectedFare: body.expected_fare,
+    idempotencyKey: body.idempotency_key,
+    payWith: body.pay_with,
+  });
+  res.status(201).json({ ...booking, wallet_balance: await getBalance(req.user.id) });
+});
+
+router.get('/seats/:id', async (req, res) => {
+  res.json(await mySeat(req.user.id, parse(id, req.params.id)));
+});
+
+router.post('/seats/:id/cancel', async (req, res) => {
+  const seat = await mySeat(req.user.id, parse(id, req.params.id));
+  res.json(await cancelSeat(seat.id, { reason: 'Cancelled by you', by: 'passenger' }));
+});
+
+// "I'm at the pickup point": the car's crew (or the marshal) are told.
+router.post('/seats/:id/here', async (req, res) => {
+  const seat = await mySeat(req.user.id, parse(id, req.params.id));
+  res.json(await passengerHere(seat.id));
 });
 
 router.get('/wallet', async (req, res) => {

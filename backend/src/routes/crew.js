@@ -6,6 +6,7 @@ import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, startLoading } from '../services/bookings.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
+import { boardSeat, crewSeats } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
 import { TRIP_SELECT } from '../services/trips.js';
@@ -117,6 +118,17 @@ router.post('/loading/depart', async (req, res) => {
 // A booked passenger got on.
 router.post('/bookings/:id/board', async (req, res) => {
   res.json(await boardBooking(await myVehicle(req.user), parse(id, req.params.id)));
+});
+
+// Seat bookings put on this car: who to pick where (at the stage or on the road), and ticking them on.
+router.get('/seats', async (req, res) => {
+  res.json(await crewSeats((await myVehicle(req.user)).id));
+});
+
+router.post('/seats/:id/board', async (req, res) => {
+  const vehicle = await myVehicle(req.user);
+  await boardSeat(parse(id, req.params.id), { vehicleId: vehicle.id });
+  res.json(await crewSeats(vehicle.id));
 });
 
 // On the road: the car reached a stop (passengers who booked see it), and the end of the trip.

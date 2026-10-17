@@ -14,10 +14,14 @@ db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeou
 // The kinds of user. Only passengers sign up themselves. The SACCO office (admin) creates conductors and
 // drivers; the platform admin (whoever runs FarePay itself) is above the SACCO office and is created from
 // the computer. Vehicle owners don't log in: the admin records their payout details on the vehicle.
-export const ROLES = ['admin', 'passenger', 'conductor', 'driver', 'platform_admin'];
+// Stage marshals manage the queue of booked passengers at a stage and put them on the cars that arrive.
+export const ROLES = ['admin', 'passenger', 'conductor', 'driver', 'platform_admin', 'marshal'];
 
-// Kinds of wallet entry. withdrawal: sent back to the passenger's M-Pesa; withdrawal_reversal: it couldn't be sent.
-const WALLET_TYPES = ['topup', 'fare', 'refund', 'test_credit', 'withdrawal', 'withdrawal_reversal'].map((t) => `'${t}'`).join(', ');
+// Kinds of wallet entry. withdrawal: sent back to the passenger's M-Pesa; withdrawal_reversal: it couldn't be sent;
+// booking_hold / booking_release: a paid seat booking's money, held until the passenger boards or it is cancelled.
+const WALLET_TYPE_LIST = ['topup', 'fare', 'refund', 'test_credit', 'withdrawal', 'withdrawal_reversal', 'booking_hold', 'booking_release'];
+const WALLET_TYPES = WALLET_TYPE_LIST.map((t) => `'${t}'`).join(', ');
+const MPESA_PURPOSES = ['wallet', 'fare', 'seat'];
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -113,7 +117,7 @@ CREATE TABLE IF NOT EXISTS mpesa_payments (
   user_id             INTEGER NOT NULL REFERENCES users(id),
   phone               TEXT NOT NULL,
   amount              INTEGER NOT NULL CHECK (amount > 0),
-  purpose             TEXT NOT NULL CHECK (purpose IN ('wallet', 'fare')),
+  purpose             TEXT NOT NULL CHECK (purpose IN (${MPESA_PURPOSES.map((x) => `'${x}'`).join(', ')})),
   status              TEXT NOT NULL CHECK (status IN ('initiating', 'pending', 'completed', 'failed')),
   checkout_request_id TEXT UNIQUE,
   merchant_request_id TEXT,
@@ -556,6 +560,61 @@ CREATE TABLE IF NOT EXISTS report_photos (
   created_at  TEXT NOT NULL DEFAULT (${NOW})
 );
 CREATE INDEX IF NOT EXISTS idx_report_photos_report ON report_photos(report_id);
+`);
+
+/**
+ * Lets a column's CHECK (x IN (...)) list accept more values: SQLite can't change a CHECK, so the table is rebuilt
+ * from its own definition with the longer list (same columns, ids and data; its indexes and triggers made again).
+ */
+function widenCheck(table, oldList, newList) {
+  const quote = (list) => list.map((v) => `'${v}'`).join(', ');
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table).sql;
+  if (!sql.includes(`(${quote(oldList)})`)) return; // already widened (or a new database)
+  const extras = db.prepare("SELECT sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL").all(table);
+  db.exec('PRAGMA foreign_keys = OFF');
+  tx(() => {
+    db.exec(sql.replace(`(${quote(oldList)})`, `(${quote(newList)})`).replace(/^CREATE TABLE "?\w+"?/, `CREATE TABLE ${table}_new`));
+    db.exec(`INSERT INTO ${table}_new SELECT * FROM ${table}; DROP TABLE ${table}; ALTER TABLE ${table}_new RENAME TO ${table};`);
+    for (const e of extras) db.exec(e.sql);
+  });
+  db.exec('PRAGMA foreign_keys = ON');
+}
+
+// Seat booking from anywhere (the same as migrations/010_seat_queue.sql for PostgreSQL).
+widenCheck('users', ROLES.slice(0, 5), ROLES);
+widenCheck('wallet_transactions', WALLET_TYPE_LIST.slice(0, 6), WALLET_TYPE_LIST);
+widenCheck('mpesa_payments', MPESA_PURPOSES.slice(0, 2), MPESA_PURPOSES);
+db.exec(`
+CREATE TABLE IF NOT EXISTS seat_bookings (
+  id                 INTEGER PRIMARY KEY,
+  code               TEXT NOT NULL UNIQUE,
+  passenger_id       INTEGER NOT NULL REFERENCES users(id),
+  route_id           INTEGER NOT NULL REFERENCES routes(id),
+  pickup_stop_id     INTEGER REFERENCES route_stops(id),
+  stop_id            INTEGER NOT NULL REFERENCES route_stops(id),
+  seats              INTEGER NOT NULL CHECK (seats BETWEEN 1 AND 10),
+  fare_each          INTEGER NOT NULL CHECK (fare_each > 0),
+  amount             INTEGER NOT NULL CHECK (amount > 0),
+  pay_with           TEXT NOT NULL CHECK (pay_with IN ('mpesa', 'wallet')),
+  mpesa_payment_id   INTEGER REFERENCES mpesa_payments(id),
+  status             TEXT NOT NULL CHECK (status IN ('paying', 'queued', 'assigned', 'boarded', 'cancelled', 'failed')),
+  queued_at          TEXT,
+  load_id            INTEGER REFERENCES loads(id),
+  assigned_at        TEXT,
+  passenger_here_at  TEXT,
+  boarded_at         TEXT,
+  trip_id            INTEGER REFERENCES trips(id),
+  cancelled_at       TEXT,
+  cancel_reason      TEXT,
+  refund_to          TEXT CHECK (refund_to IN ('mpesa', 'wallet')),
+  refund_withdrawal_id INTEGER REFERENCES withdrawals(id),
+  idempotency_key    TEXT NOT NULL,
+  created_at         TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE (passenger_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_seat_bookings_queue ON seat_bookings(route_id, status, queued_at, id);
+CREATE INDEX IF NOT EXISTS idx_seat_bookings_load ON seat_bookings(load_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_seat_bookings_payment ON seat_bookings(mpesa_payment_id) WHERE mpesa_payment_id IS NOT NULL;
 `);
 
 /**

@@ -31,24 +31,35 @@ export async function requestWithdrawal(user, amount) {
     if (today >= config.maxWithdrawalsPerDay) {
       throw new HttpError(429, 'TOO_MANY_WITHDRAWALS', `You can withdraw ${config.maxWithdrawalsPerDay} times a day. Please try again tomorrow.`);
     }
-    const auto = mpesa.isConfigured.b2c;
-    const id = await db.insert(
-      'INSERT INTO withdrawals (user_id, phone, amount, status, conversation_id) VALUES (?, ?, ?, ?, ?)',
-      user.id,
-      user.phone,
-      amount,
-      auto ? 'processing' : 'manual',
-      randomUUID(),
-    );
-    // Throws "not enough money" (and undoes everything) if the wallet is short.
-    await postWalletEntry(user.id, { type: 'withdrawal', amount: -amount, reference: walletReference(id), description: 'Withdrawal to M-Pesa' });
-    return getWithdrawal(id);
+    return createWithdrawal(user, amount, 'Withdrawal to M-Pesa');
   });
+  return dispatchWithdrawal(withdrawal);
+}
 
+/**
+ * Takes `amount` from the passenger's wallet to send to their own M-Pesa number (no limits: also used for refunds
+ * the system makes, e.g. a cancelled seat booking). Must run inside tx(); then call dispatchWithdrawal.
+ */
+export async function createWithdrawal(user, amount, description) {
+  const id = await db.insert(
+    'INSERT INTO withdrawals (user_id, phone, amount, status, conversation_id) VALUES (?, ?, ?, ?, ?)',
+    user.id,
+    user.phone,
+    amount,
+    mpesa.isConfigured.b2c ? 'processing' : 'manual',
+    randomUUID(),
+  );
+  // Throws "not enough money" (and undoes everything) if the wallet is short.
+  await postWalletEntry(user.id, { type: 'withdrawal', amount: -amount, reference: walletReference(id), description });
+  return getWithdrawal(id);
+}
+
+/** Sends a created withdrawal by M-Pesa, or (no automatic payouts set up) asks the office to send it by hand. */
+export async function dispatchWithdrawal(withdrawal) {
   if (withdrawal.status === 'manual') {
     await notifyOffice({
       kind: 'withdrawal.manual',
-      title: `Send ${kesText(amount)} to passenger ${withdrawal.passenger_name}`,
+      title: `Send ${kesText(withdrawal.amount)} to passenger ${withdrawal.passenger_name}`,
       body: `Wallet withdrawal to ${displayPhone(withdrawal.phone)}. Send it by M-Pesa, then record the M-Pesa code.`,
       target: 'withdrawals',
     });

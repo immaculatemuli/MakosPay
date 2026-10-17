@@ -288,19 +288,20 @@ router.get('/reconciliation', async (_req, res) => {
   res.json(await reconcile());
 });
 
-// ---------- Vehicle crew: conductors and drivers ----------
-// Both work the same way: the office creates their sign-in, puts them on one vehicle, and can switch them off
+// ---------- Vehicle crew (conductors and drivers) and stage marshals ----------
+// All work the same way (marshals have no vehicle): the office creates their sign-in, puts them on one vehicle, and can switch them off
 // or delete them (deleted people are no longer listed; see deleteCrewMember).
 
 const CREW = {
   conductor: { path: 'conductors', column: 'conductor_id', label: 'Conductor' },
   driver: { path: 'drivers', column: 'driver_id', label: 'Driver' },
+  marshal: { path: 'marshals', column: null, label: 'Marshal' },
 };
 
 for (const [role, { path, column, label }] of Object.entries(CREW)) {
   const SELECT = `
-    SELECT u.id, u.name, u.phone, u.is_active, u.created_at, v.id AS vehicle_id, v.plate AS vehicle_plate
-    FROM users u LEFT JOIN vehicles v ON v.${column} = u.id
+    SELECT u.id, u.name, u.phone, u.is_active, u.created_at, ${column ? 'v.id AS vehicle_id, v.plate AS vehicle_plate' : 'NULL AS vehicle_id, NULL AS vehicle_plate'}
+    FROM users u ${column ? `LEFT JOIN vehicles v ON v.${column} = u.id` : ''}
     WHERE u.role = '${role}' AND u.phone NOT LIKE 'deleted-%'`;
 
   router.get(`/${path}`, async (_req, res) => {
@@ -325,7 +326,7 @@ for (const [role, { path, column, label }] of Object.entries(CREW)) {
       role,
     );
     if (result.changes === 0) throw notFound(label);
-    if (body.is_active === false) await db.run(`UPDATE vehicles SET ${column} = NULL WHERE ${column} = ?`, userId);
+    if (body.is_active === false && column) await db.run(`UPDATE vehicles SET ${column} = NULL WHERE ${column} = ?`, userId);
     res.json(await db.get(`${SELECT} AND u.id = ?`, userId));
   });
 
@@ -436,6 +437,7 @@ function checkPayoutDetails(v) {
 async function checkVehicleLinks(fields, vehicleId = null) {
   if (fields.route_id != null && !(await getRoute(fields.route_id))) throw notFound('Route');
   for (const [role, { column, label }] of Object.entries(CREW)) {
+    if (!column) continue; // marshals have no vehicle
     const userId = fields[column];
     if (userId == null) continue;
     const person = await db.get('SELECT is_active FROM users WHERE id = ? AND role = ?', userId, role);

@@ -48,6 +48,12 @@ export const config = {
   payoutDailyAt: env.PAYOUT_DAILY_AT ?? '21:00',
   // Kenyan time (HH:MM) of the nightly money check; the office is alerted if anything doesn't add up.
   moneyCheckDailyAt: env.MONEY_CHECK_DAILY_AT ?? '23:00',
+  // Seat bookings are for today only: none are taken from SEAT_BOOKING_CUTOFF until SEAT_BOOKING_OPENS (Kenyan
+  // time), and any paid booking not yet on a car at the cutoff is refunded.
+  seatBookingCutoff: env.SEAT_BOOKING_CUTOFF ?? '22:00',
+  seatBookingOpens: env.SEAT_BOOKING_OPENS ?? '04:00',
+  // Seat bookings one passenger can have waiting at once.
+  maxOpenSeatBookings: num(env.MAX_OPEN_SEAT_BOOKINGS, 3),
 
   // Who moves the M-Pesa money: 'daraja' (Safaricom directly, needs your own Paybill/Till)
   // or 'intasend' (IntaSend's licensed account collects and pays out for you).
@@ -120,6 +126,9 @@ if (!['daraja', 'intasend'].includes(config.paymentProvider)) throw new Error('P
 if (!['sandbox', 'live'].includes(config.intasend.mode)) throw new Error('INTASEND_MODE must be sandbox or live');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.payoutDailyAt)) throw new Error('PAYOUT_DAILY_AT must be HH:MM, e.g. 21:00');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.moneyCheckDailyAt)) throw new Error('MONEY_CHECK_DAILY_AT must be HH:MM, e.g. 23:00');
+for (const key of ['seatBookingCutoff', 'seatBookingOpens']) {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config[key])) throw new Error(`${key} must be HH:MM, e.g. 22:00`);
+}
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.backupDailyAt)) throw new Error('BACKUP_DAILY_AT must be HH:MM, e.g. 03:00');
 if (!['sqlite', 'postgres'].includes(config.dbEngine)) throw new Error('DB_ENGINE must be sqlite or postgres');
 if (!['africastalking', 'log', 'off'].includes(config.sms.provider)) throw new Error('SMS_PROVIDER must be africastalking, log or off');

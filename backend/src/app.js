@@ -10,6 +10,7 @@ import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import bookingRoutes from './routes/booking.js';
 import crewRoutes from './routes/crew.js';
+import marshalRoutes from './routes/marshal.js';
 import mpesaRoutes from './routes/mpesa.js';
 import notificationRoutes from './routes/notifications.js';
 import { payApi, payPage } from './routes/noapp.js';
@@ -100,6 +101,8 @@ export function createApp() {
   app.use('/passenger', authenticate, requireRole('passenger'), passengerRoutes);
   // Conductors and drivers. '/conductor' is the older address, kept for apps installed before drivers existed.
   app.use(['/crew', '/conductor'], authenticate, requireRole('conductor', 'driver'), auditChanges, crewRoutes);
+  // Stage marshals (the office can use the same screens).
+  app.use('/marshal', authenticate, requireRole('marshal', 'admin', 'platform_admin'), auditChanges, marshalRoutes);
   app.use('/notifications', authenticate, notificationRoutes);
   // Passengers without the app: the QR sticker's link opens the pay page, which uses /pay-api.
   app.use(payPage);
