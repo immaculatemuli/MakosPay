@@ -222,6 +222,8 @@ export interface ProblemReport {
   handled_by_name: string | null;
   /** Everything written after the first message, oldest first. */
   messages: ReportMessage[];
+  /** Something here the reader hasn't seen yet (shown once). */
+  has_new?: boolean | number;
   created_at: string;
   updated_at: string;
 }

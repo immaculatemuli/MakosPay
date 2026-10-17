@@ -28,7 +28,7 @@ before(async () => {
 });
 after(() => pool.end());
 
-const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql', '003_arrival_updates.sql', '004_parcels.sql', '005_wallet_bookings.sql', '006_sms_push_reset.sql', '007_report_messages.sql'];
+const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql', '003_arrival_updates.sql', '004_parcels.sql', '005_wallet_bookings.sql', '006_sms_push_reset.sql', '007_report_messages.sql', '008_report_seen.sql'];
 
 test('the migrations apply once; running them again changes nothing', async () => {
   assert.deepEqual(await migrate(pool), MIGRATIONS);

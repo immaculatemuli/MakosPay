@@ -68,7 +68,8 @@ function ReportCard({ report: r, onChanged }: { report: ProblemReport; onChanged
     <div className="card" style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <strong>{REPORT_CATEGORY[r.category]}</strong> <Badge tone={REPORT_STATUS[r.status].tone}>{REPORT_STATUS[r.status].text}</Badge>
+          <strong>{REPORT_CATEGORY[r.category]}</strong> <Badge tone={REPORT_STATUS[r.status].tone}>{REPORT_STATUS[r.status].text}</Badge>{' '}
+          {!!r.has_new && <Badge tone="danger">{r.messages.length ? 'New reply' : 'New'}</Badge>}
           <div className="muted">
             {ROLE_WORD[r.reporter_role] ?? r.reporter_role} {r.reporter_name} · {displayPhone(r.reporter_phone)}
           </div>

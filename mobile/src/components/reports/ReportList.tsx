@@ -1,5 +1,5 @@
 import { router, type Href } from 'expo-router';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { Badge, Button, Card, colors, Empty, ErrorBox, Loading, Muted, Screen } from '@/components/ui';
 import { api } from '@/lib/api';
 import { dateTime } from '@/lib/format';
@@ -21,7 +21,10 @@ export function ReportList({ endpoint, newHref }: { endpoint: string; newHref: H
       {reports.data?.map((r) => (
         <Card key={r.id}>
           <Text style={{ fontWeight: '700', color: colors.text, fontSize: 16 }}>{REPORT_CATEGORY_LABEL[r.category]}</Text>
-          <Badge text={REPORT_STATUS_BADGE[r.status].text} tone={REPORT_STATUS_BADGE[r.status].tone} />
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <Badge text={REPORT_STATUS_BADGE[r.status].text} tone={REPORT_STATUS_BADGE[r.status].tone} />
+            {!!r.has_new && <Badge text="New reply" tone="danger" />}
+          </View>
           <Muted>
             {dateTime(r.created_at)}
             {r.ticket_code ? ` · ticket ${r.ticket_code}${r.plate ? ` on ${r.plate}` : ''}` : ''}
