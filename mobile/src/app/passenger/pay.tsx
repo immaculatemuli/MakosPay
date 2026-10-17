@@ -11,9 +11,11 @@ import type { MpesaResponse, Quote, Trip } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 import { useMpesaPayment } from '@/lib/useMpesaPayment';
 import { MpesaWaiting } from '@/components/MpesaWaiting';
+import { useT } from '@/lib/i18n';
 
 /** After scanning: shows the vehicle, lets the passenger confirm where they get off, then pays from the wallet or by M-Pesa. */
 export default function Pay() {
+  const { t } = useT();
   const { qr } = useLocalSearchParams<{ qr?: string }>();
   const chosen = useChosenStop();
   // Wait until we know the passenger's saved drop-off, then ask for the quote once.
@@ -34,14 +36,14 @@ export default function Pay() {
     if (paidTrip) openTicket(paidTrip, mpesa.state?.wallet_balance, true);
   }, [paidTrip, mpesa.state?.wallet_balance]);
 
-  if (!qr) return <Screen><ErrorBox message="No QR code was scanned." /></Screen>;
+  if (!qr) return <Screen><ErrorBox message={t('No QR code was scanned.')} /></Screen>;
   if (chosen === undefined || (quote.loading && !quote.data)) return <Loading />;
 
   if (!quote.data) {
     return (
       <Screen>
-        <ErrorBox message={quote.error ?? 'Could not read this QR code.'} onRetry={quote.reload} />
-        <Button title="Scan again" icon="qr-code-outline" onPress={() => router.replace('/passenger/scan')} />
+        <ErrorBox message={quote.error ?? t('Could not read this QR code.')} onRetry={quote.reload} />
+        <Button title={t('Scan again')} icon="qr-code-outline" onPress={() => router.replace('/passenger/scan')} />
       </Screen>
     );
   }
@@ -69,7 +71,7 @@ export default function Pay() {
       }
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'FARE_CHANGED' || err.code === 'WRONG_STOP')) {
-        Alert.alert('Please check again', err.message);
+        Alert.alert(t('Please check again'), err.message);
         setPickedStopId(null);
         await quote.reload();
       } else if (err instanceof ApiError && err.code === 'INSUFFICIENT_FUNDS') {
@@ -89,12 +91,12 @@ export default function Pay() {
         <MpesaWaiting
           payment={mpesaPayment}
           timedOut={mpesa.timedOut}
-          successTitle="Paid"
-          successText="Opening your ticket…"
-          waitingText="Your ticket appears as soon as M-Pesa confirms. If you close this screen, it will be under Payments."
+          successTitle={t('Paid')}
+          successText={t('Opening your ticket…')}
+          waitingText={t('Your ticket appears as soon as M-Pesa confirms. If you close this screen, it will be under My trips.')}
         />
-        {mpesaPayment.status === 'failed' && <Button title="Try again" onPress={mpesa.reset} />}
-        <Button title="Close" variant="secondary" onPress={() => router.back()} />
+        {mpesaPayment.status === 'failed' && <Button title={t('Try again')} onPress={mpesa.reset} />}
+        <Button title={t('Close')} variant="secondary" onPress={() => router.back()} />
       </Screen>
     );
   }
@@ -102,24 +104,27 @@ export default function Pay() {
   return (
     <Screen>
       <Card>
-        <Text style={{ fontSize: 13, color: colors.muted }}>Check this is your vehicle</Text>
+        <Text style={{ fontSize: 13, color: colors.muted }}>{t('Check this is your vehicle')}</Text>
         <Text style={{ fontSize: 28, fontWeight: '800', color: colors.text, marginTop: 2 }}>{q.vehicle.plate}</Text>
         {q.vehicle.description && <Text style={{ color: colors.muted, fontSize: 15 }}>{q.vehicle.description}</Text>}
         <View style={{ height: 8 }} />
-        <KeyValue label="Route" value={q.route.name} />
-        <KeyValue label="Starts from" value={q.route.origin} />
-        <KeyValue label="Conductor" value={q.vehicle.conductor_name ?? 'Not listed'} />
+        <KeyValue label={t('Route')} value={q.route.name} />
+        <KeyValue label={t('Starts from')} value={q.route.origin} />
+        <KeyValue label={t('Conductor')} value={q.vehicle.conductor_name ?? t('Not listed')} />
       </Card>
 
       {q.chosen_elsewhere && (
         <Notice>
-          You chose {q.chosen_elsewhere.stop_name} on {q.chosen_elsewhere.route_name}, but this vehicle is on {q.route.name}. Make sure you are in the
-          right vehicle, then choose where you get off below.
+          {t('You chose {stop} on {chosenRoute}, but this vehicle is on {route}. Make sure you are in the right vehicle, then choose where you get off below.', {
+            stop: q.chosen_elsewhere.stop_name,
+            chosenRoute: q.chosen_elsewhere.route_name,
+            route: q.route.name,
+          })}
         </Notice>
       )}
 
       <Chips
-        label="Where are you getting off?"
+        label={t('Where are you getting off?')}
         options={q.route.stops.map((s) => ({ value: s.id as number | null, label: `${s.name} · ${kes(s.app_fare)}` }))}
         value={stopId}
         onChange={setPickedStopId}
@@ -128,32 +133,34 @@ export default function Pay() {
       {stop && (
         <Card>
           <View style={{ alignItems: 'center', marginVertical: 8 }}>
-            <Text style={{ color: colors.muted }}>You pay to {stop.name}</Text>
+            <Text style={{ color: colors.muted }}>{t('You pay to {stop}', { stop: stop.name })}</Text>
             <Text style={{ fontSize: 40, fontWeight: '800', color: colors.text }}>{kes(stop.app_fare)}</Text>
           </View>
-          <KeyValue label="Wallet balance" value={kes(q.wallet_balance)} />
-          {canPay && <KeyValue label="Balance after" value={kes(q.wallet_balance - stop.app_fare)} />}
+          <KeyValue label={t('Wallet balance')} value={kes(q.wallet_balance)} />
+          {canPay && <KeyValue label={t('Balance after')} value={kes(q.wallet_balance - stop.app_fare)} />}
         </Card>
       )}
 
       {q.recent_payment && (
         <Notice>
-          You already paid on this vehicle at {time(q.recent_payment.created_at)} (ticket {q.recent_payment.ticket_code}). Only pay again if you are
-          paying for someone else.
+          {t('You already paid on this vehicle at {time} (ticket {code}). Only pay again if you are paying for someone else.', {
+            time: time(q.recent_payment.created_at),
+            code: q.recent_payment.ticket_code,
+          })}
         </Notice>
       )}
       {payError && <ErrorBox message={payError} />}
 
       {!stop ? (
-        <Button title="Choose where you get off" disabled onPress={() => {}} />
+        <Button title={t('Choose where you get off')} disabled onPress={() => {}} />
       ) : canPay ? (
-        <Button title={`Pay ${kes(stop.app_fare)} from wallet`} icon="checkmark-circle-outline" onPress={() => pay(false)} loading={paying} />
+        <Button title={t('Pay {amount} from wallet', { amount: kes(stop.app_fare) })} icon="checkmark-circle-outline" onPress={() => pay(false)} loading={paying} />
       ) : (
         <>
-          <Notice>Your wallet is {kes(stop.app_fare - q.wallet_balance)} short. Pay this fare with M-Pesa instead.</Notice>
-          <Button title={`Pay ${kes(stop.app_fare)} with M-Pesa`} icon="phone-portrait-outline" onPress={() => pay(true)} loading={paying} />
+          <Notice>{t('Your wallet is {amount} short. Pay this fare with M-Pesa instead.', { amount: kes(stop.app_fare - q.wallet_balance) })}</Notice>
+          <Button title={t('Pay {amount} with M-Pesa', { amount: kes(stop.app_fare) })} icon="phone-portrait-outline" onPress={() => pay(true)} loading={paying} />
           <Button
-            title="Top up wallet instead"
+            title={t('Top up wallet instead')}
             variant="secondary"
             icon="add-circle-outline"
             onPress={() => router.push({ pathname: '/passenger/topup', params: { amount: String(Math.max(stop.app_fare - q.wallet_balance, 10)) } })}
@@ -161,7 +168,7 @@ export default function Pay() {
           />
         </>
       )}
-      <Button title="Cancel" variant="secondary" onPress={() => router.back()} disabled={paying} />
+      <Button title={t('Cancel')} variant="secondary" onPress={() => router.back()} disabled={paying} />
     </Screen>
   );
 }

@@ -12,6 +12,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { useT } from '@/lib/i18n';
 
 export const colors = {
   // Makos Sacco magenta (white text on it is easy to read).
@@ -110,6 +111,7 @@ export function Button({
 
 /** A labelled text box. A password box (secureTextEntry) gets an eye button to show or hide what was typed. */
 export function Field({ label, hint, style, secureTextEntry, ...props }: TextInputProps & { label: string; hint?: string }) {
+  const { t } = useT();
   const [shown, setShown] = useState(false);
   return (
     <View style={styles.field}>
@@ -129,7 +131,7 @@ export function Field({ label, hint, style, secureTextEntry, ...props }: TextInp
             hitSlop={8}
             style={styles.eye}
             accessibilityRole="button"
-            accessibilityLabel={shown ? 'Hide password' : 'Show password'}
+            accessibilityLabel={shown ? t('Hide password') : t('Show password')}
           >
             <Ionicons name={shown ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.muted} />
           </Pressable>
@@ -141,12 +143,13 @@ export function Field({ label, hint, style, secureTextEntry, ...props }: TextInp
 }
 
 export function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useT();
   return (
     <View style={styles.errorBox}>
       <Text style={styles.errorText}>{message}</Text>
       {onRetry && (
         <Pressable onPress={onRetry} hitSlop={8}>
-          <Text style={styles.retry}>Try again</Text>
+          <Text style={styles.retry}>{t('Try again')}</Text>
         </Pressable>
       )}
     </View>

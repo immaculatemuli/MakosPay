@@ -3,13 +3,16 @@ import { Alert, Linking } from 'react-native';
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { displayPhone } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import { PRIVACY_POLICY_URL } from '@/lib/links';
 import { ROLE_LABEL } from '@/lib/types';
+import { LanguageSwitch } from './LanguageSwitch';
 import { Button, Card, ErrorBox, Field, KeyValue, Muted, Notice, Screen, SectionTitle } from './ui';
 
 /** Profile, password change, privacy policy, sign out, and (passengers) fixing their name and deleting the account; shared by all roles. */
 export function AccountScreen({ children }: { children?: ReactNode }) {
   const { user, signOut, changePassword: savePassword, rename } = useAuth();
+  const { t } = useT();
   const [newName, setNewName] = useState(user?.name ?? '');
   const [renaming, setRenaming] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -56,16 +59,16 @@ export function AccountScreen({ children }: { children?: ReactNode }) {
   };
 
   const confirmSignOut = () =>
-    Alert.alert('Sign out?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
+    Alert.alert(t('Sign out?'), undefined, [
+      { text: t('Cancel'), style: 'cancel' },
+      { text: t('Sign out'), style: 'destructive', onPress: () => void signOut() },
     ]);
 
   const deleteAccount = () =>
-    Alert.alert('Delete your account?', 'Your name and phone number are removed and you are signed out. This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('Delete your account?'), t('Your name and phone number are removed and you are signed out. This cannot be undone.'), [
+      { text: t('Cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('Delete'),
         style: 'destructive',
         onPress: async () => {
           setDeleting(true);
@@ -85,21 +88,24 @@ export function AccountScreen({ children }: { children?: ReactNode }) {
   return (
     <Screen>
       {children}
-      <SectionTitle>My account</SectionTitle>
+      <SectionTitle>{t('My account')}</SectionTitle>
       <Card>
-        <KeyValue label="Name" value={user.name} />
-        <KeyValue label="Phone" value={displayPhone(user.phone)} />
-        <KeyValue label="Account type" value={ROLE_LABEL[user.role]} />
+        <KeyValue label={t('Name')} value={user.name} />
+        <KeyValue label={t('Phone')} value={displayPhone(user.phone)} />
+        <KeyValue label={t('Account type')} value={t(ROLE_LABEL[user.role])} />
       </Card>
+
+      <SectionTitle>{t('Language')}</SectionTitle>
+      <LanguageSwitch />
 
       {user.role === 'passenger' && (
         <>
-          <SectionTitle>Change name</SectionTitle>
+          <SectionTitle>{t('Change name')}</SectionTitle>
           {renameError && <ErrorBox message={renameError} />}
-          {renamed && <Notice tone="success">Name saved.</Notice>}
-          <Field label="Full name" value={newName} onChangeText={setNewName} autoComplete="name" />
+          {renamed && <Notice tone="success">{t('Name saved.')}</Notice>}
+          <Field label={t('Full name')} value={newName} onChangeText={setNewName} autoComplete="name" />
           <Button
-            title="Save name"
+            title={t('Save name')}
             variant="secondary"
             onPress={saveName}
             loading={renaming}
@@ -108,24 +114,24 @@ export function AccountScreen({ children }: { children?: ReactNode }) {
         </>
       )}
 
-      <SectionTitle>Change password</SectionTitle>
+      <SectionTitle>{t('Change password')}</SectionTitle>
       {error && <ErrorBox message={error} />}
-      {done && <Notice tone="success">Password changed. Any other phone signed in to this account has been signed out.</Notice>}
-      <Field label="Current password" secureTextEntry value={current} onChangeText={setCurrent} />
-      <Field label="New password" hint="At least 6 characters" secureTextEntry value={next} onChangeText={setNext} />
-      <Button title="Change password" variant="secondary" onPress={changePassword} loading={busy} disabled={!current || next.length < 6} />
+      {done && <Notice tone="success">{t('Password changed. Any other phone signed in to this account has been signed out.')}</Notice>}
+      <Field label={t('Current password')} secureTextEntry value={current} onChangeText={setCurrent} />
+      <Field label={t('New password')} hint={t('At least 6 characters')} secureTextEntry value={next} onChangeText={setNext} />
+      <Button title={t('Change password')} variant="secondary" onPress={changePassword} loading={busy} disabled={!current || next.length < 6} />
 
-      <SectionTitle>Session</SectionTitle>
-      <Button title="Privacy policy" variant="secondary" icon="document-text-outline" onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)} />
-      <Button title="Sign out" variant="danger" icon="log-out-outline" onPress={confirmSignOut} />
+      <SectionTitle>{t('Session')}</SectionTitle>
+      <Button title={t('Privacy policy')} variant="secondary" icon="document-text-outline" onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)} />
+      <Button title={t('Sign out')} variant="danger" icon="log-out-outline" onPress={confirmSignOut} />
 
       {user.role === 'passenger' && (
         <>
-          <SectionTitle>Delete my account</SectionTitle>
-          <Muted>Use any money left in your wallet, or withdraw it to M-Pesa from your Wallet, first. Your past payments are kept for the SACCO’s records, without your name or number.</Muted>
-          <Field label="Your password" secureTextEntry value={deletePassword} onChangeText={setDeletePassword} />
+          <SectionTitle>{t('Delete my account')}</SectionTitle>
+          <Muted>{t('Use any money left in your wallet, or withdraw it to M-Pesa from your Wallet, first. Your past payments are kept for the SACCO’s records, without your name or number.')}</Muted>
+          <Field label={t('Your password')} secureTextEntry value={deletePassword} onChangeText={setDeletePassword} />
           {deleteError && <ErrorBox message={deleteError} />}
-          <Button title="Delete my account" variant="danger" icon="trash-outline" onPress={deleteAccount} loading={deleting} disabled={!deletePassword} />
+          <Button title={t('Delete my account')} variant="danger" icon="trash-outline" onPress={deleteAccount} loading={deleting} disabled={!deletePassword} />
         </>
       )}
     </Screen>

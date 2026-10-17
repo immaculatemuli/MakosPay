@@ -1,4 +1,8 @@
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import { currentLanguage } from './i18n';
+
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_SW = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ago', 'Sep', 'Okt', 'Nov', 'Des'];
+export const monthName = (index: number) => (currentLanguage() === 'sw' ? MONTHS_SW : MONTHS_EN)[index];
 const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 const withCommas = (n: number) => Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -11,7 +15,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 /** Shows server timestamps (UTC) in Kenyan time regardless of the phone's time zone. */
 function nairobiParts(iso: string) {
   const d = new Date(new Date(iso).getTime() + NAIROBI_OFFSET_MS);
-  return { day: d.getUTCDate(), month: MONTHS[d.getUTCMonth()], year: d.getUTCFullYear(), h: pad(d.getUTCHours()), m: pad(d.getUTCMinutes()) };
+  return { day: d.getUTCDate(), month: monthName(d.getUTCMonth()), year: d.getUTCFullYear(), h: pad(d.getUTCHours()), m: pad(d.getUTCMinutes()) };
 }
 
 export function dateTime(iso: string) {
@@ -31,7 +35,7 @@ export function nairobiDate(offsetDays = 0) {
 
 export function prettyDate(ymd: string) {
   const [y, m, d] = ymd.split('-').map(Number);
-  return `${d} ${MONTHS[m - 1]} ${y}`;
+  return `${d} ${monthName(m - 1)} ${y}`;
 }
 
 export const displayPhone = (phone: string | null) => (phone?.startsWith('254') ? `0${phone.slice(3)}` : (phone ?? ''));

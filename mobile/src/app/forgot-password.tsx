@@ -5,6 +5,7 @@ import { AuthForm } from '@/components/AuthForm';
 import { Button, colors, ErrorBox, Field, Muted, Notice } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 
 /**
  * Forgot password: a 6-digit code is sent by SMS to the phone number; with it, a new password is set and the
@@ -12,6 +13,7 @@ import { useAuth } from '@/lib/auth';
  */
 export default function ForgotPassword() {
   const { user, signIn } = useAuth();
+  const { t } = useT();
   const params = useLocalSearchParams<{ phone?: string }>();
   const [phone, setPhone] = useState(params.phone ?? '');
   const [sent, setSent] = useState<string | null>(null);
@@ -48,33 +50,33 @@ export default function ForgotPassword() {
   };
 
   return (
-    <AuthForm subtitle="Set a new password">
+    <AuthForm subtitle={t('Set a new password')}>
       {error && <ErrorBox message={error} />}
       {!sent ? (
         <>
-          <Muted>Enter your phone number. We send a 6-digit code to it by SMS.</Muted>
-          <Field label="Phone number" placeholder="07XX XXX XXX" keyboardType="phone-pad" autoComplete="tel" value={phone} onChangeText={setPhone} />
-          <Button title="Send me a code" icon="chatbubble-ellipses-outline" onPress={sendCode} loading={busy} disabled={phone.trim().length < 9} />
+          <Muted>{t('Enter your phone number. We send a 6-digit code to it by SMS.')}</Muted>
+          <Field label={t('Phone number')} placeholder="07XX XXX XXX" keyboardType="phone-pad" autoComplete="tel" value={phone} onChangeText={setPhone} />
+          <Button title={t('Send me a code')} icon="chatbubble-ellipses-outline" onPress={sendCode} loading={busy} disabled={phone.trim().length < 9} />
         </>
       ) : (
         <>
           <Notice tone="success">{sent}</Notice>
           <Field
-            label="Code from the SMS"
+            label={t('Code from the SMS')}
             keyboardType="number-pad"
             maxLength={6}
             value={code}
-            onChangeText={(t) => setCode(t.replace(/\D/g, ''))}
+            onChangeText={(typed) => setCode(typed.replace(/\D/g, ''))}
             style={{ fontSize: 22, letterSpacing: 6, textAlign: 'center' }}
           />
-          <Field label="New password" hint="At least 6 characters" secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
-          <Button title="Set new password and sign in" onPress={setNew} loading={busy} disabled={code.length !== 6 || password.length < 6} />
-          <Button title="Send a new code" variant="secondary" onPress={sendCode} disabled={busy} />
+          <Field label={t('New password')} hint={t('At least 6 characters')} secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
+          <Button title={t('Set new password and sign in')} onPress={setNew} loading={busy} disabled={code.length !== 6 || password.length < 6} />
+          <Button title={t('Send a new code')} variant="secondary" onPress={sendCode} disabled={busy} />
         </>
       )}
       <Link href="/sign-in" style={{ textAlign: 'center', marginTop: 12, padding: 8 }}>
         <Text style={{ color: colors.muted }}>
-          Remembered it? <Text style={{ color: colors.primary, fontWeight: '700' }}>Sign in</Text>
+          {t('Remembered it?')} <Text style={{ color: colors.primary, fontWeight: '700' }}>{t('Sign in')}</Text>
         </Text>
       </Link>
     </AuthForm>

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 import { Button, Card, Chips, ErrorBox, Field, KeyValue, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { REPORT_CATEGORY_LABEL, type ReportCategory } from '@/lib/types';
 import { type ChosenPhoto, PhotoPicker } from './Photo';
 
@@ -13,6 +14,7 @@ const CATEGORIES = Object.entries(REPORT_CATEGORY_LABEL).map(([value, label]) =>
  * Passengers send to /passenger/reports, crew to /crew/reports; `listHref` is where their reports are listed.
  */
 export function ReportForm({ endpoint, listHref }: { endpoint: string; listHref: Href }) {
+  const { t } = useT();
   const p = useLocalSearchParams<{ trip_id?: string; ticket?: string; plate?: string }>();
   const [category, setCategory] = useState<ReportCategory>(p.trip_id ? 'payment_problem' : 'other');
   const [message, setMessage] = useState('');
@@ -29,8 +31,8 @@ export function ReportForm({ endpoint, listHref }: { endpoint: string; listHref:
         body: { category, message: message.trim(), ...(p.trip_id && { trip_id: Number(p.trip_id) }), ...(photo && { photo: photo.base64 }) },
         timeoutMs: photo ? 60_000 : undefined,
       });
-      Alert.alert('Report sent', 'The SACCO office will look into it. You can see their reply under My reports.', [
-        { text: 'OK', onPress: () => router.replace(listHref) },
+      Alert.alert(t('Report sent'), t('The SACCO office will look into it. You can see their reply under My reports.'), [
+        { text: t('OK'), onPress: () => router.replace(listHref) },
       ]);
     } catch (err) {
       setError(errorMessage(err));
@@ -43,23 +45,23 @@ export function ReportForm({ endpoint, listHref }: { endpoint: string; listHref:
     <Screen>
       {p.trip_id && (
         <Card>
-          <KeyValue label="About payment" value={`${p.ticket ?? ''}${p.plate ? ` · ${p.plate}` : ''}`} />
+          <KeyValue label={t('About payment')} value={`${p.ticket ?? ''}${p.plate ? ` · ${p.plate}` : ''}`} />
         </Card>
       )}
-      <Chips label="What went wrong?" options={CATEGORIES} value={category} onChange={setCategory} />
+      <Chips label={t('What went wrong?')} options={CATEGORIES.map((c) => ({ ...c, label: t(c.label) }))} value={category} onChange={setCategory} />
       <Field
-        label="Tell us what happened"
+        label={t('Tell us what happened')}
         value={message}
         onChangeText={setMessage}
         multiline
         style={{ minHeight: 110, textAlignVertical: 'top' }}
-        hint="For example: which vehicle, what time, and how much was charged"
+        hint={t('For example: which vehicle, what time, and how much was charged')}
       />
-      <Muted>A photo helps, e.g. a screenshot of the M-Pesa message (optional).</Muted>
+      <Muted>{t('A photo helps, e.g. a screenshot of the M-Pesa message (optional).')}</Muted>
       <PhotoPicker photo={photo} onChange={setPhoto} />
       {error && <ErrorBox message={error} />}
-      <Button title="Send report" icon="send-outline" onPress={send} loading={busy} disabled={message.trim().length < 5} />
-      <Muted center>Never share an M-Pesa PIN or FarePay password. The SACCO office will never ask for them.</Muted>
+      <Button title={t('Send report')} icon="send-outline" onPress={send} loading={busy} disabled={message.trim().length < 5} />
+      <Muted center>{t('Never share an M-Pesa PIN or FarePay password. The SACCO office will never ask for them.')}</Muted>
     </Screen>
   );
 }

@@ -7,17 +7,17 @@ import { WhereGoing } from '@/components/WhereGoing';
 import { Badge, colors, Empty, ErrorBox, List, ListRow, Loading, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useChosenStop } from '@/lib/chosenRoute';
-import { dateTime, kes } from '@/lib/format';
+import { dateTime, kes, monthName } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import { saveTickets } from '@/lib/savedTickets';
 import { openTicket } from '@/lib/ticket';
 import type { Paged, PassengerSummary, Trip } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 /** Passenger home: balance, Add money / Pay fare, trips and spending, where they're going, recent payments. */
 export default function PassengerHome() {
   const { user } = useAuth();
+  const { t } = useT();
   const summary = useApi<PassengerSummary>('/passenger/summary');
   const recent = useApi<Paged<Trip>>('/passenger/trips?limit=3');
   const [pickKey, setPickKey] = useState(0);
@@ -38,16 +38,16 @@ export default function PassengerHome() {
   return (
     <Screen refreshing={summary.refreshing} onRefresh={refresh}>
       <Hero name={user?.name} subtitle={s?.sacco_name}>
-        <Text style={styles.balanceLabel}>Wallet balance</Text>
+        <Text style={styles.balanceLabel}>{t('Wallet balance')}</Text>
         <Text style={styles.balance}>{s ? kes(s.balance) : '—'}</Text>
         <View style={styles.heroButtons}>
           <Pressable style={({ pressed }) => [styles.heroButton, styles.heroButtonSolid, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/topup')}>
             <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-            <Text style={[styles.heroButtonText, { color: colors.primary }]}>Add money</Text>
+            <Text style={[styles.heroButtonText, { color: colors.primary }]}>{t('Add money')}</Text>
           </Pressable>
           <Pressable style={({ pressed }) => [styles.heroButton, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/scan')}>
             <Ionicons name="qr-code-outline" size={18} color="#fff" />
-            <Text style={styles.heroButtonText}>Pay fare</Text>
+            <Text style={styles.heroButtonText}>{t('Pay fare')}</Text>
           </Pressable>
         </View>
       </Hero>
@@ -57,40 +57,40 @@ export default function PassengerHome() {
         <View style={styles.stats}>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{kes(s.this_month.spent)}</Text>
-            <Text style={styles.statLabel}>Spent this month</Text>
+            <Text style={styles.statLabel}>{t('Spent this month')}</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{s.since_joining.trips}</Text>
-            <Text style={styles.statLabel}>Trips since {joined ? `${MONTHS[joined.getMonth()]} ${joined.getFullYear()}` : 'joining'}</Text>
+            <Text style={styles.statLabel}>{joined ? t('Trips since {when}', { when: `${monthName(joined.getMonth())} ${joined.getFullYear()}` }) : t('Trips since joining')}</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{s.this_month.trips}</Text>
-            <Text style={styles.statLabel}>Trips this month</Text>
+            <Text style={styles.statLabel}>{t('Trips this month')}</Text>
           </View>
         </View>
       )}
 
       <List>
-        <ListRow icon="people-outline" title="Book a seat" subtitle="On the next car loading at the stage" onPress={() => router.push('/passenger/book')} />
-        <ListRow icon="cube-outline" title="Track a parcel" subtitle="With the tracking code from the receipt" onPress={() => router.push('/passenger/parcel')} />
+        <ListRow icon="people-outline" title={t('Book a seat')} subtitle={t('On the next car loading at the stage')} onPress={() => router.push('/passenger/book')} />
+        <ListRow icon="cube-outline" title={t('Track a parcel')} subtitle={t('With the tracking code from the receipt')} onPress={() => router.push('/passenger/parcel')} />
       </List>
 
-      <SectionTitle>Where are you going?</SectionTitle>
+      <SectionTitle>{t('Where are you going?')}</SectionTitle>
       <WhereGoing chosen={chosen} saved={s?.saved ?? []} frequent={s?.frequent ?? []} onChosen={() => setPickKey((k) => k + 1)} />
 
-      <SectionTitle>Recent trips</SectionTitle>
-      {recent.data?.items.length === 0 && <Empty text="No trips yet. Scan the QR code inside the vehicle to pay." />}
+      <SectionTitle>{t('Recent trips')}</SectionTitle>
+      {recent.data?.items.length === 0 && <Empty text={t('No trips yet. Scan the QR code inside the vehicle to pay.')} />}
       {!!recent.data?.items.length && (
         <List>
-          {recent.data.items.map((t) => (
+          {recent.data.items.map((trip) => (
             <ListRow
-              key={t.id}
+              key={trip.id}
               icon="bus-outline"
-              title={`${t.plate} · to ${t.stop_name ?? t.route_name}`}
-              subtitle={dateTime(t.created_at)}
-              right={kes(t.fare)}
-              rightSub={t.status === 'refunded' ? <Badge text="Refunded" tone="danger" /> : undefined}
-              onPress={() => openTicket(t)}
+              title={`${trip.plate} · ${t('to {place}', { place: trip.stop_name ?? trip.route_name })}`}
+              subtitle={dateTime(trip.created_at)}
+              right={kes(trip.fare)}
+              rightSub={trip.status === 'refunded' ? <Badge text={t('Refunded')} tone="danger" /> : undefined}
+              onPress={() => openTicket(trip)}
             />
           ))}
         </List>
