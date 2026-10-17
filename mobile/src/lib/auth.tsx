@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, configureAuth, loadApiUrl } from './api';
 import { registerForPush, unregisterPush } from './push';
+import { forgetSavedTickets, setTicketOwner } from './savedTickets';
 import type { User } from './types';
 
 // Older versions kept the sign-in on the phone; it is deleted at start-up. Now a sign-in lasts only while
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Kept in memory only, never saved on the phone. Signed in: this phone is registered for push notifications.
   const save = useCallback(async (next: Session | null) => {
     configureAuth(next?.token ?? null);
+    setTicketOwner(next?.user.role === 'passenger' ? next.user.phone : null);
     setSession(next);
     if (next) {
       await SecureStore.setItemAsync(LAST_PHONE_KEY, next.user.phone).catch(() => {});
@@ -45,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // While still signed in, stop this phone getting the person's push notifications; then forget the sign-in.
   const signOut = useCallback(async () => {
     await unregisterPush();
+    forgetSavedTickets();
     await save(null);
   }, [save]);
 
