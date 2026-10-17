@@ -71,7 +71,7 @@ export default function PassengerHome() {
       )}
 
       <List>
-        <ListRow icon="people-outline" title={t('Book a seat')} subtitle={t('On the next car loading at the stage')} onPress={() => router.push('/passenger/book')} />
+        <ListRow icon="people-outline" title={t('Book a seat')} subtitle={t('From anywhere: at the stage or on the road')} onPress={() => router.push('/passenger/book')} />
         <ListRow icon="cube-outline" title={t('Track a parcel')} subtitle={t('With the tracking code from the receipt')} onPress={() => router.push('/passenger/parcel')} />
       </List>
 

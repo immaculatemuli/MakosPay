@@ -167,3 +167,4 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
 .trip li.done::before { background: var(--brand); border-color: var(--brand); }
 .trip .stop-name { font-weight: 600; }
 .trip .stop-time { white-space: nowrap; }
+.booking .center { text-align: center; }

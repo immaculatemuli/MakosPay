@@ -275,6 +275,21 @@ test('a pickup the car never made goes back to the queue when its trip ends', as
   await api('POST', `/passenger/seats/${r.body.id}/cancel`, { token: s.p3.token });
 });
 
+test('the website books without signing in: M-Pesa to the number given, kept by its link', async () => {
+  const r = await api('POST', '/book-api/seats', {
+    body: { route_id: s.route.id, pickup_stop_id: s.juja.id, stop_id: s.machakos.id, seats: 1, expected_fare: 400, phone: '0755123456', idempotency_key: randomUUID() },
+  });
+  assert.equal(r.status, 202, JSON.stringify(r.body));
+  assert.equal(r.body.status, 'queued', 'paid (test M-Pesa)');
+  assert.ok(r.body.token);
+  const seen = (await api('GET', `/book-api/seats/${r.body.token}`)).body;
+  assert.equal(seen.pickup.name, 'Juja');
+  assert.equal((await api('POST', `/book-api/seats/${r.body.token}/here`)).status, 200);
+  const cancelled = (await api('POST', `/book-api/seats/${r.body.token}/cancel`)).body;
+  assert.equal(cancelled.refund_to, 'mpesa');
+  assert.equal((await api('GET', '/book-api/seats/not-a-token')).status, 404);
+});
+
 test('the money check adds up after all of it', async () => {
   const r = (await api('GET', '/admin/reconciliation', { token: s.admin })).body;
   assert.equal(r.all_ok, true, JSON.stringify(r.checks.filter((c) => !c.ok)));

@@ -498,6 +498,58 @@ export interface Booking {
   wallet_balance?: number;
 }
 
+/** Routes for booking a seat from anywhere: stops in order with fares, and seats already queued at the stage. */
+export interface SeatRoutes {
+  open: boolean;
+  opens_at: string;
+  closes_at: string;
+  routes: {
+    id: number;
+    name: string;
+    origin: string;
+    stops: { id: number; name: string; fare: number; position: number }[];
+    seats_waiting: number;
+    cars_loading: number;
+  }[];
+}
+
+/** A person on a car's crew, to call. */
+export interface CrewContact {
+  name: string;
+  phone: string;
+}
+
+/** A seat booked from anywhere: waiting in the stage queue (or on the road), then put on a car. */
+export interface SeatBooking {
+  id: number;
+  code: string;
+  status: 'paying' | 'queued' | 'assigned' | 'boarded' | 'cancelled' | 'failed';
+  route: { id: number; name: string; origin: string };
+  pickup: { stop_id: number | null; name: string; at_stage: boolean };
+  stop_name: string;
+  seats: number;
+  fare_each: number;
+  amount: number;
+  pay_with: 'mpesa' | 'wallet';
+  booked_at: string;
+  /** How many are ahead in the stage queue (0 = next); null when not waiting at the stage. */
+  place_in_queue: number | null;
+  passenger_here_at: string | null;
+  car: {
+    plate: string;
+    description: string | null;
+    status: 'loading' | 'departed' | 'finished';
+    departed_at: string | null;
+    driver: CrewContact | null;
+    conductor: CrewContact | null;
+  } | null;
+  boarded_at: string | null;
+  reason: string | null;
+  refund_to: 'mpesa' | 'wallet' | null;
+  can_cancel: boolean;
+  wallet_balance?: number;
+}
+
 /** Where a parcel is (public: no phone numbers, fee or collection code). */
 export interface ParcelTracking {
   tracking_code: string;
