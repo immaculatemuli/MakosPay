@@ -29,6 +29,7 @@ const LABELS: [RegExp, string][] = [
   [/^payout\.failed$/, 'M-Pesa rejected a payout'],
   [/^payout\.daily_run$/, 'Daily owner payouts ran'],
   [/^account\.delete$/, 'A passenger deleted their account'],
+  [/^account\.rename$/, 'A passenger changed their name'],
 ];
 
 export const auditLabel = (action: string) => LABELS.find(([re]) => re.test(action))?.[1] ?? action;

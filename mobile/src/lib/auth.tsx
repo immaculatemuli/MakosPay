@@ -24,6 +24,8 @@ interface AuthContextValue {
   signIn: (phone: string, password: string) => Promise<void>;
   register: (name: string, phone: string, password: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** Passengers: corrects their name. */
+  rename: (name: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -88,9 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [save],
   );
 
+  const rename = useCallback(async (name: string) => {
+    const res = await api<{ user: User }>('/auth/me', { method: 'PATCH', body: { name } });
+    setSession((current) => (current ? { ...current, user: res.user } : current));
+  }, []);
+
   const value = useMemo(
-    () => ({ user: session?.user ?? null, loading, signIn, register, changePassword, signOut }),
-    [session, loading, signIn, register, changePassword, signOut],
+    () => ({ user: session?.user ?? null, loading, signIn, register, changePassword, rename, signOut }),
+    [session, loading, signIn, register, changePassword, rename, signOut],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
