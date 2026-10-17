@@ -25,7 +25,7 @@ import {
 } from '../services/routes.js';
 import { officeTrip, officeTrips } from '../services/bookings.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
-import { officeReply, REPORT_SELECT, replySchema, updateReport, withMessages } from '../services/reports.js';
+import { officeReply, officeReports, replySchema, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
 import { createUser, deleteCrewMember, resetPassword } from '../services/users.js';
 import { nairobiDayRange, nairobiToday, newQrToken } from '../util.js';
@@ -108,8 +108,7 @@ router.post('/payments/:id/refund', async (req, res) => {
 // Reports, newest first, with their conversations; ?status=open|in_progress|resolved to filter.
 router.get('/reports', async (req, res) => {
   const { status } = parse(z.object({ status: z.enum(['open', 'in_progress', 'resolved']).optional() }), req.query);
-  const rows = await db.all(`${REPORT_SELECT} WHERE (CAST(? AS TEXT) IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 200`, status ?? null, status ?? null);
-  res.json(await withMessages(rows, { forOffice: true }));
+  res.json(await officeReports(status));
 });
 
 // The office writes to the reporter on their report.

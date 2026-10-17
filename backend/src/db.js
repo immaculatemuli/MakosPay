@@ -536,6 +536,15 @@ SELECT id, handled_by, 1, office_note, updated_at FROM reports WHERE office_note
 `);
 }
 
+// When each side last looked at a report (the same as migrations/008_report_seen.sql for PostgreSQL).
+if (!hasColumn('reports', 'office_seen_at')) {
+  db.exec(`
+ALTER TABLE reports ADD COLUMN reporter_seen_at TEXT;
+ALTER TABLE reports ADD COLUMN office_seen_at TEXT;
+UPDATE reports SET reporter_seen_at = ${NOW}, office_seen_at = ${NOW};
+`);
+}
+
 /**
  * Runs fn inside a write transaction. fn must be synchronous (no await inside),
  * which together with node:sqlite's synchronous API makes it atomic.

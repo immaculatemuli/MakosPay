@@ -88,3 +88,23 @@ test("nobody can write on someone else's report, or an empty message", async () 
   assert.equal((await api('POST', `/admin/reports/999/messages`, { token: s.admin, body: { message: 'Hi' } })).status, 404);
   assert.equal((await api('POST', `/admin/reports/${s.report.id}/messages`, { token: s.passenger, body: { message: 'Hi' } })).status, 403);
 });
+
+test('"New reply" shows once for the side that has not seen the latest message', async () => {
+  const r = (await api('POST', '/passenger/reports', { token: s.other, body: { category: 'other', message: 'Ticket code not showing' } })).body;
+  const officeView = async () => (await api('GET', '/admin/reports', { token: s.admin })).body.find((x) => x.id === r.id);
+  const mine = async () => (await api('GET', '/passenger/reports', { token: s.other })).body.find((x) => x.id === r.id);
+
+  assert.equal(Boolean((await officeView()).has_new), true, 'a new report is new to the office');
+  assert.equal(Boolean((await officeView()).has_new), false, 'then seen');
+  assert.equal(Boolean((await mine()).has_new), false, 'nothing new for the passenger yet');
+
+  await api('POST', `/admin/reports/${r.id}/messages`, { token: s.admin, body: { message: 'Try pulling down to refresh' } });
+  assert.equal(Boolean((await officeView()).has_new), false, 'the office wrote it, so not new to the office');
+  assert.equal(Boolean((await mine()).has_new), true, 'new reply for the passenger');
+  assert.equal(Boolean((await mine()).has_new), false, 'then seen');
+
+  await api('POST', `/passenger/reports/${r.id}/messages`, { token: s.other, body: { message: 'It works now' } });
+  assert.equal(Boolean((await mine()).has_new), false);
+  assert.equal(Boolean((await officeView()).has_new), true, 'new reply for the office');
+  assert.equal((await mine()).office_seen_at, undefined, 'the passenger does not see office details');
+});

@@ -41,7 +41,10 @@ export default function OfficeReports() {
       {reports.data?.map((r) => (
         <Card key={r.id}>
           <Text style={{ fontWeight: '700', fontSize: 16, color: colors.text }}>{REPORT_CATEGORY_LABEL[r.category]}</Text>
-          <Badge text={REPORT_STATUS_BADGE[r.status].text} tone={REPORT_STATUS_BADGE[r.status].tone} />
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <Badge text={REPORT_STATUS_BADGE[r.status].text} tone={REPORT_STATUS_BADGE[r.status].tone} />
+            {!!r.has_new && <Badge text={r.messages.length ? 'New reply' : 'New'} tone="danger" />}
+          </View>
           <Muted>
             {r.reporter_name}
             {r.reporter_role ? ` (${ROLE_LABEL[r.reporter_role]})` : ''} · {displayPhone(r.reporter_phone ?? null)} · {dateTime(r.created_at)}

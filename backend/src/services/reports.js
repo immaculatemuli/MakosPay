@@ -50,12 +50,35 @@ export async function withMessages(rows, { forOffice = false } = {}) {
 export const getReport = async (id, options) => (await withMessages([await db.get(`${REPORT_SELECT} WHERE r.id = ?`, id)], options))[0];
 
 // What the reporter sees of their own report: not who in the office handled it.
-const forReporter = ({ reporter_phone, handled_by, handled_by_name, ...r }) => r;
+const forReporter = ({ reporter_phone, handled_by, handled_by_name, office_seen_at, ...r }) => r;
 
-/** One person's own reports, newest first, with their conversations (for the passenger and crew apps). */
+// `has_new`: something the reader hasn't seen yet. For the reporter, an office reply since they last looked;
+// for the office, a report nobody in the office has looked at, or a reporter's message since they did.
+const NEW_FOR_REPORTER = `EXISTS (SELECT 1 FROM report_messages m WHERE m.report_id = r.id AND m.from_office = TRUE
+  AND (r.reporter_seen_at IS NULL OR m.created_at > r.reporter_seen_at)) AS has_new`;
+const NEW_FOR_OFFICE = `(r.office_seen_at IS NULL OR EXISTS (SELECT 1 FROM report_messages m WHERE m.report_id = r.id
+  AND m.from_office = FALSE AND m.created_at > r.office_seen_at)) AS has_new`;
+const withNew = (expression) => REPORT_SELECT.replace('SELECT r.*,', `SELECT r.*, ${expression},`);
+
+/**
+ * One person's own reports, newest first, with their conversations (for the passenger and crew apps).
+ * Looking counts as seeing them: `has_new` shows this once, then the reports count as seen.
+ */
 export async function myReports(userId) {
-  const rows = await db.all(`${REPORT_SELECT} WHERE r.reporter_id = ? ORDER BY r.id DESC LIMIT 50`, userId);
+  const rows = await db.all(`${withNew(NEW_FOR_REPORTER)} WHERE r.reporter_id = ? ORDER BY r.id DESC LIMIT 50`, userId);
+  if (rows.length) await db.run(`UPDATE reports SET reporter_seen_at = ${NOW} WHERE reporter_id = ?`, userId);
   return withMessages(rows.map(forReporter));
+}
+
+/** The office's list (optionally one status), newest first, with conversations; the reports shown count as seen. */
+export async function officeReports(status) {
+  const rows = await db.all(
+    `${withNew(NEW_FOR_OFFICE)} WHERE (CAST(? AS TEXT) IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 200`,
+    status ?? null,
+    status ?? null,
+  );
+  if (rows.length) await db.run(`UPDATE reports SET office_seen_at = ${NOW} WHERE id IN (${rows.map(() => '?').join(', ')})`, ...rows.map((r) => r.id));
+  return withMessages(rows, { forOffice: true });
 }
 
 const preview = (text) => (text.length > 140 ? `${text.slice(0, 140)}…` : text);
@@ -68,7 +91,10 @@ export async function reporterReply(user, reportId, { message }) {
   const recent = (await db.get('SELECT COUNT(*) AS n FROM report_messages WHERE sender_id = ? AND created_at >= ?', user.id, since)).n;
   if (recent >= MAX_REPLIES_PER_DAY) throw new HttpError(429, 'TOO_MANY_MESSAGES', 'You have sent many messages today. Please wait for the SACCO office to reply.');
   await db.run('INSERT INTO report_messages (report_id, sender_id, from_office, message) VALUES (?, ?, FALSE, ?)', reportId, user.id, message);
-  await db.run(`UPDATE reports SET status = CASE WHEN status = 'resolved' THEN 'open' ELSE status END, updated_at = ${NOW} WHERE id = ?`, reportId);
+  await db.run(
+    `UPDATE reports SET status = CASE WHEN status = 'resolved' THEN 'open' ELSE status END, reporter_seen_at = ${NOW}, updated_at = ${NOW} WHERE id = ?`,
+    reportId,
+  );
   await notifyOffice({
     kind: 'report.reply',
     title: `${user.name} (${ROLE_WORD[user.role] ?? 'reporter'}) wrote on their report${report.status === 'resolved' ? ': opened again' : ''}`,
@@ -83,7 +109,7 @@ export async function officeReply(officeUserId, reportId, { message }) {
   const report = await db.get('SELECT id, reporter_id FROM reports WHERE id = ?', reportId);
   if (!report) throw notFound('Report');
   await db.run('INSERT INTO report_messages (report_id, sender_id, from_office, message) VALUES (?, ?, TRUE, ?)', reportId, officeUserId, message);
-  await db.run(`UPDATE reports SET handled_by = ?, updated_at = ${NOW} WHERE id = ?`, officeUserId, reportId);
+  await db.run(`UPDATE reports SET handled_by = ?, office_seen_at = ${NOW}, updated_at = ${NOW} WHERE id = ?`, officeUserId, reportId);
   await notify([report.reporter_id], { kind: 'report.updated', title: 'The SACCO office replied to your report', body: preview(message), target: 'reports' });
   return getReport(reportId, { forOffice: true });
 }
