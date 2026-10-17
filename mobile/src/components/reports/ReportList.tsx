@@ -32,9 +32,14 @@ export function ReportList({ endpoint, newHref }: { endpoint: string; newHref: H
           <Conversation
             report={r}
             side="reporter"
+            photosAt={endpoint}
             placeholder={r.status === 'resolved' ? 'Still a problem? Write here to open it again' : 'Write more to the SACCO office'}
-            onSend={async (message) => {
-              await api(`${endpoint}/${r.id}/messages`, { method: 'POST', body: { message } });
+            onSend={async (message, photo) => {
+              await api(`${endpoint}/${r.id}/messages`, {
+                method: 'POST',
+                body: { message, ...(photo && { photo: photo.base64 }) },
+                timeoutMs: photo ? 60_000 : undefined,
+              });
               await reports.reload();
             }}
           />

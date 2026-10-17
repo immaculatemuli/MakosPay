@@ -220,6 +220,8 @@ export interface ProblemReport {
   reporter_phone: string;
   reporter_role: Role;
   handled_by_name: string | null;
+  /** The photo on the first message, if any. */
+  photo_id: number | null;
   /** Everything written after the first message, oldest first. */
   messages: ReportMessage[];
   /** Something here the reader hasn't seen yet (shown once). */
@@ -234,6 +236,7 @@ export interface ReportMessage {
   from_office: boolean | number;
   message: string;
   sender_name: string | null;
+  photo_id: number | null;
   created_at: string;
 }
 

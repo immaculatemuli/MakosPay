@@ -54,11 +54,15 @@ export function configureAuth(token: string | null, handler?: () => void) {
   if (handler) onUnauthorized = handler;
 }
 
+/** What a picture from the server (e.g. a report photo) needs to be allowed to load. */
+export const authHeaders = (): Record<string, string> => (authToken ? { Authorization: `Bearer ${authToken}` } : {});
+
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-export async function api<T>(path: string, options: { method?: Method; body?: unknown } = {}): Promise<T> {
+/** `timeoutMs`: how long to wait for the server (longer for sending a photo on a slow network). */
+export async function api<T>(path: string, options: { method?: Method; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
   let res: Response;
   try {
     res = await fetch(apiUrl + path, {

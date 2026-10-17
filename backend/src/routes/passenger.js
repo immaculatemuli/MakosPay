@@ -7,7 +7,7 @@ import { config } from '../config.js';
 import { HttpError } from '../errors.js';
 import { cancelPassengerBooking, MAX_SEATS_PER_BOOKING, passengerBooking, passengerBookings, routesForBooking, startBooking } from '../services/bookings.js';
 import { getUserPayment, startFarePayment, startTopup } from '../services/payments.js';
-import { fileReport, myReports, replySchema, reporterReply, reportSchema } from '../services/reports.js';
+import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { listRoutes, publicFareChanges } from '../services/routes.js';
 import { getBalance } from '../services/wallet.js';
 import { requestWithdrawal } from '../services/withdrawals.js';
@@ -90,6 +90,12 @@ router.post('/reports', async (req, res) => {
 
 router.get('/reports', async (req, res) => {
   res.json(await myReports(req.user.id));
+});
+
+// A photo on one of your own reports.
+router.get('/reports/:id/photos/:photoId', async (req, res) => {
+  const photo = await getPhoto(parse(id, req.params.id), parse(id, req.params.photoId), { reporterId: req.user.id });
+  sendPhoto(res, photo);
 });
 
 // Writing more on one of your own reports (opens it again if it was resolved).

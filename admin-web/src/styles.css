@@ -118,6 +118,7 @@ tr.clickable:hover td { background: #fafafa; }
 .bubble .who { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
 .bubble.office .who { color: var(--brand-dark); }
 .bubble p { margin: 0; white-space: pre-wrap; }
+.report-photo { display: block; max-width: 260px; max-height: 260px; border-radius: 8px; margin-top: 6px; background: var(--border); }
 .reply { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .reply textarea { flex: 1; min-width: 220px; }
 .kv span:first-child { color: var(--muted); }
