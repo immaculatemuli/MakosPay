@@ -545,6 +545,19 @@ UPDATE reports SET reporter_seen_at = ${NOW}, office_seen_at = ${NOW};
 `);
 }
 
+// Photos on problem reports (the same as migrations/009_report_photos.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS report_photos (
+  id          INTEGER PRIMARY KEY,
+  report_id   INTEGER NOT NULL REFERENCES reports(id),
+  message_id  INTEGER REFERENCES report_messages(id),
+  mime_type   TEXT NOT NULL CHECK (mime_type IN ('image/jpeg', 'image/png', 'image/webp')),
+  data        BLOB NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_report_photos_report ON report_photos(report_id);
+`);
+
 /**
  * Runs fn inside a write transaction. fn must be synchronous (no await inside),
  * which together with node:sqlite's synchronous API makes it atomic.

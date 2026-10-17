@@ -6,7 +6,7 @@ import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, startLoading } from '../services/bookings.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
-import { fileReport, myReports, replySchema, reporterReply, reportSchema } from '../services/reports.js';
+import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
 import { TRIP_SELECT } from '../services/trips.js';
 import { maskPhone, nairobiDayRange, nairobiToday } from '../util.js';
@@ -80,6 +80,12 @@ router.post('/reports', async (req, res) => {
 
 router.get('/reports', async (req, res) => {
   res.json(await myReports(req.user.id));
+});
+
+// A photo on one of your own reports.
+router.get('/reports/:id/photos/:photoId', async (req, res) => {
+  const photo = await getPhoto(parse(id, req.params.id), parse(id, req.params.photoId), { reporterId: req.user.id });
+  sendPhoto(res, photo);
 });
 
 // Writing more on one of your own reports (opens it again if it was resolved).

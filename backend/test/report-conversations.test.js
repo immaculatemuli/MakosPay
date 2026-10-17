@@ -108,3 +108,44 @@ test('"New reply" shows once for the side that has not seen the latest message',
   assert.equal(Boolean((await officeView()).has_new), true, 'new reply for the office');
   assert.equal((await mine()).office_seen_at, undefined, 'the passenger does not see office details');
 });
+
+// A real 1x1 PNG picture.
+const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const rawGet = async (path, token) => {
+  const res = await fetch(base + path, { headers: { Authorization: `Bearer ${token}` } });
+  return { status: res.status, type: res.headers.get('content-type'), bytes: Buffer.from(await res.arrayBuffer()) };
+};
+
+test('a report and a reply can carry a photo, which only the reporter and the office can open', async () => {
+  const r = await api('POST', '/passenger/reports', { token: s.passenger, body: { category: 'duplicate_charge', message: 'Charged twice, screenshot attached', photo: PNG } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.ok(r.body.photo_id, 'the first message has the photo');
+
+  const reply = await api('POST', `/passenger/reports/${r.body.id}/messages`, { token: s.passenger, body: { photo: PNG } });
+  assert.equal(reply.status, 201, 'a photo alone is a reply');
+  const [msg] = reply.body.messages;
+  assert.equal(msg.message, '');
+  assert.ok(msg.photo_id);
+
+  const mine = await rawGet(`/passenger/reports/${r.body.id}/photos/${r.body.photo_id}`, s.passenger);
+  assert.equal(mine.status, 200);
+  assert.equal(mine.type, 'image/png');
+  assert.deepEqual(mine.bytes, Buffer.from(PNG, 'base64'));
+  assert.equal((await rawGet(`/admin/reports/${r.body.id}/photos/${msg.photo_id}`, s.admin)).status, 200, 'the office sees it');
+  assert.equal((await rawGet(`/passenger/reports/${r.body.id}/photos/${r.body.photo_id}`, s.other)).status, 404, 'not another passenger');
+  assert.equal((await rawGet(`/passenger/reports/${r.body.id}/photos/999`, s.passenger)).status, 404);
+
+  const office = (await api('GET', '/admin/reports', { token: s.admin })).body.find((x) => x.id === r.body.id);
+  assert.equal(office.photo_id, r.body.photo_id);
+  assert.ok((await notes(s.admin)).some((n) => n.body === 'Sent a photo'));
+});
+
+test('only real pictures are accepted as photos, and an empty reply is refused', async () => {
+  const fake = Buffer.from('<script>alert(1)</script> pretending to be a picture').toString('base64');
+  const bad = await api('POST', '/passenger/reports', { token: s.passenger, body: { category: 'other', message: 'Here is a photo', photo: fake } });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.error.code, 'BAD_PHOTO');
+  const huge = Buffer.concat([Buffer.from(PNG, 'base64'), Buffer.alloc(2.1 * 1024 * 1024)]).toString('base64');
+  assert.equal((await api('POST', '/passenger/reports', { token: s.passenger, body: { category: 'other', message: 'Big photo here', photo: huge } })).status, 400);
+  assert.equal((await api('POST', `/passenger/reports/${s.report.id}/messages`, { token: s.passenger, body: {} })).status, 400);
+});

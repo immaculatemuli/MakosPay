@@ -55,7 +55,14 @@
         }
       ],
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow FarePay to add a photo (like a screenshot of an M-Pesa message) to a problem report.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "router": {},

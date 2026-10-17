@@ -88,9 +88,16 @@ function ReportCard({ report: r, onChanged }: { report: ProblemReport; onChanged
         </div>
       </div>
       <div className="thread">
-        <Bubble office={false} who={r.reporter_name} at={r.created_at} text={r.message} />
+        <Bubble office={false} who={r.reporter_name} at={r.created_at} text={r.message} photo={photoUrl(r.id, r.photo_id)} />
         {r.messages.map((m) => (
-          <Bubble key={m.id} office={Boolean(m.from_office)} who={m.from_office ? (m.sender_name ?? 'SACCO office') : r.reporter_name} at={m.created_at} text={m.message} />
+          <Bubble
+            key={m.id}
+            office={Boolean(m.from_office)}
+            who={m.from_office ? (m.sender_name ?? 'SACCO office') : r.reporter_name}
+            at={m.created_at}
+            text={m.message}
+            photo={photoUrl(r.id, m.photo_id)}
+          />
         ))}
       </div>
       {error && <Banner tone="danger">{error}</Banner>}
@@ -104,13 +111,21 @@ function ReportCard({ report: r, onChanged }: { report: ProblemReport; onChanged
   );
 }
 
-function Bubble({ office, who, at, text }: { office: boolean; who: string; at: string; text: string }) {
+// A photo the reporter added (same address as the dashboard, so the office sign-in loads it).
+const photoUrl = (reportId: number, photoId: number | null) => (photoId ? `/admin/reports/${reportId}/photos/${photoId}` : null);
+
+function Bubble({ office, who, at, text, photo }: { office: boolean; who: string; at: string; text: string; photo: string | null }) {
   return (
     <div className={`bubble${office ? ' office' : ''}`}>
       <div className="who">
         {who} · {dateTime(at)}
       </div>
-      <p>{text}</p>
+      {text && <p>{text}</p>}
+      {photo && (
+        <a href={photo} target="_blank" rel="noreferrer" title="Open the photo full size">
+          <img className="report-photo" src={photo} alt={`Photo from ${who}`} />
+        </a>
+      )}
     </div>
   );
 }

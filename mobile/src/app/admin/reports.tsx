@@ -59,6 +59,7 @@ export default function OfficeReports() {
           <Conversation
             report={r}
             side="office"
+            photosAt="/admin/reports"
             placeholder={`Write to ${r.reporter_name}`}
             onSend={async (message) => {
               await api(`/admin/reports/${r.id}/messages`, { method: 'POST', body: { message } });

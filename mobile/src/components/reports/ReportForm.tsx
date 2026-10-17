@@ -4,6 +4,7 @@ import { Alert } from 'react-native';
 import { Button, Card, Chips, ErrorBox, Field, KeyValue, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { REPORT_CATEGORY_LABEL, type ReportCategory } from '@/lib/types';
+import { type ChosenPhoto, PhotoPicker } from './Photo';
 
 const CATEGORIES = Object.entries(REPORT_CATEGORY_LABEL).map(([value, label]) => ({ value: value as ReportCategory, label }));
 
@@ -15,6 +16,7 @@ export function ReportForm({ endpoint, listHref }: { endpoint: string; listHref:
   const p = useLocalSearchParams<{ trip_id?: string; ticket?: string; plate?: string }>();
   const [category, setCategory] = useState<ReportCategory>(p.trip_id ? 'payment_problem' : 'other');
   const [message, setMessage] = useState('');
+  const [photo, setPhoto] = useState<ChosenPhoto | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +26,8 @@ export function ReportForm({ endpoint, listHref }: { endpoint: string; listHref:
     try {
       await api(endpoint, {
         method: 'POST',
-        body: { category, message: message.trim(), ...(p.trip_id && { trip_id: Number(p.trip_id) }) },
+        body: { category, message: message.trim(), ...(p.trip_id && { trip_id: Number(p.trip_id) }), ...(photo && { photo: photo.base64 }) },
+        timeoutMs: photo ? 60_000 : undefined,
       });
       Alert.alert('Report sent', 'The SACCO office will look into it. You can see their reply under My reports.', [
         { text: 'OK', onPress: () => router.replace(listHref) },
@@ -52,6 +55,8 @@ export function ReportForm({ endpoint, listHref }: { endpoint: string; listHref:
         style={{ minHeight: 110, textAlignVertical: 'top' }}
         hint="For example: which vehicle, what time, and how much was charged"
       />
+      <Muted>A photo helps, e.g. a screenshot of the M-Pesa message (optional).</Muted>
+      <PhotoPicker photo={photo} onChange={setPhoto} />
       {error && <ErrorBox message={error} />}
       <Button title="Send report" icon="send-outline" onPress={send} loading={busy} disabled={message.trim().length < 5} />
       <Muted center>Never share an M-Pesa PIN or FarePay password. The SACCO office will never ask for them.</Muted>

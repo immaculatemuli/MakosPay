@@ -77,10 +77,15 @@ export function createApp() {
     });
     next();
   });
-  // Small bodies everywhere, except an uploaded M-Pesa statement (a CSV file sent as text).
+  // Small bodies everywhere, except an uploaded M-Pesa statement (a CSV file sent as text) and a problem report
+  // or reply from a passenger or crew member, which can carry a photo (at most 2 MB, sent as base64 text).
   const smallJson = express.json({ limit: '100kb' });
   const statementJson = express.json({ limit: '6mb' });
-  app.use((req, res, next) => (req.path === '/admin/statement-check' ? statementJson : smallJson)(req, res, next));
+  const photoJson = express.json({ limit: '3mb' });
+  const PHOTO_PATHS = /^\/(passenger|crew|conductor)\/reports(\/\d+\/messages)?$/;
+  app.use((req, res, next) =>
+    (req.path === '/admin/statement-check' ? statementJson : PHOTO_PATHS.test(req.path) ? photoJson : smallJson)(req, res, next),
+  );
 
   // For the hosting's uptime check: also makes sure the database answers.
   app.get('/health', async (_req, res) => {

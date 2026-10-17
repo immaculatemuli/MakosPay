@@ -25,7 +25,7 @@ import {
 } from '../services/routes.js';
 import { officeTrip, officeTrips } from '../services/bookings.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
-import { officeReply, officeReports, replySchema, updateReport } from '../services/reports.js';
+import { getPhoto, officeReply, officeReports, replySchema, sendPhoto, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
 import { createUser, deleteCrewMember, resetPassword } from '../services/users.js';
 import { nairobiDayRange, nairobiToday, newQrToken } from '../util.js';
@@ -109,6 +109,12 @@ router.post('/payments/:id/refund', async (req, res) => {
 router.get('/reports', async (req, res) => {
   const { status } = parse(z.object({ status: z.enum(['open', 'in_progress', 'resolved']).optional() }), req.query);
   res.json(await officeReports(status));
+});
+
+// A photo the reporter added to their report.
+router.get('/reports/:id/photos/:photoId', async (req, res) => {
+  const photo = await getPhoto(parse(id, req.params.id), parse(id, req.params.photoId));
+  sendPhoto(res, photo);
 });
 
 // The office writes to the reporter on their report.
