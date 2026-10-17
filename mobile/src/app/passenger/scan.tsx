@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { type LayoutRectangle, StyleSheet, Text, View } from 'react-native';
 import { Button, colors, Loading, Muted, Screen } from '@/components/ui';
+import { useT } from '@/lib/i18n';
 
 // A scan only counts when it is clearly a FarePay sticker, the WHOLE code is inside the square (all four
 // corners), it is big enough to be the sticker the passenger is pointing at (not one across the stage), and the
@@ -51,6 +52,7 @@ function placementProblem(corners: Point[], frame: LayoutRectangle | null): Hint
 }
 
 export default function Scan() {
+  const { t } = useT();
   const [permission, requestPermission] = useCameraPermissions();
   const [hint, setHint] = useState<Hint>('aim');
   const handled = useRef(false);
@@ -110,10 +112,10 @@ export default function Scan() {
   if (!permission.granted) {
     return (
       <Screen>
-        <Muted>FarePay needs the camera to scan the QR code inside the vehicle.</Muted>
+        <Muted>{t('FarePay needs the camera to scan the QR code inside the vehicle.')}</Muted>
         <View style={{ height: 16 }} />
-        <Button title="Allow camera" icon="camera-outline" onPress={requestPermission} />
-        {!permission.canAskAgain && <Muted>Camera access is blocked. Turn it on for Expo Go / FarePay in your phone settings.</Muted>}
+        <Button title={t('Allow camera')} icon="camera-outline" onPress={requestPermission} />
+        {!permission.canAskAgain && <Muted>{t('Camera access is blocked. Turn it on for Expo Go / FarePay in your phone settings.')}</Muted>}
       </Screen>
     );
   }
@@ -129,7 +131,7 @@ export default function Scan() {
             frame.current = e.nativeEvent.layout;
           }}
         />
-        <Text style={styles.hint}>{HINTS[hint]}</Text>
+        <Text style={styles.hint}>{t(HINTS[hint])}</Text>
       </View>
     </View>
   );

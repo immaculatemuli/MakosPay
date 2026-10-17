@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { t, useT } from '@/lib/i18n';
 import { colors } from './ui';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -7,16 +8,17 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 
 function greeting() {
   const hour = new Date().getHours();
-  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  return t(hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening');
 }
 
 function today() {
   const d = new Date();
-  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return `${t(DAYS[d.getDay()])}, ${d.getDate()} ${t(MONTHS[d.getMonth()])}`;
 }
 
 /** Coloured header at the top of a home screen: date, greeting, and optional extra content. */
 export function Hero({ name, subtitle, children }: { name?: string; subtitle?: string; children?: ReactNode }) {
+  useT(); // shows again in the new language when it changes
   return (
     <View style={styles.hero}>
       <Text style={styles.date}>{today()}</Text>

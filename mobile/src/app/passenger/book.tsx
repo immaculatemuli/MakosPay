@@ -5,6 +5,7 @@ import { Text, View } from 'react-native';
 import { Button, Card, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { dateTime, kes } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import type { Booking, BookingRoute } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
@@ -23,6 +24,8 @@ const BOOKING_WORD: Record<Booking['status'], string> = {
  * once or by M-Pesa PIN prompt. Recent bookings are listed at the top.
  */
 export default function BookSeat() {
+  const { t } = useT();
+  const seatWord = (n: number) => t(n === 1 ? '{n} seat' : '{n} seats', { n });
   const routes = useApi<BookingRoute[]>('/passenger/booking-routes');
   const mine = useApi<Booking[]>('/passenger/bookings');
   const wallet = useApi<{ balance: number }>('/passenger/wallet');
@@ -79,15 +82,15 @@ export default function BookSeat() {
     <Screen refreshing={routes.refreshing} onRefresh={refresh}>
       {active.length > 0 && (
         <>
-          <SectionTitle>Your bookings</SectionTitle>
+          <SectionTitle>{t('Your bookings')}</SectionTitle>
           <List>
             {active.map((b) => (
               <ListRow
                 key={b.id}
                 icon="ticket-outline"
                 title={`${b.code} · ${b.car.plate}`}
-                subtitle={`${b.route.name} to ${b.stop_name} · ${b.seats} seat${b.seats === 1 ? '' : 's'}`}
-                right={BOOKING_WORD[b.status]}
+                subtitle={`${b.route.name} · ${t('to {place}', { place: b.stop_name })} · ${seatWord(b.seats)}`}
+                right={t(BOOKING_WORD[b.status])}
                 onPress={() => router.push({ pathname: '/passenger/booking', params: { id: String(b.id) } })}
               />
             ))}
@@ -95,13 +98,13 @@ export default function BookSeat() {
         </>
       )}
 
-      <SectionTitle>Book a seat</SectionTitle>
-      <Muted>Book and pay for a seat on the next car loading at the stage. Show your booking code to the conductor when you get on.</Muted>
+      <SectionTitle>{t('Book a seat')}</SectionTitle>
+      <Muted>{t('Book and pay for a seat on the next car loading at the stage. Show your booking code to the conductor when you get on.')}</Muted>
       {routes.error && <ErrorBox message={routes.error} onRetry={routes.reload} />}
-      {routes.data?.length === 0 && <Empty text="No routes are open for booking yet." />}
+      {routes.data?.length === 0 && <Empty text={t('No routes are open for booking yet.')} />}
       {routes.data && routes.data.length > 0 && (
         <Chips
-          label="Your route"
+          label={t('Your route')}
           options={routes.data.map((r) => ({ value: r.id as number | null, label: r.name }))}
           value={routeId}
           onChange={(v) => {
@@ -116,15 +119,15 @@ export default function BookSeat() {
         <Card>
           {route.next_car ? (
             <>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>{route.next_car.plate} is loading</Text>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>{t('{plate} is loading', { plate: route.next_car.plate })}</Text>
               <Muted>
-                At {route.origin} · {route.next_car.seats_left} seat{route.next_car.seats_left === 1 ? '' : 's'} left
+                {t('At {place}', { place: route.origin })} · {t(route.next_car.seats_left === 1 ? '{n} seat left' : '{n} seats left', { n: route.next_car.seats_left })}
               </Muted>
             </>
           ) : (
             <>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>No car loading yet</Text>
-              <Muted>You can book as soon as a car on {route.name} starts loading at {route.origin}. Pull down to check again.</Muted>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>{t('No car loading yet')}</Text>
+              <Muted>{t('You can book as soon as a car on {route} starts loading at {place}. Pull down to check again.', { route: route.name, place: route.origin })}</Muted>
             </>
           )}
         </Card>
@@ -134,13 +137,13 @@ export default function BookSeat() {
         <>
           {route.stops.length > 1 && (
             <Chips
-              label="Where are you getting off?"
+              label={t('Where are you getting off?')}
               options={route.stops.map((s) => ({ value: s.id as number | null, label: `${s.name} · ${kes(s.fare)}` }))}
               value={stopId}
               onChange={setPickedStopId}
             />
           )}
-          <Text style={{ fontWeight: '600', color: colors.text, marginTop: 8 }}>Seats</Text>
+          <Text style={{ fontWeight: '600', color: colors.text, marginTop: 8 }}>{t('Seats')}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 8 }}>
             <View style={{ width: 64 }}>
               <Button title="−" variant="secondary" disabled={seats <= 1} onPress={() => setSeats(Math.max(1, seats - 1))} />
@@ -154,19 +157,19 @@ export default function BookSeat() {
             <Card>
               <View style={{ alignItems: 'center' }}>
                 <Text style={{ color: colors.muted }}>
-                  {seats} seat{seats === 1 ? '' : 's'} to {stop.name}
+                  {seatWord(seats)} · {t('to {place}', { place: stop.name })}
                 </Text>
                 <Text style={{ fontSize: 36, fontWeight: '800', color: colors.text }}>{kes(total)}</Text>
-                <Muted>Wallet balance {kes(balance)}</Muted>
+                <Muted>{t('Wallet balance {amount}', { amount: kes(balance) })}</Muted>
               </View>
             </Card>
           )}
           {error && <ErrorBox message={error} />}
           {stop && (
             <>
-              <Button title={`Pay ${kes(total)} from wallet`} icon="wallet-outline" disabled={balance < total} loading={busy} onPress={() => void book('wallet')} />
-              <Button title={`Pay ${kes(total)} with M-Pesa`} variant="secondary" icon="phone-portrait-outline" disabled={busy} onPress={() => void book('mpesa')} />
-              {balance < total && <Muted center>Your wallet is short by {kes(total - balance)}: pay with M-Pesa, or add money first.</Muted>}
+              <Button title={t('Pay {amount} from wallet', { amount: kes(total) })} icon="wallet-outline" disabled={balance < total} loading={busy} onPress={() => void book('wallet')} />
+              <Button title={t('Pay {amount} with M-Pesa', { amount: kes(total) })} variant="secondary" icon="phone-portrait-outline" disabled={busy} onPress={() => void book('mpesa')} />
+              {balance < total && <Muted center>{t('Your wallet is short by {amount}: pay with M-Pesa, or add money first.', { amount: kes(total - balance) })}</Muted>}
             </>
           )}
         </>
@@ -174,7 +177,7 @@ export default function BookSeat() {
 
       {(mine.data ?? []).some((b) => !active.includes(b)) && (
         <>
-          <SectionTitle>Earlier this week</SectionTitle>
+          <SectionTitle>{t('Earlier this week')}</SectionTitle>
           <List>
             {(mine.data ?? [])
               .filter((b) => !active.includes(b))
@@ -184,7 +187,7 @@ export default function BookSeat() {
                   icon="time-outline"
                   title={`${b.code} · ${b.car.plate}`}
                   subtitle={dateTime(b.booked_at)}
-                  right={BOOKING_WORD[b.status]}
+                  right={t(BOOKING_WORD[b.status])}
                   onPress={() => router.push({ pathname: '/passenger/booking', params: { id: String(b.id) } })}
                 />
               ))}

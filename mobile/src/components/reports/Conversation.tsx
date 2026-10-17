@@ -3,6 +3,7 @@ import { Alert, Text, TextInput, View } from 'react-native';
 import { Button, colors } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
 import { dateTime } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import type { ProblemReport } from '@/lib/types';
 import { type ChosenPhoto, PhotoPicker, ReportPhoto } from './Photo';
 
@@ -16,7 +17,7 @@ export function Conversation({
   side,
   photosAt,
   onSend,
-  placeholder = 'Write a reply',
+  placeholder,
 }: {
   report: ProblemReport;
   side: 'reporter' | 'office';
@@ -24,13 +25,14 @@ export function Conversation({
   onSend: (message: string, photo: ChosenPhoto | null) => Promise<void>;
   placeholder?: string;
 }) {
+  const { t } = useT();
   const [text, setText] = useState('');
   const [photo, setPhoto] = useState<ChosenPhoto | null>(null);
   const [sending, setSending] = useState(false);
   const photoPath = (photoId?: number | null) => (photoId ? `${photosAt}/${report.id}/photos/${photoId}` : null);
 
   const who = (fromOffice: boolean, senderName?: string | null) =>
-    side === 'reporter' ? (fromOffice ? 'SACCO office' : 'You') : fromOffice ? (senderName ?? 'Office') : report.reporter_name;
+    side === 'reporter' ? (fromOffice ? t('SACCO office') : t('You')) : fromOffice ? (senderName ?? t('Office')) : report.reporter_name;
 
   const send = async () => {
     setSending(true);
@@ -39,7 +41,7 @@ export function Conversation({
       setText('');
       setPhoto(null);
     } catch (err) {
-      Alert.alert('Could not send', errorMessage(err));
+      Alert.alert(t('Could not send'), errorMessage(err));
     } finally {
       setSending(false);
     }
@@ -59,7 +61,7 @@ export function Conversation({
         />
       ))}
       <TextInput
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('Write a reply')}
         placeholderTextColor="#9CA3AF"
         value={text}
         onChangeText={setText}
@@ -68,7 +70,7 @@ export function Conversation({
         style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, minHeight: 50, color: colors.text, marginTop: 4, marginBottom: 8, textAlignVertical: 'top' }}
       />
       {side === 'reporter' && <PhotoPicker photo={photo} onChange={setPhoto} />}
-      <Button title="Send" icon="send-outline" variant="secondary" onPress={send} loading={sending} disabled={!text.trim() && !photo} />
+      <Button title={t('Send')} icon="send-outline" variant="secondary" onPress={send} loading={sending} disabled={!text.trim() && !photo} />
     </View>
   );
 }

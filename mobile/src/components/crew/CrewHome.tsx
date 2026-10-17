@@ -6,6 +6,7 @@ import { Hero } from '@/components/Hero';
 import { Badge, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Notice, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { kes, nairobiDate, prettyDate, time } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import { ROLE_LABEL, type ConductorDay, type ConductorVehicle } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
@@ -24,8 +25,9 @@ const DAYS = [
  */
 export function CrewHome() {
   const { user } = useAuth();
+  const { t } = useT();
   const isConductor = user?.role === 'conductor';
-  const roleLabel = user ? ROLE_LABEL[user.role] : '';
+  const roleLabel = user ? t(ROLE_LABEL[user.role]) : '';
   const [day, setDay] = useState(0);
   const vehicle = useApi<ConductorVehicle>('/crew/vehicle');
   const date = nairobiDate(day);
@@ -46,7 +48,7 @@ export function CrewHome() {
     return (
       <Screen refreshing={vehicle.refreshing} onRefresh={vehicle.refresh}>
         <Hero name={user?.name} subtitle={roleLabel} />
-        <Notice>{vehicle.error ?? 'You are not on a vehicle yet.'}</Notice>
+        <Notice>{vehicle.error ?? t('You are not on a vehicle yet.')}</Notice>
       </Screen>
     );
   }
@@ -63,11 +65,11 @@ export function CrewHome() {
       <Hero name={user?.name} subtitle={`${roleLabel} · ${v.vehicle.plate}`}>
         <View style={styles.totals}>
           <View>
-            <Text style={styles.totalLabel}>{day === 0 ? 'Collected today' : `Collected ${prettyDate(date)}`}</Text>
+            <Text style={styles.totalLabel}>{day === 0 ? t('Collected today') : t('Collected {when}', { when: prettyDate(date) })}</Text>
             <Text style={styles.total}>{summary ? kes(summary.total) : '—'}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.totalLabel}>Payments</Text>
+            <Text style={styles.totalLabel}>{t('Payments')}</Text>
             <Text style={styles.total}>{summary?.payments ?? '—'}</Text>
           </View>
         </View>
@@ -80,35 +82,35 @@ export function CrewHome() {
       >
         <Ionicons name="map-outline" size={22} color={colors.primary} />
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.routeName}>{v.route ? v.route.name : 'No route set'}</Text>
+          <Text style={styles.routeName}>{v.route ? v.route.name : t('No route set')}</Text>
           <Text style={styles.routeSub}>
             {!isConductor
               ? v.route
-                ? `From ${v.route.origin} · the conductor changes the route`
-                : 'Ask the conductor or SACCO office to set the route'
+                ? `${t('From {place}', { place: v.route.origin })} · ${t('the conductor changes the route')}`
+                : t('Ask the conductor or SACCO office to set the route')
               : v.route
-                ? `From ${v.route.origin} · tap to change route`
-                : 'Tap to choose the route you are on'}
+                ? `${t('From {place}', { place: v.route.origin })} · ${t('tap to change route')}`
+                : t('Tap to choose the route you are on')}
           </Text>
         </View>
         {isConductor && <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />}
       </Pressable>
-      {!v.route && <Notice>Passengers can’t pay until the vehicle has a route.</Notice>}
+      {!v.route && <Notice>{t('Passengers can’t pay until the vehicle has a route.')}</Notice>}
 
-      <SectionTitle>Payments</SectionTitle>
-      <Chips options={DAYS} value={day} onChange={setDay} />
+      <SectionTitle>{t('Payments')}</SectionTitle>
+      <Chips options={DAYS.map((d) => ({ ...d, label: t(d.label) }))} value={day} onChange={setDay} />
       {payments.error && <ErrorBox message={payments.error} onRetry={payments.reload} />}
-      {payments.data?.payments.length === 0 && <Empty text={day === 0 ? 'No payments yet today.' : 'No payments that day.'} />}
+      {payments.data?.payments.length === 0 && <Empty text={day === 0 ? t('No payments yet today.') : t('No payments that day.')} />}
       {!!payments.data?.payments.length && (
         <List>
           {payments.data.payments.map((p) => (
             <ListRow
               key={p.id}
               icon="person-circle-outline"
-              title={p.passenger_name ?? 'Passenger'}
-              subtitle={`${time(p.created_at)} · to ${p.stop_name ?? p.route_name} · ${p.ticket_code}`}
+              title={p.passenger_name ?? t('Passenger')}
+              subtitle={`${time(p.created_at)} · ${t('to {place}', { place: p.stop_name ?? p.route_name })} · ${p.ticket_code}`}
               right={kes(p.fare)}
-              rightSub={p.status === 'refunded' ? <Badge text="Refunded" tone="danger" /> : undefined}
+              rightSub={p.status === 'refunded' ? <Badge text={t('Refunded')} tone="danger" /> : undefined}
             />
           ))}
         </List>

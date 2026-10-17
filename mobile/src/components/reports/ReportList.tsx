@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { Badge, Button, Card, colors, Empty, ErrorBox, Loading, Muted, Screen } from '@/components/ui';
 import { api } from '@/lib/api';
 import { dateTime } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import { REPORT_STATUS_BADGE } from '@/lib/reports';
 import { REPORT_CATEGORY_LABEL, type ProblemReport } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
@@ -10,20 +11,21 @@ import { Conversation } from './Conversation';
 
 /** Someone's own problem reports, each a conversation with the SACCO office they can keep writing on. */
 export function ReportList({ endpoint, newHref }: { endpoint: string; newHref: Href }) {
+  const { t } = useT();
   const reports = useApi<ProblemReport[]>(endpoint);
   if (reports.loading && !reports.data) return <Loading />;
 
   return (
     <Screen refreshing={reports.refreshing} onRefresh={reports.refresh}>
-      <Button title="Report a problem" icon="add" onPress={() => router.push(newHref)} />
+      <Button title={t('Report a problem')} icon="add" onPress={() => router.push(newHref)} />
       {reports.error && <ErrorBox message={reports.error} onRetry={reports.reload} />}
-      {reports.data?.length === 0 && <Empty text="You haven't reported any problems." />}
+      {reports.data?.length === 0 && <Empty text={t('You haven’t reported any problems.')} />}
       {reports.data?.map((r) => (
         <Card key={r.id}>
-          <Text style={{ fontWeight: '700', color: colors.text, fontSize: 16 }}>{REPORT_CATEGORY_LABEL[r.category]}</Text>
+          <Text style={{ fontWeight: '700', color: colors.text, fontSize: 16 }}>{t(REPORT_CATEGORY_LABEL[r.category])}</Text>
           <View style={{ flexDirection: 'row', gap: 6 }}>
-            <Badge text={REPORT_STATUS_BADGE[r.status].text} tone={REPORT_STATUS_BADGE[r.status].tone} />
-            {!!r.has_new && <Badge text="New reply" tone="danger" />}
+            <Badge text={t(REPORT_STATUS_BADGE[r.status].text)} tone={REPORT_STATUS_BADGE[r.status].tone} />
+            {!!r.has_new && <Badge text={t('New reply')} tone="danger" />}
           </View>
           <Muted>
             {dateTime(r.created_at)}
@@ -33,7 +35,7 @@ export function ReportList({ endpoint, newHref }: { endpoint: string; newHref: H
             report={r}
             side="reporter"
             photosAt={endpoint}
-            placeholder={r.status === 'resolved' ? 'Still a problem? Write here to open it again' : 'Write more to the SACCO office'}
+            placeholder={r.status === 'resolved' ? t('Still a problem? Write here to open it again') : t('Write more to the SACCO office')}
             onSend={async (message, photo) => {
               await api(`${endpoint}/${r.id}/messages`, {
                 method: 'POST',
