@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Book a seat · FarePay · Makos Sacco</title>
-  <meta name="description" content="Book and pay for your seat on the next Makos Sacco car loading at your stage.">
+  <meta name="description" content="Book and pay for your Makos Sacco seat from anywhere: at the stage, or to be picked on the road.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/site.css">
   <script src="/site.js" defer></script>
@@ -26,7 +26,7 @@
 
   <main class="wrap booking">
     <h1>Book a seat</h1>
-    <p class="lead">Book and pay for your seat on the next car loading at the stage. Go to the stage when your car is loading, and show your booking code to the conductor.</p>
+    <p class="lead">Book and pay for your seat from anywhere. Wait at the stage, or at a stop on the road to be picked. We tell you which car is yours as soon as it is there, and you show your booking code when you get on.</p>
 
     <div id="mine" class="mine" hidden>
       <h2>Your bookings on this phone</h2>
@@ -35,18 +35,21 @@
 
     <div class="panel" id="loading"><p class="muted">Loading routes…</p></div>
     <div class="panel" id="problem" hidden><p id="problem-text"></p><button type="button" id="problem-retry" class="secondary">Try again</button></div>
+    <div class="panel" id="closed" hidden><p id="closed-text"></p></div>
 
     <!-- 1. Route -->
     <div class="panel" id="routes" hidden>
       <h2>1. Your route</h2>
       <div id="route-list" class="route-list" role="radiogroup" aria-label="Route"></div>
-      <button type="button" id="refresh" class="link">Refresh seats</button>
     </div>
 
-    <!-- 2. Stop, seats, number -->
+    <!-- 2. Pickup, drop-off, seats, number -->
     <div class="panel" id="details" hidden>
       <h2>2. Your trip</h2>
-      <p class="muted" id="details-car"></p>
+      <div class="field">
+        <span class="field-label">Where should we pick you?</span>
+        <div id="pickups" class="choices" role="radiogroup" aria-label="Pickup point"></div>
+      </div>
       <div class="field">
         <span class="field-label">Where are you getting off?</span>
         <div id="stops" class="choices" role="radiogroup" aria-label="Drop-off stop"></div>
@@ -64,8 +67,8 @@
         <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" maxlength="16">
       </label>
       <p class="error" id="book-error" hidden></p>
-      <button type="button" id="book" disabled>Choose your stop</button>
-      <p class="muted small">You get the M-Pesa PIN prompt on this number. Your seat is held once you pay.</p>
+      <button type="button" id="book" disabled>Choose your drop-off</button>
+      <p class="muted small">You get the M-Pesa PIN prompt on this number. The fare is the same wherever you are picked. If no car takes you today, the money goes back to this M-Pesa number.</p>
     </div>
 
     <!-- Paying -->
@@ -85,11 +88,12 @@
         <div id="b-trip"></div>
         <div class="muted" id="b-paid"></div>
       </div>
-      <p class="car-line" id="b-car"></p>
-      <ol class="trip" id="b-stops" hidden aria-label="Where the car is"></ol>
+      <p class="car-line" id="b-line"></p>
+      <p class="center" id="b-call" hidden></p>
       <p class="error" id="b-error" hidden></p>
-      <button type="button" id="cancel" class="secondary" hidden>Cancel booking (refund to FarePay wallet)</button>
-      <button type="button" id="again">Book another seat</button>
+      <button type="button" id="here" hidden>I'm at the pickup point</button>
+      <button type="button" id="cancel" class="secondary" hidden>Cancel booking (refund to M-Pesa)</button>
+      <button type="button" id="again" class="secondary">Book another seat</button>
     </div>
   </main>
 

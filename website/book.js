@@ -1,10 +1,12 @@
-// Book a seat on the next Makos car loading at the stage. Everything shown comes from FarePay as plain text
-// (textContent, never HTML). A booking is kept as its link (/book.html?b=<token>) and remembered on this phone.
+// Book a seat from anywhere: pick the route, where to be picked (the stage or a stop on the road), the drop-off and
+// the seats, and pay by M-Pesa. The booking joins the queue; its car is shown as soon as one takes it. Everything shown
+// comes from FarePay as plain text (textContent, never HTML). A booking is kept as its link (/book.html?s=<token>)
+// and remembered on this phone.
 'use strict';
 
 const $ = (id) => document.getElementById(id);
 const kes = (n) => `KES ${Number(n).toLocaleString('en-KE')}`;
-const PANELS = ['loading', 'problem', 'routes', 'details', 'paying', 'booking'];
+const PANELS = ['loading', 'problem', 'closed', 'routes', 'details', 'paying', 'booking'];
 const show = (...names) => PANELS.forEach((p) => ($(p).hidden = !names.includes(p)));
 
 const remember = {
@@ -41,11 +43,16 @@ const normalPhone = (text) => {
   return m ? `0${m[1]}` : null;
 };
 const spaced = (phone) => phone.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 $2 $3');
+const localPhone = (p) => (p && p.startsWith('254') ? `0${p.slice(3)}` : p);
 const newKey = () =>
   crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+const seatWord = (n) => `${n} seat${n === 1 ? '' : 's'}`;
+const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
 
+const MAX_SEATS = 10;
 let routes = [];
 let route = null; // the chosen route
+let pickupId = null; // null = at the stage
 let stopId = null;
 let seats = 1;
 let pollTimer = null;
@@ -58,103 +65,125 @@ function el(tag, className, text) {
   return e;
 }
 
-// ---------- 1. Route ----------
-
-function carText(r) {
-  if (r.next_car) return `${r.next_car.plate} loading · ${r.next_car.seats_left} seat${r.next_car.seats_left === 1 ? '' : 's'} left`;
-  if (r.cars_loading > 0) return 'Cars loading are full · next car soon';
-  return 'No car loading yet';
+function option(checked, title, sub, right, onClick) {
+  const b = el('button', 'option');
+  b.type = 'button';
+  b.setAttribute('role', 'radio');
+  b.setAttribute('aria-checked', String(checked));
+  const left = el('span');
+  left.append(el('span', 'title', title));
+  if (sub) left.append(el('span', 'sub', sub));
+  b.append(left);
+  if (right) b.append(el('span', 'right', right));
+  b.addEventListener('click', onClick);
+  return b;
 }
+
+// ---------- 1. Route ----------
 
 function renderRoutes() {
   const list = $('route-list');
   list.replaceChildren();
   if (routes.length === 0) list.append(el('p', 'muted', 'No routes are open for booking yet.'));
   for (const r of routes) {
-    const b = el('button', 'option');
-    b.type = 'button';
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-checked', String(route?.id === r.id));
-    const left = el('span');
-    left.append(el('span', 'title', r.name), el('span', 'sub', `From ${r.origin}`));
-    const right = el('span', `right ${r.next_car ? 'seats-ok' : 'muted'}`, carText(r));
-    b.append(left, right);
-    b.addEventListener('click', () => chooseRoute(r.id));
-    list.append(b);
+    const waiting = r.seats_waiting ? `${seatWord(r.seats_waiting)} booked ahead` : 'No queue';
+    list.append(option(route?.id === r.id, r.name, `From ${r.origin}`, waiting, () => chooseRoute(r.id)));
   }
 }
 
 async function loadRoutes() {
-  routes = await call('GET', '/book-api/routes');
+  const data = await call('GET', '/book-api/seat-routes');
+  routes = data.routes;
   if (route) route = routes.find((r) => r.id === route.id) ?? null;
+  return data;
 }
 
 function chooseRoute(id) {
   route = routes.find((r) => r.id === id);
   remember.set('book.route', id);
-  const last = remember.get(`book.stop.${id}`);
-  stopId = route.stops.some((s) => s.id === last) ? last : route.stops.length === 1 ? route.stops[0].id : null;
-  seats = Math.min(seats, maxSeats());
+  const lastStop = remember.get(`book.stop.${id}`);
+  const lastPickup = remember.get(`book.pickup.${id}`);
+  stopId = route.stops.some((s) => s.id === lastStop) ? lastStop : null;
+  pickupId = route.stops.some((s) => s.id === lastPickup) ? lastPickup : null;
   renderRoutes();
   renderDetails();
   show('routes', 'details');
   $('details').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ---------- 2. Stop, seats, number ----------
+// ---------- 2. Pickup, drop-off, seats, number ----------
 
-// Up to 10 seats in one booking, and no more than the car loading has left.
-const maxSeats = () => Math.max(1, Math.min(10, route?.next_car?.seats_left ?? 10));
+const position = (id) => route.stops.find((s) => s.id === id)?.position ?? 0;
 
 function renderDetails() {
-  $('details-car').textContent = route.next_car
-    ? `Booking on ${route.next_car.plate}, loading now at ${route.origin}.`
-    : `No car on ${route.name} is taking bookings right now. You can book as soon as one starts loading.`;
+  // Picked at the stage, or at any stop before the last one.
+  const pickups = $('pickups');
+  pickups.replaceChildren(
+    option(pickupId === null, `${route.origin} stage`, 'Wait in the queue at the stage', null, () => {
+      pickupId = null;
+      renderDetails();
+    }),
+  );
+  for (const s of route.stops.slice(0, -1)) {
+    pickups.append(
+      option(pickupId === s.id, s.name, 'Picked on the road', null, () => {
+        pickupId = s.id;
+        if (stopId !== null && position(stopId) <= s.position) stopId = null;
+        renderDetails();
+      }),
+    );
+  }
+  // Drop-offs after the pickup; the fare is from the stage wherever they are picked.
   const stops = $('stops');
   stops.replaceChildren();
-  for (const s of route.stops) {
-    const b = el('button', 'option');
-    b.type = 'button';
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-checked', String(s.id === stopId));
-    b.append(el('span', 'title', s.name), el('span', 'right', kes(s.fare)));
-    b.addEventListener('click', () => {
-      stopId = s.id;
-      renderDetails();
-    });
-    stops.append(b);
+  for (const s of route.stops.filter((x) => pickupId === null || x.position > position(pickupId))) {
+    stops.append(
+      option(s.id === stopId, s.name, null, kes(s.fare), () => {
+        stopId = s.id;
+        renderDetails();
+      }),
+    );
   }
   $('seats').textContent = String(seats);
   $('seats-minus').disabled = seats <= 1;
-  $('seats-plus').disabled = seats >= maxSeats();
+  $('seats-plus').disabled = seats >= MAX_SEATS;
   if (!$('phone').value) $('phone').value = remember.get('phone') ?? '';
   updateBookButton();
 }
 
 function updateBookButton() {
   const stop = route?.stops.find((s) => s.id === stopId);
-  const button = $('book');
-  button.disabled = !stop || !normalPhone($('phone').value) || !route.next_car;
-  button.textContent = !route?.next_car ? 'No car taking bookings yet' : stop ? `Pay ${kes(stop.fare * seats)} with M-Pesa` : 'Choose your stop';
+  $('book').disabled = !stop || !normalPhone($('phone').value);
+  $('book').textContent = stop ? `Pay ${kes(stop.fare * seats)} with M-Pesa` : 'Choose your drop-off';
 }
 
 async function book() {
   const stop = route.stops.find((s) => s.id === stopId);
   const phone = normalPhone($('phone').value);
   if (!stop || !phone) return;
+  const pickup = pickupId === null ? `${route.origin} stage` : route.stops.find((s) => s.id === pickupId).name;
   $('book-error').hidden = true;
   $('book').disabled = true;
   $('paying-amount').textContent = kes(stop.fare * seats);
-  $('paying-what').textContent = `${seats} seat${seats === 1 ? '' : 's'} · ${route.name} to ${stop.name} · prompt sent to ${spaced(phone)}`;
+  $('paying-what').textContent = `${seatWord(seats)} · ${route.name}, ${pickup} to ${stop.name} · prompt sent to ${spaced(phone)}`;
   show('paying');
   try {
-    const result = await call('POST', '/book-api/bookings', { route_id: route.id, stop_id: stop.id, seats, expected_fare: stop.fare, phone, idempotency_key: newKey() });
+    const result = await call('POST', '/book-api/seats', {
+      route_id: route.id,
+      pickup_stop_id: pickupId,
+      stop_id: stop.id,
+      seats,
+      expected_fare: stop.fare,
+      phone,
+      idempotency_key: newKey(),
+    });
     remember.set('phone', phone);
     remember.set(`book.stop.${route.id}`, stop.id);
-    keepBooking(result.booking_token, result);
-    openBooking(result.booking_token, result);
+    remember.set(`book.pickup.${route.id}`, pickupId);
+    keepBooking(result.token, result);
+    openBooking(result.token, result);
   } catch (err) {
-    if (['FARE_CHANGED', 'NOT_ENOUGH_SEATS', 'NO_CAR_LOADING'].includes(err.code)) await loadRoutes().catch(() => {});
+    if (err.code === 'FARE_CHANGED') await loadRoutes().catch(() => {});
     renderRoutes();
     renderDetails();
     show('routes', 'details');
@@ -167,80 +196,71 @@ async function book() {
 
 const STATUS_TEXT = {
   paying: 'Waiting for M-Pesa…',
-  confirmed: '✓ Seat booked',
+  queued: '✓ Seat booked',
+  assigned: '✓ Your car is coming',
   boarded: '✓ On board',
-  departed: 'Car has left',
   cancelled: 'Cancelled',
   failed: 'Not paid',
-  paid_late: 'Paid too late',
 };
 
-const hm = (iso) => new Date(iso).toLocaleTimeString('en-KE', { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit' });
-
-/** Where the car is once it has left: last stop passed, and the expected time at the passenger's stop. */
-function progressLine(b) {
-  const c = b.car;
-  if (c.finished_at) return 'This trip has finished.';
-  if (c.reached_my_stop) return `Your car reached ${b.stop_name} at ${hm(c.stops.find((s) => s.mine).reached_at)}.`;
-  const passed = c.stops.filter((s) => s.reached_at).pop();
-  let line = `Left ${b.route.origin} at ${hm(c.departed_at)}.`;
-  if (passed) line += ` Passed ${passed.name} at ${hm(passed.reached_at)}.`;
-  if (c.expected_at_my_stop) line += ` Expected at ${b.stop_name} about ${hm(c.expected_at_my_stop)}.`;
-  return line;
-}
-
-function carLine(b) {
+function line(b) {
   if (b.status === 'paying') return 'Enter your M-Pesa PIN on your phone to finish booking.';
-  if (b.status === 'failed') return `${b.reason || 'M-Pesa did not complete the payment'}. No money was taken, and no seat is held.`;
-  if (b.status === 'paid_late') return 'M-Pesa confirmed your payment too late for this car, so it is kept as FarePay credit. Sign up in the FarePay app with this number to use it, or ask the office.';
-  if (b.status === 'cancelled') return 'This booking was cancelled and the money returned to your FarePay wallet.';
-  if (b.car.status === 'departed') return progressLine(b);
-  if (b.status === 'boarded') return `You're on board. The car leaves ${b.route.origin} when it is ready.`;
-  const seats = b.car.seats_left === 0 ? 'The car is full.' : `${b.car.seats_left} seat${b.car.seats_left === 1 ? '' : 's'} still free.`;
-  if (b.car.cars_ahead > 0) return `Your car is loading at ${b.route.origin}. ${b.car.cars_ahead} car${b.car.cars_ahead === 1 ? '' : 's'} ahead of it will leave first.`;
-  return `Your car is loading at ${b.route.origin} now. ${seats} Go to the stage and show this code to the conductor.`;
-}
-
-/** The route's stops with the time the car reached each, once it has left the stage. */
-function renderStops(b) {
-  const list = $('b-stops');
-  list.replaceChildren();
-  const onTheRoad = b.car.status === 'departed' && ['boarded', 'departed', 'confirmed'].includes(b.status);
-  list.hidden = !onTheRoad;
-  if (!onTheRoad) return;
-  for (const s of b.car.stops) {
-    const li = el('li', s.reached_at ? 'done' : '');
-    li.append(el('span', 'stop-name', `${s.name}${s.mine ? ' (your stop)' : ''}`), el('span', 'stop-time', s.reached_at ? hm(s.reached_at) : s.mine && b.car.expected_at_my_stop ? `about ${hm(b.car.expected_at_my_stop)}` : '—'));
-    list.append(li);
+  if (b.status === 'failed') return `${b.reason || 'M-Pesa did not complete the payment'}. No money was taken.`;
+  if (b.status === 'cancelled') {
+    return `${b.reason ? `${b.reason}. ` : ''}${kes(b.amount)} ${b.refund_to === 'wallet' ? 'is back in your FarePay wallet' : 'is being sent back to your M-Pesa'}.`;
   }
+  if (b.status === 'boarded') return `You're on board ${b.car.plate}. Have a good trip to ${b.stop_name}.`;
+  if (b.status === 'assigned') {
+    if (b.pickup.at_stage) return `Board ${b.car.plate} now at ${b.pickup.name}. Show this code when you get on.`;
+    if (b.car.status === 'departed') return `${b.car.plate} has left ${b.route.origin} and is coming to pick you at ${b.pickup.name}. Be ready with this code.`;
+    return `${b.car.plate} will pick you at ${b.pickup.name}. We'll update this page when it leaves ${b.route.origin}.`;
+  }
+  // Queued: waiting for a car.
+  if (b.pickup.at_stage) {
+    return b.place_in_queue === 0
+      ? `You're next in the queue at ${b.pickup.name}. The next car to arrive is yours.`
+      : `You're ${ordinal(b.place_in_queue + 1)} in the queue at ${b.pickup.name}. We'll tell you which car to board.`;
+  }
+  return `Wait at ${b.pickup.name}. We'll tell you which car is coming for you.`;
 }
 
-// Something can still change: being paid, waiting at the stage, or on the road and not yet finished.
-const stillMoving = (b) => b.status === 'paying' || b.status === 'confirmed' || (['boarded', 'departed'].includes(b.status) && !b.car.finished_at);
+// Something can still change while it is being paid, waiting, or on a car not yet boarded.
+const stillMoving = (b) => ['paying', 'queued', 'assigned'].includes(b.status);
 
 function renderBooking(b) {
   $('b-status').textContent = STATUS_TEXT[b.status] ?? b.status;
   $('b-code').textContent = b.code;
-  $('b-plate').textContent = b.car.plate;
-  $('b-trip').textContent = `${b.route.name} to ${b.stop_name} · ${b.seats} seat${b.seats === 1 ? '' : 's'} · ${kes(b.amount)}`;
+  $('b-plate').textContent = b.car ? b.car.plate : '';
+  $('b-plate').hidden = !b.car;
+  $('b-trip').textContent = `${b.route.name} · ${b.pickup.name} to ${b.stop_name} · ${seatWord(b.seats)} · ${kes(b.amount)}`;
   $('b-paid').textContent = `Booked ${new Date(b.booked_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi', dateStyle: 'medium', timeStyle: 'short' })}`;
-  $('b-car').textContent = carLine(b);
-  renderStops(b);
+  $('b-line').textContent = line(b);
+  // Call the car's crew once a car is given.
+  const crew = b.status === 'assigned' ? (b.car.conductor ?? b.car.driver) : null;
+  const call = $('b-call');
+  call.replaceChildren();
+  call.hidden = !crew;
+  if (crew) {
+    const a = el('a', null, `Call ${b.car.conductor ? 'the conductor' : 'the driver'} (${crew.name}): ${localPhone(crew.phone)}`);
+    a.href = `tel:${localPhone(crew.phone)}`;
+    call.append(a);
+  }
+  $('here').hidden = !(stillMoving(b) && b.status !== 'paying') || Boolean(b.passenger_here_at);
   $('cancel').hidden = !b.can_cancel;
+  $('cancel').textContent = `Cancel booking (refund to ${b.pay_with === 'wallet' ? 'FarePay wallet' : 'M-Pesa'})`;
   show('booking');
 }
 
 function openBooking(t, state) {
   token = t;
   clearTimeout(pollTimer);
-  history.replaceState(null, '', `/book.html?b=${encodeURIComponent(t)}`);
+  history.replaceState(null, '', `/book.html?s=${encodeURIComponent(t)}`);
   const step = async () => {
     try {
-      const b = await call('GET', `/book-api/bookings/${encodeURIComponent(t)}`);
+      const b = await call('GET', `/book-api/seats/${encodeURIComponent(t)}`);
       if (token !== t) return;
       renderBooking(b);
-      // Keep it fresh while something can still change.
-      if (stillMoving(b)) pollTimer = setTimeout(step, b.status === 'paying' ? 3000 : 15000);
+      if (stillMoving(b)) pollTimer = setTimeout(step, b.status === 'paying' ? 3000 : 10000);
     } catch (err) {
       if (err.network) pollTimer = setTimeout(step, 8000);
       else {
@@ -251,27 +271,27 @@ function openBooking(t, state) {
   };
   if (state) {
     renderBooking(state);
-    if (stillMoving(state)) pollTimer = setTimeout(step, state.status === 'paying' ? 3000 : 15000);
+    if (stillMoving(state)) pollTimer = setTimeout(step, state.status === 'paying' ? 3000 : 10000);
   } else step();
 }
 
 // This phone's bookings (newest first, last 5), to come back to.
 function keepBooking(t, b) {
-  const list = (remember.get('bookings') ?? []).filter((x) => x.token !== t);
-  list.unshift({ token: t, code: b.code, plate: b.car.plate, route: b.route.name, at: Date.now() });
-  remember.set('bookings', list.slice(0, 5));
+  const list = (remember.get('seats') ?? []).filter((x) => x.token !== t);
+  list.unshift({ token: t, code: b.code, route: b.route.name, pickup: b.pickup.name, at: Date.now() });
+  remember.set('seats', list.slice(0, 5));
   renderMine();
 }
 
 function renderMine() {
-  const list = (remember.get('bookings') ?? []).filter((x) => Date.now() - x.at < 3 * 86_400_000);
+  const list = (remember.get('seats') ?? []).filter((x) => Date.now() - x.at < 2 * 86_400_000);
   $('mine').hidden = list.length === 0;
   const box = $('mine-list');
   box.replaceChildren();
   for (const x of list) {
     const b = el('button', 'option');
     b.type = 'button';
-    b.append(el('span', 'title', `${x.code} · ${x.plate}`), el('span', 'right muted', x.route));
+    b.append(el('span', 'title', x.code), el('span', 'right muted', `${x.route} · ${x.pickup}`));
     b.addEventListener('click', () => {
       $('b-error').hidden = true;
       openBooking(x.token);
@@ -280,16 +300,16 @@ function renderMine() {
   }
 }
 
-async function cancel() {
-  if (!token || !window.confirm('Cancel this booking? The money goes back to your FarePay wallet.')) return;
-  $('cancel').disabled = true;
+async function act(path, button) {
+  button.disabled = true;
+  $('b-error').hidden = true;
   try {
-    renderBooking(await call('POST', `/book-api/bookings/${encodeURIComponent(token)}/cancel`));
+    renderBooking(await call('POST', `/book-api/seats/${encodeURIComponent(token)}/${path}`));
   } catch (err) {
     $('b-error').textContent = err.message;
     $('b-error').hidden = false;
   } finally {
-    $('cancel').disabled = false;
+    button.disabled = false;
   }
 }
 
@@ -299,28 +319,23 @@ async function startOver() {
   history.replaceState(null, '', '/book.html');
   $('b-error').hidden = true;
   show('loading');
-  try {
-    await loadRoutes();
-    renderRoutes();
-    if (route) {
-      renderDetails();
-      show('routes', 'details');
-    } else show('routes');
-  } catch (err) {
-    $('problem-text').textContent = err.message;
-    show('problem');
-  }
+  await start();
 }
 
 async function start() {
   renderMine();
-  const t = new URLSearchParams(location.search).get('b');
+  const t = new URLSearchParams(location.search).get('s');
   if (t) return openBooking(t);
+  let data;
   try {
-    await loadRoutes();
+    data = await loadRoutes();
   } catch (err) {
     $('problem-text').textContent = err.message;
     return show('problem');
+  }
+  if (!data.open) {
+    $('closed-text').textContent = `Seat booking is closed for today. It opens again at ${data.opens_at}.`;
+    return show('closed');
   }
   const last = remember.get('book.route');
   renderRoutes();
@@ -334,12 +349,14 @@ $('seats-minus').addEventListener('click', () => {
   renderDetails();
 });
 $('seats-plus').addEventListener('click', () => {
-  seats = Math.min(maxSeats(), seats + 1);
+  seats = Math.min(MAX_SEATS, seats + 1);
   renderDetails();
 });
 $('book').addEventListener('click', book);
-$('refresh').addEventListener('click', startOver);
 $('problem-retry').addEventListener('click', startOver);
-$('cancel').addEventListener('click', cancel);
+$('here').addEventListener('click', () => act('here', $('here')));
+$('cancel').addEventListener('click', () => {
+  if (window.confirm('Cancel this booking? The money goes back to you.')) act('cancel', $('cancel'));
+});
 $('again').addEventListener('click', startOver);
 start();

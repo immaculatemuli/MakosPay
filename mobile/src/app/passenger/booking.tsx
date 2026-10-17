@@ -1,133 +1,145 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
-import { Button, Card, colors, ErrorBox, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
+import { Alert, Linking, Text, View } from 'react-native';
+import { Button, Card, colors, ErrorBox, KeyValue, Loading, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
-import { dateTime, kes, time } from '@/lib/format';
+import { dateTime, displayPhone, kes } from '@/lib/format';
 import { t, useT } from '@/lib/i18n';
-import type { Booking } from '@/lib/types';
+import type { SeatBooking } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
-const TITLE: Record<Booking['status'], string> = {
+const TITLE: Record<SeatBooking['status'], string> = {
   paying: 'Waiting for M-Pesa…',
-  confirmed: 'Seat booked',
+  queued: 'Seat booked',
+  assigned: 'Your car is coming',
   boarded: 'On board',
-  departed: 'Car has left',
   cancelled: 'Cancelled',
   failed: 'Not paid',
-  paid_late: 'Paid too late',
 };
 
-/** What to tell the passenger now: pay, go to the stage, where the car is, or what happened. */
-function line(b: Booking) {
-  const c = b.car;
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`;
+
+/** What to tell the passenger now: pay, their place in the queue, which car to board, or what happened. */
+function line(b: SeatBooking) {
   if (b.status === 'paying') return t('Enter your M-Pesa PIN on your phone to finish booking.');
-  if (b.status === 'failed') return `${b.reason || t('M-Pesa did not complete the payment')}. ${t('No money was taken, and no seat is held.')}`;
-  if (b.status === 'paid_late') return t('M-Pesa confirmed your payment too late for this car, so the money is in your wallet.');
-  if (b.status === 'cancelled') return t('This booking was cancelled and the money returned to your wallet.');
-  if (c.status === 'departed') {
-    if (c.finished_at) return t('This trip has finished.');
-    if (c.reached_my_stop) return t('Your car reached {stop} at {time}.', { stop: b.stop_name, time: time(c.stops.find((s) => s.mine)!.reached_at!) });
-    const passed = c.stops.filter((s) => s.reached_at).pop();
-    return [
-      t('Left {place} at {time}.', { place: b.route.origin, time: time(c.departed_at!) }),
-      passed ? t('Passed {place} at {time}.', { place: passed.name, time: time(passed.reached_at!) }) : '',
-      c.expected_at_my_stop ? t('Expected at {stop} about {time}.', { stop: b.stop_name, time: time(c.expected_at_my_stop) }) : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
+  if (b.status === 'failed') return `${b.reason || t('M-Pesa did not complete the payment')}. ${t('No money was taken.')}`;
+  if (b.status === 'cancelled') {
+    const where = b.refund_to === 'wallet' ? t('{amount} is back in your FarePay wallet.', { amount: kes(b.amount) }) : t('{amount} is being sent back to your M-Pesa.', { amount: kes(b.amount) });
+    return `${b.reason ? `${b.reason}. ` : ''}${where}`;
   }
-  if (b.status === 'boarded') return t('You’re on board. The car leaves {place} when it is ready.', { place: b.route.origin });
-  if (c.cars_ahead > 0) {
-    return t(c.cars_ahead === 1 ? 'Your car is loading at {place}. {n} car ahead of it will leave first.' : 'Your car is loading at {place}. {n} cars ahead of it will leave first.', {
-      place: b.route.origin,
-      n: c.cars_ahead,
-    });
+  if (b.status === 'boarded') return t('You’re on board {plate}. Have a good trip to {stop}.', { plate: b.car?.plate ?? '', stop: b.stop_name });
+  if (b.status === 'assigned' && b.car) {
+    if (b.pickup.at_stage) return t('Board {plate} now at {place}. Show this code when you get on.', { plate: b.car.plate, place: b.pickup.name });
+    if (b.car.status === 'departed') return t('{plate} has left {origin} and is coming to pick you at {place}. Be ready with this code.', { plate: b.car.plate, origin: b.route.origin, place: b.pickup.name });
+    return t('{plate} will pick you at {place}. We’ll tell you when it leaves {origin}.', { plate: b.car.plate, place: b.pickup.name, origin: b.route.origin });
   }
-  return t('Your car is loading at {place} now. Go to the stage and show this code to the conductor.', { place: b.route.origin });
+  if (b.pickup.at_stage) {
+    return b.place_in_queue === 0
+      ? t('You’re next in the queue at {place}. The next car to arrive is yours.', { place: b.pickup.name })
+      : t('You’re {nth} in the queue at {place}. We’ll tell you which car to board.', { nth: ordinal((b.place_in_queue ?? 0) + 1), place: b.pickup.name });
+  }
+  return t('Wait at {place}. We’ll tell you which car is coming for you.', { place: b.pickup.name });
 }
 
-/** One booking (?id=): its code, the car and where it is; cancel while the car is still at the stage. */
+/** One seat booking (?id=): its code, the queue or its car, calling the crew, "I'm here", and cancelling. */
 export default function BookingScreen() {
   const { t } = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const booking = useApi<Booking>(`/passenger/bookings/${id}`);
-  const [busy, setBusy] = useState(false);
+  const booking = useApi<SeatBooking>(`/passenger/seats/${id}`);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const b = booking.data;
 
-  // Keep it fresh while something can still change (every 3 s while paying, else every 15 s).
+  // Keep it fresh while something can still change (every 3 s while paying, else every 10 s).
   const { reload } = booking;
-  const moving = b && (b.status === 'paying' || b.status === 'confirmed' || (['boarded', 'departed'].includes(b.status) && !b.car.finished_at));
+  const waiting = b && ['paying', 'queued', 'assigned'].includes(b.status);
   const paying = b?.status === 'paying';
   useEffect(() => {
-    if (!moving) return;
-    const timer = setInterval(() => void reload(), paying ? 3000 : 15000);
+    if (!waiting) return;
+    const timer = setInterval(() => void reload(), paying ? 3000 : 10000);
     return () => clearInterval(timer);
-  }, [moving, paying, reload]);
+  }, [waiting, paying, reload]);
 
   if (booking.loading && !b) return <Loading />;
   if (!b) return <Screen><ErrorBox message={booking.error ?? t('Booking not found')} onRetry={booking.reload} /></Screen>;
 
-  const cancel = () =>
-    Alert.alert(t('Cancel this booking?'), t('{amount} goes back to your FarePay wallet.', { amount: kes(b.amount) }), [
-      { text: t('Keep it'), style: 'cancel' },
-      {
-        text: t('Cancel booking'),
-        style: 'destructive',
-        onPress: async () => {
-          setBusy(true);
-          setError(null);
-          try {
-            booking.setData(await api<Booking>(`/passenger/bookings/${b.id}/cancel`, { method: 'POST' }));
-          } catch (err) {
-            setError(errorMessage(err));
-          } finally {
-            setBusy(false);
-          }
-        },
-      },
-    ]);
+  const act = async (what: 'here' | 'cancel') => {
+    setBusy(what);
+    setError(null);
+    try {
+      booking.setData(await api<SeatBooking>(`/passenger/seats/${b.id}/${what}`, { method: 'POST' }));
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  };
 
-  const good = ['confirmed', 'boarded', 'departed'].includes(b.status);
+  const cancel = () =>
+    Alert.alert(
+      t('Cancel this booking?'),
+      b.pay_with === 'wallet'
+        ? t('{amount} goes back to your FarePay wallet.', { amount: kes(b.amount) })
+        : t('{amount} goes back to your M-Pesa.', { amount: kes(b.amount) }),
+      [
+        { text: t('Keep it'), style: 'cancel' },
+        { text: t('Cancel booking'), style: 'destructive', onPress: () => void act('cancel') },
+      ],
+    );
+
+  const good = ['queued', 'assigned', 'boarded'].includes(b.status);
+  // The car's crew to call: the conductor on a bus, else the driver.
+  const crew = b.status === 'assigned' && b.car ? (b.car.conductor ?? b.car.driver) : null;
   return (
     <Screen refreshing={booking.refreshing} onRefresh={booking.refresh}>
       <Card>
         <View style={{ alignItems: 'center', paddingVertical: 6 }}>
-          <Text style={{ fontWeight: '800', fontSize: 18, color: good ? colors.primaryDark : b.status === 'paying' ? colors.warning : colors.danger }}>{t(TITLE[b.status])}</Text>
-          <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: 6, color: colors.text, marginVertical: 4 }}>{b.code}</Text>
-          <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text }}>{b.car.plate}</Text>
-          <Text style={{ color: colors.text, marginTop: 4, textAlign: 'center' }}>
-            {b.route.name} · {t('to {place}', { place: b.stop_name })} · {t(b.seats === 1 ? '{n} seat' : '{n} seats', { n: b.seats })} · {kes(b.amount)}
+          <Text style={{ fontWeight: '800', fontSize: 18, color: good ? colors.primaryDark : b.status === 'paying' ? colors.warning : colors.danger }}>
+            {t(TITLE[b.status])}
           </Text>
-          <Muted>{t('Booked {when}', { when: dateTime(b.booked_at) })}</Muted>
+          <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: 6, color: colors.text, marginVertical: 4 }}>{b.code}</Text>
+          {b.car && <Text style={{ fontSize: 26, fontWeight: '800', color: colors.text }}>{b.car.plate}</Text>}
+          {b.car?.description && <Muted>{b.car.description}</Muted>}
         </View>
       </Card>
       <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, textAlign: 'center', marginVertical: 8 }}>{line(b)}</Text>
 
-      {b.car.status === 'departed' && good && (
-        <>
-          <SectionTitle>{t('Where the car is')}</SectionTitle>
-          <Card>
-            {b.car.stops.map((s) => (
-              <View key={s.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }}>
-                <Ionicons name={s.reached_at ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={s.reached_at ? colors.primary : colors.muted} />
-                <Text style={{ flex: 1, fontWeight: s.mine ? '800' : '600', color: colors.text }}>
-                  {s.name}
-                  {s.mine ? ` (${t('your stop')})` : ''}
-                </Text>
-                <Text style={{ color: colors.muted }}>
-                  {s.reached_at ? time(s.reached_at) : s.mine && b.car.expected_at_my_stop ? t('about {time}', { time: time(b.car.expected_at_my_stop) }) : '—'}
-                </Text>
-              </View>
-            ))}
-          </Card>
-        </>
+      {crew && (
+        <Button
+          title={t('Call {who} ({name})', { who: b.car?.conductor ? t('the conductor') : t('the driver'), name: crew.name })}
+          icon="call-outline"
+          onPress={() => void Linking.openURL(`tel:${displayPhone(crew.phone)}`)}
+        />
+      )}
+      {(b.status === 'queued' || b.status === 'assigned') && !b.passenger_here_at && (
+        <Button title={t('I’m at the pickup point')} variant="secondary" icon="location-outline" loading={busy === 'here'} onPress={() => void act('here')} />
+      )}
+      {b.passenger_here_at && b.status !== 'boarded' && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', marginVertical: 4 }}>
+          <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+          <Muted>{t('We told them you’re waiting.')}</Muted>
+        </View>
       )}
 
+      <Card>
+        <KeyValue label={t('Route')} value={b.route.name} />
+        <KeyValue label={t('Pickup')} value={b.pickup.name} />
+        <KeyValue label={t('Getting off at')} value={b.stop_name} />
+        <KeyValue label={t('Seats')} value={String(b.seats)} />
+        <KeyValue label={t('Paid')} value={`${kes(b.amount)} · ${b.pay_with === 'wallet' ? t('Wallet') : 'M-Pesa'}`} />
+        <KeyValue label={t('Booked')} value={dateTime(b.booked_at)} />
+      </Card>
+
       {error && <ErrorBox message={error} />}
-      {b.can_cancel && <Button title={t('Cancel booking (refund to wallet)')} variant="danger" loading={busy} onPress={cancel} />}
+      {b.can_cancel && (
+        <Button
+          title={b.pay_with === 'wallet' ? t('Cancel booking (refund to wallet)') : t('Cancel booking (refund to M-Pesa)')}
+          variant="danger"
+          loading={busy === 'cancel'}
+          onPress={cancel}
+        />
+      )}
       <Button title={t('Book another seat')} variant="secondary" onPress={() => router.replace('/passenger/book')} />
     </Screen>
   );

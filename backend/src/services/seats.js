@@ -8,6 +8,7 @@
 // (booking_hold) until they board; then it is released and paid as one fare on the car they boarded (so that car's
 // owner is paid). A cancelled booking is released and refunded: to M-Pesa if paid by M-Pesa, to the wallet if paid
 // from it. Bookings are for today only: anything not on a car at the cutoff is refunded.
+import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
@@ -598,6 +599,20 @@ export function startNightlySeatRefunds() {
     const n = await refundUnboarded();
     if (n) console.log(`[seat refunds] ${n} unboarded booking(s) refunded`);
   });
+}
+
+// ---------- The website (no sign-in: the booking link is a signed token) ----------
+
+const SEAT_AUDIENCE = 'farepay-seat';
+export const seatToken = (bookingId) => jwt.sign({ sid: bookingId }, config.jwtSecret, { audience: SEAT_AUDIENCE, expiresIn: '7d' });
+
+/** The booking a website link is for. */
+export function seatIdFromToken(token) {
+  try {
+    return jwt.verify(token, config.jwtSecret, { audience: SEAT_AUDIENCE }).sid;
+  } catch {
+    throw new HttpError(404, 'NOT_FOUND', 'Booking not found. Open the link from your booking again.');
+  }
 }
 
 // ---------- Lists ----------
