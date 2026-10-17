@@ -220,8 +220,19 @@ export interface ProblemReport {
   reporter_phone: string;
   reporter_role: Role;
   handled_by_name: string | null;
+  /** Everything written after the first message, oldest first. */
+  messages: ReportMessage[];
   created_at: string;
   updated_at: string;
+}
+
+/** One reply on a problem report, from the reporter or the SACCO office (sender_name: who in the office). */
+export interface ReportMessage {
+  id: number;
+  from_office: boolean | number;
+  message: string;
+  sender_name: string | null;
+  created_at: string;
 }
 
 export interface AuditEntry {

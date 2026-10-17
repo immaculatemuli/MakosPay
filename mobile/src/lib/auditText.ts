@@ -11,6 +11,8 @@ const LABELS: [RegExp, string][] = [
   [/^PATCH \/admin\/conductors\/:id$/, 'Changed a conductor account'],
   [/^POST \/admin\/drivers$/, 'Added a driver'],
   [/^PATCH \/admin\/drivers\/:id$/, 'Changed a driver account'],
+  [/^POST \/admin\/conductors\/:id\/delete$/, 'Deleted a conductor'],
+  [/^POST \/admin\/drivers\/:id\/delete$/, 'Deleted a driver'],
   [/^POST \/admin\/staff$/, 'Added an office account'],
   [/^PATCH \/admin\/staff\/:id$/, 'Changed an office account'],
   [/^POST \/admin\/users\/:id\/password$/, 'Set a new password for someone'],

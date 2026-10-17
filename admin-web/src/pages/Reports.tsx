@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { api } from '../api';
+import { api, errorText } from '../api';
 import { dateTime, displayPhone, kes } from '../format';
 import type { ProblemReport } from '../types';
-import { Badge, Chips, Dialog, Failed, Loading, PageHead, ROLE_WORD } from '../ui';
+import { Badge, Banner, Chips, Failed, Loading, PageHead, ROLE_WORD } from '../ui';
 import { useApi } from '../useApi';
 import { REPORT_CATEGORY, REPORT_STATUS } from '../words';
 
@@ -12,90 +12,104 @@ const FILTERS = [
   { value: 'in_progress', label: 'Being looked into' },
   { value: 'resolved', label: 'Resolved' },
 ];
-const STATUSES = [
-  { value: 'in_progress', label: 'Being looked into' },
-  { value: 'resolved', label: 'Resolved' },
-  { value: 'open', label: 'New (reopen)' },
-] as const;
+// The status buttons shown for each status.
+const MOVES: Record<ProblemReport['status'], { status: ProblemReport['status']; label: string }[]> = {
+  open: [
+    { status: 'in_progress', label: 'Mark as being looked into' },
+    { status: 'resolved', label: 'Mark as resolved' },
+  ],
+  in_progress: [{ status: 'resolved', label: 'Mark as resolved' }],
+  resolved: [{ status: 'open', label: 'Open again' }],
+};
 
-/** Problems reported by passengers and crew; the office replies (the reporter sees the reply in the app). */
+/** Problems reported by passengers and crew: a conversation with each reporter (they write back in the app). */
 export function Reports() {
   const [filter, setFilter] = useState('');
   const { data, error, loading, reload } = useApi<ProblemReport[]>(`/admin/reports${filter ? `?status=${filter}` : ''}`);
-  const [reply, setReply] = useState<ProblemReport | null>(null);
-  const [status, setStatus] = useState<'open' | 'in_progress' | 'resolved'>('in_progress');
-  const [note, setNote] = useState('');
-
-  const open = (r: ProblemReport) => {
-    setReply(r);
-    setStatus(r.status === 'open' ? 'in_progress' : r.status);
-    setNote('');
-  };
 
   return (
     <>
-      <PageHead title="Problem reports">
+      <PageHead title="Problem reports" subtitle="Write to the reporter here; they see it in the app and can write back.">
         <Chips options={FILTERS} value={filter} onChange={setFilter} />
       </PageHead>
       {error && <Failed message={error} onRetry={reload} />}
       {loading && !data && <Loading />}
       {data?.length === 0 && <p className="muted">No reports{filter ? ' here' : ' yet'}.</p>}
-      {data?.map((r) => (
-        <div className="card" key={r.id} style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div>
-              <strong>{REPORT_CATEGORY[r.category]}</strong>{' '}
-              <Badge tone={REPORT_STATUS[r.status].tone}>{REPORT_STATUS[r.status].text}</Badge>
-              <div className="muted">
-                {ROLE_WORD[r.reporter_role] ?? r.reporter_role} {r.reporter_name} · {displayPhone(r.reporter_phone)} · {dateTime(r.created_at)}
-              </div>
-            </div>
-            <button className="secondary" onClick={() => open(r)}>
-              Reply / update
-            </button>
+      {data?.map((r) => <ReportCard key={r.id} report={r} onChanged={reload} />)}
+    </>
+  );
+}
+
+function ReportCard({ report: r, onChanged }: { report: ProblemReport; onChanged: () => Promise<void> }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      await onChanged();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const send = () =>
+    run(async () => {
+      await api(`/admin/reports/${r.id}/messages`, { method: 'POST', body: { message: text.trim() } });
+      setText('');
+    });
+  const move = (status: ProblemReport['status']) => run(() => api(`/admin/reports/${r.id}`, { method: 'PATCH', body: { status } }));
+
+  return (
+    <div className="card" style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <strong>{REPORT_CATEGORY[r.category]}</strong> <Badge tone={REPORT_STATUS[r.status].tone}>{REPORT_STATUS[r.status].text}</Badge>
+          <div className="muted">
+            {ROLE_WORD[r.reporter_role] ?? r.reporter_role} {r.reporter_name} · {displayPhone(r.reporter_phone)}
           </div>
-          <p style={{ marginBottom: 6 }}>{r.message}</p>
           {r.ticket_code && (
             <div className="muted">
               About ticket {r.ticket_code} · {r.plate} · {r.fare !== null ? kes(r.fare) : ''}
             </div>
           )}
-          {r.office_note && (
-            <div className="banner success" style={{ marginTop: 10, marginBottom: 0 }}>
-              Office reply{r.handled_by_name ? ` (${r.handled_by_name})` : ''}: {r.office_note}
-            </div>
-          )}
         </div>
-      ))}
-      {reply && (
-        <Dialog
-          title={`Reply to ${reply.reporter_name}`}
-          actionLabel="Save"
-          disabled={note.trim().length > 0 && note.trim().length < 2}
-          action={async () => {
-            await api(`/admin/reports/${reply.id}`, { method: 'PATCH', body: { status, ...(note.trim() && { office_note: note.trim() }) } });
-            setReply(null);
-            await reload();
-          }}
-          onClose={() => setReply(null)}
-        >
-          <p className="muted">“{reply.message}”</p>
-          <label>
-            Status
-            <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
-              {STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Reply (they see it in the app; optional)
-            <textarea rows={4} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. We refunded the fare to your wallet." />
-          </label>
-        </Dialog>
-      )}
-    </>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          {MOVES[r.status].map((m) => (
+            <button key={m.status} className="secondary" disabled={busy} onClick={() => move(m.status)}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="thread">
+        <Bubble office={false} who={r.reporter_name} at={r.created_at} text={r.message} />
+        {r.messages.map((m) => (
+          <Bubble key={m.id} office={Boolean(m.from_office)} who={m.from_office ? (m.sender_name ?? 'SACCO office') : r.reporter_name} at={m.created_at} text={m.message} />
+        ))}
+      </div>
+      {error && <Banner tone="danger">{error}</Banner>}
+      <div className="reply">
+        <textarea rows={2} maxLength={1000} value={text} onChange={(e) => setText(e.target.value)} placeholder={`Write to ${r.reporter_name}`} aria-label={`Write to ${r.reporter_name}`} />
+        <button disabled={busy || !text.trim()} onClick={send}>
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Bubble({ office, who, at, text }: { office: boolean; who: string; at: string; text: string }) {
+  return (
+    <div className={`bubble${office ? ' office' : ''}`}>
+      <div className="who">
+        {who} · {dateTime(at)}
+      </div>
+      <p>{text}</p>
+    </div>
   );
 }

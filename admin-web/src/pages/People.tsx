@@ -40,7 +40,7 @@ const ROLES = [
   { value: 'driver', label: 'Drivers' },
 ] as const;
 
-/** Conductors and drivers: add their sign-in, switch them off (frees their vehicle), reset passwords. */
+/** Conductors and drivers: add their sign-in, switch them off (frees their vehicle), reset passwords, delete. */
 export function Crew() {
   const [role, setRole] = useState<'conductor' | 'driver'>('conductor');
   const path = role === 'conductor' ? '/admin/conductors' : '/admin/drivers';
@@ -49,6 +49,7 @@ export function Crew() {
   const [form, setForm] = useState({ name: '', phone: '', password: '' });
   const [toggle, setToggle] = useState<CrewMember | null>(null);
   const [password, setPassword] = useState<CrewMember | null>(null);
+  const [remove, setRemove] = useState<CrewMember | null>(null);
   const word = role === 'conductor' ? 'conductor' : 'driver';
 
   return (
@@ -87,6 +88,9 @@ export function Crew() {
                     </button>{' '}
                     <button className="secondary" onClick={() => setToggle(c)}>
                       {c.is_active ? 'Switch off' : 'Switch on'}
+                    </button>{' '}
+                    <button className="secondary" onClick={() => setRemove(c)}>
+                      Delete
                     </button>
                   </td>
                 </tr>
@@ -139,6 +143,24 @@ export function Crew() {
             {toggle.is_active
               ? `They are signed out and can't sign in.${toggle.vehicle_plate ? ` ${toggle.vehicle_plate} is freed for another ${word}.` : ''}`
               : 'They can sign in again. Put them back on a vehicle from the vehicle’s page in the app.'}
+          </p>
+        </Dialog>
+      )}
+      {remove && (
+        <Dialog
+          title={`Delete ${remove.name}?`}
+          actionLabel="Delete"
+          danger
+          action={async () => {
+            await api(`${path}/${remove.id}/delete`, { method: 'POST' });
+            setRemove(null);
+            await reload();
+          }}
+          onClose={() => setRemove(null)}
+        >
+          <p className="muted">
+            Their account, name and phone number are removed from FarePay{remove.vehicle_plate ? ` and they are taken off ${remove.vehicle_plate}` : ''}.
+            Payments and trips they worked stay in the records as “Deleted {word}”. This can't be undone.
           </p>
         </Dialog>
       )}

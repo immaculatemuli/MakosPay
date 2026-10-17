@@ -519,6 +519,23 @@ CREATE TABLE IF NOT EXISTS parcel_payments (
 CREATE INDEX IF NOT EXISTS idx_parcel_payments_status ON parcel_payments(status);
 `);
 
+// Problem report conversations (the same as migrations/007_report_messages.sql for PostgreSQL).
+if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'report_messages'").get()) {
+  db.exec(`
+CREATE TABLE report_messages (
+  id          INTEGER PRIMARY KEY,
+  report_id   INTEGER NOT NULL REFERENCES reports(id),
+  sender_id   INTEGER REFERENCES users(id),
+  from_office INTEGER NOT NULL,
+  message     TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX idx_report_messages_report ON report_messages(report_id, id);
+INSERT INTO report_messages (report_id, sender_id, from_office, message, created_at)
+SELECT id, handled_by, 1, office_note, updated_at FROM reports WHERE office_note IS NOT NULL;
+`);
+}
+
 /**
  * Runs fn inside a write transaction. fn must be synchronous (no await inside),
  * which together with node:sqlite's synchronous API makes it atomic.

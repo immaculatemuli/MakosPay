@@ -74,6 +74,46 @@ export async function deleteOwnAccount(userId, currentPassword) {
   );
 }
 
+// A delete refused because other rows still point at the user (SQLite / PostgreSQL).
+const isStillReferenced = (err) => err?.errcode === 787 || err?.code === '23503';
+
+/**
+ * The office deletes a conductor or driver, completely. Their vehicle is freed and everything that was only
+ * theirs (notifications, phones for push, password codes) goes. If they never worked (no trips, no audit log
+ * entries...), the account itself is removed. Otherwise the money records and the audit log (which can't be
+ * changed) must keep pointing at someone: the account stays as "Deleted conductor/driver", with no name or phone,
+ * and can never sign in. Either way their phone number is free for a new account.
+ */
+export async function deleteCrewMember(userId, role, column) {
+  const unusable = await bcrypt.hash(randomUUID(), 10);
+  return tx(async () => {
+    const user = await db.get("SELECT id FROM users WHERE id = ? AND role = ? AND phone NOT LIKE 'deleted-%'", userId, role);
+    if (!user) return false;
+    await db.run(`UPDATE vehicles SET ${column} = NULL WHERE ${column} = ?`, userId);
+    for (const table of ['push_tokens', 'password_resets', 'notifications']) {
+      await db.run(`DELETE FROM ${table} WHERE user_id = ?`, userId);
+    }
+    // Try removing the account; if records still point at it, undo just that and wipe their details instead.
+    await db.exec('SAVEPOINT delete_crew');
+    try {
+      await db.run('DELETE FROM users WHERE id = ?', userId);
+      await db.exec('RELEASE SAVEPOINT delete_crew');
+    } catch (err) {
+      if (!isStillReferenced(err)) throw err;
+      await db.exec('ROLLBACK TO SAVEPOINT delete_crew');
+      await db.exec('RELEASE SAVEPOINT delete_crew');
+      await db.run(
+        'UPDATE users SET name = ?, phone = ?, password_hash = ?, is_active = FALSE, session_version = session_version + 1 WHERE id = ?',
+        role === 'driver' ? 'Deleted driver' : 'Deleted conductor',
+        `deleted-${userId}`,
+        unusable,
+        userId,
+      );
+    }
+    return true;
+  });
+}
+
 export async function changePassword(userId, currentPassword, newPassword) {
   const user = await db.get('SELECT password_hash FROM users WHERE id = ?', userId);
   if (!user || !(await bcrypt.compare(currentPassword, user.password_hash))) {

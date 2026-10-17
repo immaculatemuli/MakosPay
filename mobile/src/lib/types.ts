@@ -396,8 +396,20 @@ export interface ProblemReport {
   reporter_phone?: string;
   reporter_role?: Role;
   handled_by_name?: string | null;
+  /** Everything written after the first message, oldest first. */
+  messages: ReportMessage[];
   created_at: string;
   updated_at: string;
+}
+
+/** One reply on a problem report, from the reporter or the SACCO office. */
+export interface ReportMessage {
+  id: number;
+  from_office: boolean | number;
+  message: string;
+  /** Who in the office wrote it (only the office sees this). */
+  sender_name?: string | null;
+  created_at: string;
 }
 
 /** An M-Pesa PIN prompt sent to the passenger: a wallet top-up or one fare. */
