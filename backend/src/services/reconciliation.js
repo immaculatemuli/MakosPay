@@ -73,7 +73,21 @@ async function checkEverything() {
           != CASE WHEN w.status = 'failed' THEN w.amount ELSE 0 END`,
   );
 
+  // 8. Every seat booking's money is held while it waits (paid, not yet boarded) and released exactly once after,
+  // and the held total equals what waiting bookings are worth.
+  const seatMismatches = await one(
+    `SELECT COUNT(*) AS n FROM seat_bookings sb WHERE
+       (SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions t WHERE t.user_id = sb.passenger_id AND t.reference = sb.code
+          AND t.type IN ('booking_hold', 'booking_release'))
+       != CASE WHEN sb.status IN ('queued', 'assigned') THEN -sb.amount ELSE 0 END`,
+  );
+  const seatsHeld = await one("SELECT COALESCE(SUM(amount), 0) AS n FROM seat_bookings WHERE status IN ('queued', 'assigned')");
+  const seatTripMismatches = await one(
+    "SELECT COUNT(*) AS n FROM seat_bookings sb LEFT JOIN trips t ON t.id = sb.trip_id WHERE sb.status = 'boarded' AND (t.id IS NULL OR t.fare != sb.amount)",
+  );
+
   const totals = {
+    seat_bookings_held: seatsHeld,
     real_money: live,
     mpesa_collected: mpesaCompleted,
     test_credit: await one("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_transactions WHERE type = 'test_credit'"),
@@ -117,6 +131,14 @@ async function checkEverything() {
       name: 'Every withdrawal matches its wallet entries',
       ok: withdrawalMismatches === 0,
       detail: withdrawalMismatches ? `${withdrawalMismatches} withdrawals out of step with the wallet` : null,
+    },
+    {
+      name: 'Seat booking money is held until boarding, then released once',
+      ok: seatMismatches === 0 && seatTripMismatches === 0,
+      detail:
+        seatMismatches || seatTripMismatches
+          ? `${seatMismatches} bookings with held money out of step; ${seatTripMismatches} boarded bookings without a matching fare`
+          : null,
     },
   ];
 

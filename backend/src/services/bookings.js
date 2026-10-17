@@ -11,6 +11,7 @@ import { passengerFor } from './noapp.js';
 import { arriveAtStop } from './parcels.js';
 import { getPayment, refreshPayment, requireMpesa, sendPrompt } from './payments.js';
 import { applyDueFareChanges, getRoute, listRoutes, requireActiveStop } from './routes.js';
+import { fillRoute, onDeparted, onTripFinished, seatsTaken } from './seats.js';
 import { recordTrip, refundTrip } from './trips.js';
 
 export const MAX_SEATS_PER_BOOKING = 10;
@@ -19,19 +20,7 @@ const TOKEN_AUDIENCE = 'farepay-booking';
 // A booking's fare: taken from the wallet (b.trip_id), or recorded when M-Pesa confirmed (p.trip_id).
 const PAID_TRIP = 'COALESCE(b.trip_id, p.trip_id)';
 
-// Seats a booking holds: while its PIN prompt waits for an answer, and once paid (until refunded).
-// A failed or cancelled payment frees them straight away.
-const HOLDS_SEATS = `(p.status IN ('initiating', 'pending') OR t.status = 'paid')`;
-
-async function seatsTaken(loadId) {
-  const row = await db.get(
-    `SELECT COALESCE(SUM(b.seats), 0) AS taken FROM bookings b
-     LEFT JOIN mpesa_payments p ON p.id = b.mpesa_payment_id LEFT JOIN trips t ON t.id = ${PAID_TRIP}
-     WHERE b.load_id = ? AND ${HOLDS_SEATS}`,
-    loadId,
-  );
-  return row.taken;
-}
+// (seatsTaken, in seats.js, counts these and the seat bookings put on the car.)
 
 /** Cars loading now on a route, first come first served, each with its seats left. */
 async function loadingCars(routeId) {
@@ -458,19 +447,26 @@ export async function startLoading(vehicle, userId) {
   if (!vehicle.route_id) throw new HttpError(409, 'NO_ROUTE', 'This vehicle has no route set yet. Ask the SACCO office.');
   const route = await getRoute(vehicle.route_id);
   if (!route?.is_active || route.stops.length === 0) throw new HttpError(409, 'NO_ROUTE', 'This vehicle has no route in use. Ask the SACCO office.');
-  await tx(async () => {
+  const ended = await tx(async () => {
     if (await openLoad(vehicle.id)) throw new HttpError(409, 'ALREADY_LOADING', 'This car is already taking bookings.');
     // Back at a stage: the last trip is over, even if nobody marked it.
-    await db.run(`UPDATE loads SET finished_at = ${NOW} WHERE vehicle_id = ? AND status = 'departed' AND finished_at IS NULL`, vehicle.id);
+    const last = await onRoad(vehicle.id);
+    if (last) await db.run(`UPDATE loads SET finished_at = ${NOW} WHERE id = ?`, last.id);
     await db.insert('INSERT INTO loads (vehicle_id, route_id, seats, started_by) VALUES (?, ?, ?, ?)', vehicle.id, route.id, vehicle.seats, userId);
+    return last;
   });
+  if (ended) await onTripFinished(ended);
+  // Passengers waiting in the stage queue get on this car first.
+  await fillRoute(route.id);
   return crewLoad(vehicle);
 }
 
 /** The car has left the stage: no more bookings on it. */
 export async function departLoad(vehicle) {
-  const done = await db.run(`UPDATE loads SET status = 'departed', departed_at = ${NOW} WHERE vehicle_id = ? AND status = 'loading'`, vehicle.id);
-  if (!done.changes) throw new HttpError(409, 'NOT_LOADING', 'This car is not taking bookings.');
+  const load = await openLoad(vehicle.id);
+  const done = load && (await db.run(`UPDATE loads SET status = 'departed', departed_at = ${NOW} WHERE id = ? AND status = 'loading'`, load.id));
+  if (!done?.changes) throw new HttpError(409, 'NOT_LOADING', 'This car is not taking bookings.');
+  await onDeparted(load);
   return crewLoad(vehicle);
 }
 
@@ -500,8 +496,10 @@ export async function reachStop(vehicle, stopId) {
 
 /** The trip is over (the car is free to load again). */
 export async function finishTrip(vehicle) {
-  const done = await db.run(`UPDATE loads SET finished_at = ${NOW} WHERE vehicle_id = ? AND status = 'departed' AND finished_at IS NULL`, vehicle.id);
-  if (!done.changes) throw new HttpError(409, 'NOT_ON_ROAD', 'There is no trip on the road to finish.');
+  const road = await onRoad(vehicle.id);
+  const done = road && (await db.run(`UPDATE loads SET finished_at = ${NOW} WHERE id = ? AND finished_at IS NULL`, road.id));
+  if (!done?.changes) throw new HttpError(409, 'NOT_ON_ROAD', 'There is no trip on the road to finish.');
+  await onTripFinished(road);
   return crewLoad(vehicle);
 }
 

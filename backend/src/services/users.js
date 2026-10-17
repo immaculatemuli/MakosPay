@@ -96,7 +96,7 @@ export async function deleteCrewMember(userId, role, column) {
   return tx(async () => {
     const user = await db.get("SELECT id FROM users WHERE id = ? AND role = ? AND phone NOT LIKE 'deleted-%'", userId, role);
     if (!user) return false;
-    await db.run(`UPDATE vehicles SET ${column} = NULL WHERE ${column} = ?`, userId);
+    if (column) await db.run(`UPDATE vehicles SET ${column} = NULL WHERE ${column} = ?`, userId);
     for (const table of ['push_tokens', 'password_resets', 'notifications']) {
       await db.run(`DELETE FROM ${table} WHERE user_id = ?`, userId);
     }
@@ -111,7 +111,7 @@ export async function deleteCrewMember(userId, role, column) {
       await db.exec('RELEASE SAVEPOINT delete_crew');
       await db.run(
         'UPDATE users SET name = ?, phone = ?, password_hash = ?, is_active = FALSE, session_version = session_version + 1 WHERE id = ?',
-        role === 'driver' ? 'Deleted driver' : 'Deleted conductor',
+        `Deleted ${role}`,
         `deleted-${userId}`,
         unusable,
         userId,

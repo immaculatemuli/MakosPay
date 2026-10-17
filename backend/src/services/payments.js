@@ -7,6 +7,7 @@ import { HttpError, notFound } from '../errors.js';
 import * as mpesa from './mpesa.js';
 import { kesText, notify } from './notifications.js';
 import { handleParcelStkCallback, reconcileParcelPayments } from './parcels.js';
+import { seatPaymentConfirmed, seatPaymentFailed } from './seats.js';
 import { checkFare, findTrip, getTrip, recordTrip } from './trips.js';
 import { getBalance, postWalletEntry } from './wallet.js';
 
@@ -158,12 +159,13 @@ export async function handleStkCallback(body) {
         type: 'topup',
         amount: payment.amount,
         reference: receipt ?? placeholderRef(payment.id),
-        description: payment.purpose === 'fare' ? 'M-Pesa fare payment confirmed late: added to your wallet' : 'M-Pesa top-up (confirmed late)',
+        description:
+          payment.purpose === 'wallet' ? 'M-Pesa top-up (confirmed late)' : `M-Pesa ${payment.purpose === 'seat' ? 'seat booking' : 'fare'} payment confirmed late: added to your wallet`,
       });
       await notify([payment.user_id], {
         kind: 'topup.completed',
         title: `${kesText(payment.amount)} added to your wallet`,
-        body: `M-Pesa confirmed your payment late${receipt ? ` (receipt ${receipt})` : ''}, so it is in your wallet${payment.purpose === 'fare' ? ' instead of paying that fare' : ''}. Balance ${kesText(await getBalance(payment.user_id))}.`,
+        body: `M-Pesa confirmed your payment late${receipt ? ` (receipt ${receipt})` : ''}, so it is in your wallet${payment.purpose === 'wallet' ? '' : ` instead of paying that ${payment.purpose === 'seat' ? 'booking' : 'fare'}`}. Balance ${kesText(await getBalance(payment.user_id))}.`,
         target: 'wallet',
       });
       return;
@@ -173,7 +175,8 @@ export async function handleStkCallback(body) {
     if (!success) {
       const reason = String(cb.ResultDesc ?? 'Payment not completed');
       await db.run(`UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW} WHERE id = ?`, reason, payment.id);
-      await notifyTopupFailed(payment, reason);
+      if (payment.purpose === 'seat') await seatPaymentFailed(payment, reason);
+      else await notifyTopupFailed(payment, reason);
       return;
     }
 
@@ -185,6 +188,9 @@ export async function handleStkCallback(body) {
     );
     if (payment.purpose === 'fare') {
       await completeFare(payment, receipt);
+    } else if (payment.purpose === 'seat') {
+      // The amount M-Pesa says was paid (when it says), checked against the booking's price.
+      await seatPaymentConfirmed(payment, receipt, items.Amount === undefined ? null : Math.round(Number(items.Amount)));
     } else {
       // Credit what we asked for: the passenger cannot change the amount in the PIN prompt.
       await postWalletEntry(payment.user_id, {

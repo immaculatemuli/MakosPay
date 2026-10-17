@@ -6,6 +6,7 @@ import { reconcilePendingPayments } from './services/payments.js';
 import { reconcileProcessingPayouts, startDailyPayouts } from './services/payouts.js';
 import { startNightlyBackup } from './services/backup.js';
 import { startNightlyMoneyCheck } from './services/reconciliation.js';
+import { startNightlySeatRefunds } from './services/seats.js';
 import { reconcileProcessingWithdrawals } from './services/withdrawals.js';
 import { applyDueFareChanges } from './services/routes.js';
 import { flushPush } from './services/push.js';
@@ -55,6 +56,7 @@ createApp().listen(config.port, () => {
   startDailyPayouts();
   // Every night the books are checked; the office is alerted only if something doesn't add up.
   startNightlyMoneyCheck();
+  startNightlySeatRefunds();
   console.log(`  Money check runs every night at ${config.moneyCheckDailyAt} (Kenyan time)`);
   startNightlyBackup();
   console.log(`  Database backed up every night at ${config.backupDailyAt} into ${config.backupDir}`);
