@@ -18,17 +18,15 @@ export default function Pay() {
   const chosen = useChosenStop();
   // Wait until we know the passenger's saved drop-off, then ask for the quote once.
   const quote = useApi<Quote>(qr && chosen !== undefined ? `/passenger/scan?qr=${encodeURIComponent(qr)}${chosen ? `&stop_id=${chosen.stop_id}` : ''}` : null);
-  const [stopId, setStopId] = useState<number | null>(null);
+  // The stop the passenger picked; until then, the one the quote suggests (their saved drop-off).
+  const [pickedStopId, setPickedStopId] = useState<number | null>(null);
+  const stopId = pickedStopId ?? quote.data?.stop?.id ?? null;
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   // One id per confirmation screen: a retry after a network failure returns the same ticket instead of charging again.
   const idempotencyKey = useRef(Crypto.randomUUID());
 
   const mpesa = useMpesaPayment();
-
-  useEffect(() => {
-    if (quote.data && stopId === null && quote.data.stop) setStopId(quote.data.stop.id);
-  }, [quote.data, stopId]);
 
   // M-Pesa confirmed the fare: show the ticket.
   const paidTrip = mpesa.state?.trip;
@@ -72,7 +70,7 @@ export default function Pay() {
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'FARE_CHANGED' || err.code === 'WRONG_STOP')) {
         Alert.alert('Please check again', err.message);
-        setStopId(null);
+        setPickedStopId(null);
         await quote.reload();
       } else if (err instanceof ApiError && err.code === 'INSUFFICIENT_FUNDS') {
         await quote.reload();
@@ -124,7 +122,7 @@ export default function Pay() {
         label="Where are you getting off?"
         options={q.route.stops.map((s) => ({ value: s.id as number | null, label: `${s.name} · ${kes(s.app_fare)}` }))}
         value={stopId}
-        onChange={setStopId}
+        onChange={setPickedStopId}
       />
 
       {stop && (

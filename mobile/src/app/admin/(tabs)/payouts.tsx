@@ -85,7 +85,7 @@ export default function Payouts() {
           </Muted>
         </Card>
       )}
-      {o && !o.automatic && <Notice>Send each payout's amount to the owner's M-Pesa, then open the payout and enter the M-Pesa code.</Notice>}
+      {o && !o.automatic && <Notice>Send each payout’s amount to the owner’s M-Pesa, then open the payout and enter the M-Pesa code.</Notice>}
 
       <SectionTitle>Owed now</SectionTitle>
       {o?.owners.length === 0 && <Empty text="Nothing owed. Every fare has been paid to its owner." />}

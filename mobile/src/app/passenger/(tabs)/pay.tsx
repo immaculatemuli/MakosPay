@@ -31,10 +31,10 @@ export default function PayTab() {
 
       <SectionTitle>2. Scan the QR code in the vehicle</SectionTitle>
       <View style={{ alignItems: 'center', marginVertical: 8 }}>
-        <Text style={{ color: colors.muted, textAlign: 'center' }}>You'll see the vehicle, route and fare before anything is paid.</Text>
+        <Text style={{ color: colors.muted, textAlign: 'center' }}>You’ll see the vehicle, route and fare before anything is paid.</Text>
       </View>
       <Button title="Scan QR code" icon="qr-code-outline" onPress={() => router.push('/passenger/scan')} />
-      {s && <Muted center>Wallet balance {kes(s.balance)}. If it's too low you can pay with M-Pesa.</Muted>}
+      {s && <Muted center>Wallet balance {kes(s.balance)}. If it’s too low you can pay with M-Pesa.</Muted>}
     </Screen>
   );
 }

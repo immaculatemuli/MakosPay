@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Badge, colors, Empty, ErrorBox, Loading, Muted, Screen } from '@/components/ui';
+import { colors, Empty, ErrorBox, Loading, Muted, Screen } from '@/components/ui';
 import { saveChosenStop, useChosenStop } from '@/lib/chosenRoute';
 import { kes } from '@/lib/format';
 import { api } from '@/lib/api';
@@ -34,7 +34,7 @@ export default function ChooseRoute() {
     <Screen refreshing={routes.refreshing} onRefresh={routes.refresh}>
       {routes.error && <ErrorBox message={routes.error} onRetry={routes.reload} />}
       {routes.data?.length === 0 && <Empty text="No routes yet." />}
-      <Muted>Tap your route, then where you'll get off. Tap ☆ to save a drop-off.</Muted>
+      <Muted>Tap your route, then where you’ll get off. Tap ☆ to save a drop-off.</Muted>
       <View style={{ height: 10 }} />
       {routes.data?.map((r) => {
         const expanded = openId === r.id;

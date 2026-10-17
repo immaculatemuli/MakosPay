@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
 import { WhereGoing } from '@/components/WhereGoing';
-import { Badge, colors, Empty, ErrorBox, List, ListRow, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
+import { Badge, colors, Empty, ErrorBox, List, ListRow, Loading, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useChosenStop } from '@/lib/chosenRoute';
 import { dateTime, kes } from '@/lib/format';

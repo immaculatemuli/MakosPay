@@ -127,7 +127,7 @@ export default function AdminHome() {
       {s && s.today.by_vehicle.length === 0 ? (
         <Card style={{ alignItems: 'center', paddingVertical: 24 }}>
           <Ionicons name="cash-outline" size={32} color={colors.muted} />
-          <Muted center>No payments yet today. Each vehicle's takings will show here.</Muted>
+          <Muted center>No payments yet today. Each vehicle’s takings will show here.</Muted>
         </Card>
       ) : (
         <List>

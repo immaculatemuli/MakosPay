@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Text } from 'react-native';
 import { Badge, Button, Card, Chips, colors, Empty, ErrorBox, Field, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { dateTime, kes, nairobiDate, prettyDate } from '@/lib/format';
