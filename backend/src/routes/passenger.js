@@ -7,7 +7,7 @@ import { config } from '../config.js';
 import { HttpError } from '../errors.js';
 import { cancelPassengerBooking, MAX_SEATS_PER_BOOKING, passengerBooking, passengerBookings, routesForBooking, startBooking } from '../services/bookings.js';
 import { getUserPayment, startFarePayment, startTopup } from '../services/payments.js';
-import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
+import { fileReport, myReports, replySchema, reporterReply, reportSchema } from '../services/reports.js';
 import { listRoutes, publicFareChanges } from '../services/routes.js';
 import { getBalance } from '../services/wallet.js';
 import { requestWithdrawal } from '../services/withdrawals.js';
@@ -89,8 +89,12 @@ router.post('/reports', async (req, res) => {
 });
 
 router.get('/reports', async (req, res) => {
-  const rows = await db.all(`${REPORT_SELECT} WHERE r.reporter_id = ? ORDER BY r.id DESC LIMIT 50`, req.user.id);
-  res.json(rows.map(({ reporter_phone, handled_by, ...r }) => r));
+  res.json(await myReports(req.user.id));
+});
+
+// Writing more on one of your own reports (opens it again if it was resolved).
+router.post('/reports/:id/messages', async (req, res) => {
+  res.status(201).json(await reporterReply(req.user, parse(id, req.params.id), parse(replySchema, req.body)));
 });
 
 // Fare changes on routes in use: recent ones (last 30 days) and those coming up, with their dates.

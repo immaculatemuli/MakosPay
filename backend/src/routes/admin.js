@@ -25,9 +25,9 @@ import {
 } from '../services/routes.js';
 import { officeTrip, officeTrips } from '../services/bookings.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
-import { REPORT_SELECT, updateReport } from '../services/reports.js';
+import { officeReply, REPORT_SELECT, replySchema, updateReport, withMessages } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
-import { createUser, resetPassword } from '../services/users.js';
+import { createUser, deleteCrewMember, resetPassword } from '../services/users.js';
 import { nairobiDayRange, nairobiToday, newQrToken } from '../util.js';
 
 /** YYYY-MM-DD in Kenya, days from today. */
@@ -105,10 +105,16 @@ router.post('/payments/:id/refund', async (req, res) => {
 
 // ---------- Problem reports ----------
 
-// Reports, newest first; ?status=open|in_progress|resolved to filter.
+// Reports, newest first, with their conversations; ?status=open|in_progress|resolved to filter.
 router.get('/reports', async (req, res) => {
   const { status } = parse(z.object({ status: z.enum(['open', 'in_progress', 'resolved']).optional() }), req.query);
-  res.json(await db.all(`${REPORT_SELECT} WHERE (CAST(? AS TEXT) IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 200`, status ?? null, status ?? null));
+  const rows = await db.all(`${REPORT_SELECT} WHERE (CAST(? AS TEXT) IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 200`, status ?? null, status ?? null);
+  res.json(await withMessages(rows, { forOffice: true }));
+});
+
+// The office writes to the reporter on their report.
+router.post('/reports/:id/messages', async (req, res) => {
+  res.status(201).json(await officeReply(req.user.id, parse(id, req.params.id), parse(replySchema, req.body)));
 });
 
 router.patch('/reports/:id', async (req, res) => {
@@ -278,7 +284,8 @@ router.get('/reconciliation', async (_req, res) => {
 });
 
 // ---------- Vehicle crew: conductors and drivers ----------
-// Both work the same way: the office creates their sign-in, puts them on one vehicle, and can switch them off.
+// Both work the same way: the office creates their sign-in, puts them on one vehicle, and can switch them off
+// or delete them (deleted people are no longer listed; see deleteCrewMember).
 
 const CREW = {
   conductor: { path: 'conductors', column: 'conductor_id', label: 'Conductor' },
@@ -289,7 +296,7 @@ for (const [role, { path, column, label }] of Object.entries(CREW)) {
   const SELECT = `
     SELECT u.id, u.name, u.phone, u.is_active, u.created_at, v.id AS vehicle_id, v.plate AS vehicle_plate
     FROM users u LEFT JOIN vehicles v ON v.${column} = u.id
-    WHERE u.role = '${role}'`;
+    WHERE u.role = '${role}' AND u.phone NOT LIKE 'deleted-%'`;
 
   router.get(`/${path}`, async (_req, res) => {
     res.json(await db.all(`${SELECT} ORDER BY u.is_active DESC, u.name`));
@@ -306,7 +313,7 @@ for (const [role, { path, column, label }] of Object.entries(CREW)) {
     const userId = parse(id, req.params.id);
     const body = parse(z.object({ name: name.optional(), is_active: z.boolean().optional() }), req.body);
     const result = await db.run(
-      'UPDATE users SET name = COALESCE(?, name), is_active = COALESCE(?, is_active) WHERE id = ? AND role = ?',
+      "UPDATE users SET name = COALESCE(?, name), is_active = COALESCE(?, is_active) WHERE id = ? AND role = ? AND phone NOT LIKE 'deleted-%'",
       body.name ?? null,
       body.is_active ?? null,
       userId,
@@ -315,6 +322,11 @@ for (const [role, { path, column, label }] of Object.entries(CREW)) {
     if (result.changes === 0) throw notFound(label);
     if (body.is_active === false) await db.run(`UPDATE vehicles SET ${column} = NULL WHERE ${column} = ?`, userId);
     res.json(await db.get(`${SELECT} AND u.id = ?`, userId));
+  });
+
+  router.post(`/${path}/:id/delete`, async (req, res) => {
+    if (!(await deleteCrewMember(parse(id, req.params.id), role, column))) throw notFound(label);
+    res.json({ ok: true });
   });
 }
 

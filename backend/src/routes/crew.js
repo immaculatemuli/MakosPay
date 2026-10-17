@@ -6,7 +6,7 @@ import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, startLoading } from '../services/bookings.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
-import { fileReport, REPORT_SELECT, reportSchema } from '../services/reports.js';
+import { fileReport, myReports, replySchema, reporterReply, reportSchema } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
 import { TRIP_SELECT } from '../services/trips.js';
 import { maskPhone, nairobiDayRange, nairobiToday } from '../util.js';
@@ -79,8 +79,12 @@ router.post('/reports', async (req, res) => {
 });
 
 router.get('/reports', async (req, res) => {
-  const rows = await db.all(`${REPORT_SELECT} WHERE r.reporter_id = ? ORDER BY r.id DESC LIMIT 50`, req.user.id);
-  res.json(rows.map(({ reporter_phone, handled_by, ...r }) => r));
+  res.json(await myReports(req.user.id));
+});
+
+// Writing more on one of your own reports (opens it again if it was resolved).
+router.post('/reports/:id/messages', async (req, res) => {
+  res.status(201).json(await reporterReply(req.user, parse(id, req.params.id), parse(replySchema, req.body)));
 });
 
 router.get('/routes', async (_req, res) => {

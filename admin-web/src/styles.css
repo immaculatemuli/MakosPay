@@ -110,6 +110,16 @@ tr.clickable:hover td { background: #fafafa; }
 .dot.bad { background: var(--danger); }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
 .kv:last-child { border-bottom: 0; }
+
+/* ---------- Problem report conversations ---------- */
+.thread { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.bubble { max-width: 75%; border-radius: 12px; padding: 10px 12px; background: var(--bg); align-self: flex-start; }
+.bubble.office { background: var(--brand-soft); align-self: flex-end; }
+.bubble .who { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+.bubble.office .who { color: var(--brand-dark); }
+.bubble p { margin: 0; white-space: pre-wrap; }
+.reply { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.reply textarea { flex: 1; min-width: 220px; }
 .kv span:first-child { color: var(--muted); }
 
 /* ---------- QR sticker: only the sticker is printed ---------- */
