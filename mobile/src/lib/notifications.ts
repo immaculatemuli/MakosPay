@@ -62,6 +62,10 @@ export function targetHref(role: Role, target: string | null): Href | null {
   }
   if (home === '/conductor' || home === '/driver') {
     if (kind === 'reports') return `${home}/reports`;
+    if (kind === 'seats') return `${home}/bookings`;
+  }
+  if (home === '/marshal') {
+    if (kind === 'queue') return '/marshal';
   }
   if (home === '/admin') {
     if (kind === 'reports') return '/admin/reports';

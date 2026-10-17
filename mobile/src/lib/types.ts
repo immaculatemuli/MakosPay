@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'passenger' | 'conductor' | 'driver' | 'platform_admin';
+export type Role = 'admin' | 'passenger' | 'conductor' | 'driver' | 'platform_admin' | 'marshal';
 
 export const ROLE_LABEL: Record<Role, string> = {
   admin: 'SACCO office',
@@ -6,15 +6,17 @@ export const ROLE_LABEL: Record<Role, string> = {
   conductor: 'Conductor',
   driver: 'Driver',
   platform_admin: 'Platform admin',
+  marshal: 'Stage marshal',
 };
 
 /** The section of the app each role uses. The platform admin uses the SACCO office screens (plus Platform). */
-export const ROLE_HOME: Record<Role, '/admin' | '/passenger' | '/conductor' | '/driver'> = {
+export const ROLE_HOME: Record<Role, '/admin' | '/passenger' | '/conductor' | '/driver' | '/marshal'> = {
   admin: '/admin',
   platform_admin: '/admin',
   passenger: '/passenger',
   conductor: '/conductor',
   driver: '/driver',
+  marshal: '/marshal',
 };
 
 /** SACCO office screens are open to the office and the platform admin. */
@@ -511,6 +513,70 @@ export interface SeatRoutes {
     seats_waiting: number;
     cars_loading: number;
   }[];
+}
+
+/** A seat booking as the stage marshal (or a car's crew) sees it. */
+export interface QueueBooking {
+  id: number;
+  code: string;
+  status: 'queued' | 'assigned' | 'boarded';
+  seats: number;
+  amount: number;
+  stop_name: string;
+  pickup_name: string | null;
+  passenger_name: string;
+  passenger_phone: string;
+  passenger_here: boolean;
+  booked_at: string;
+  /** Place in the stage queue (1 = next), or null. */
+  place: number | null;
+  at_stage?: boolean;
+}
+
+/** A car loading at the stage or on the road, with the seat bookings on it. */
+export interface QueueCar {
+  load_id: number;
+  vehicle_id: number;
+  plate: string;
+  description: string | null;
+  state: 'loading' | 'on_the_road';
+  seats: number;
+  seats_left: number;
+  started_at: string;
+  departed_at: string | null;
+  stops_reached: number[];
+  driver: CrewContact | null;
+  conductor: CrewContact | null;
+  bookings: QueueBooking[];
+}
+
+/** One route's queue, as the marshal sees it. */
+export interface RouteQueue {
+  id: number;
+  name: string;
+  origin: string;
+  stops: { id: number; name: string }[];
+  stage_queue: QueueBooking[];
+  seats_waiting: number;
+  road_pickups: QueueBooking[];
+  cars: QueueCar[];
+}
+
+export interface MarshalQueues {
+  today: string;
+  open: boolean;
+  routes: RouteQueue[];
+}
+
+/** A vehicle the marshal can say has arrived. */
+export interface MarshalVehicle {
+  id: number;
+  plate: string;
+  description: string | null;
+  seats: number;
+  route_id: number | null;
+  route_name: string | null;
+  busy: 'loading' | 'departed' | null;
 }
 
 /** A person on a car's crew, to call. */

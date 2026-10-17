@@ -38,23 +38,25 @@ export function SetPassword({ person, onClose }: { person: { id: number; name: s
 const ROLES = [
   { value: 'conductor', label: 'Conductors' },
   { value: 'driver', label: 'Drivers' },
+  { value: 'marshal', label: 'Stage marshals' },
 ] as const;
+const WORD = { conductor: 'conductor', driver: 'driver', marshal: 'stage marshal' } as const;
 
-/** Conductors and drivers: add their sign-in, switch them off (frees their vehicle), reset passwords, delete. */
+/** Conductors, drivers and stage marshals: add their sign-in, switch them off (frees their vehicle), reset passwords, delete. */
 export function Crew() {
-  const [role, setRole] = useState<'conductor' | 'driver'>('conductor');
-  const path = role === 'conductor' ? '/admin/conductors' : '/admin/drivers';
+  const [role, setRole] = useState<'conductor' | 'driver' | 'marshal'>('conductor');
+  const path = `/admin/${role}s`;
   const { data, error, loading, reload } = useApi<CrewMember[]>(path);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', password: '' });
   const [toggle, setToggle] = useState<CrewMember | null>(null);
   const [password, setPassword] = useState<CrewMember | null>(null);
   const [remove, setRemove] = useState<CrewMember | null>(null);
-  const word = role === 'conductor' ? 'conductor' : 'driver';
+  const word = WORD[role];
 
   return (
     <>
-      <PageHead title="Crew" subtitle="Put a conductor or driver on a vehicle from the vehicle's page in the app.">
+      <PageHead title="Crew" subtitle="Put a conductor or driver on a vehicle from the vehicle's page. Stage marshals manage the queue of booked passengers at the stage.">
         <div style={{ display: 'flex', gap: 10 }}>
           <Chips options={[...ROLES]} value={role} onChange={setRole} />
           <button onClick={() => setAdding(true)}>Add {word}</button>
@@ -80,7 +82,7 @@ export function Crew() {
                 <tr key={c.id}>
                   <td>{c.name}</td>
                   <td>{displayPhone(c.phone)}</td>
-                  <td>{c.vehicle_plate ?? '—'}</td>
+                  <td>{role === 'marshal' ? 'Stage' : (c.vehicle_plate ?? '—')}</td>
                   <td>{c.is_active ? <Badge tone="success">Active</Badge> : <Badge tone="danger">Switched off</Badge>}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="secondary" onClick={() => setPassword(c)}>
