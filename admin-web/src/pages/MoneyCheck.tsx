@@ -46,6 +46,7 @@ export function MoneyCheck() {
             <div className="kv"><span>Refunded to wallets</span><span>{kes(d.totals.refunds_to_wallets)}</span></div>
             <div className="kv"><span>Paid out to owners</span><span>{kes(d.totals.paid_out_to_owners)}</span></div>
             <div className="kv"><span>Being paid out</span><span>{kes(d.totals.being_paid_out)}</span></div>
+            {!!d.totals.free_rides_paid_by_sacco && <div className="kv"><span>Free rides paid by the SACCO</span><span>{kes(d.totals.free_rides_paid_by_sacco)}</span></div>}
             <div className="kv"><span>Still owed to owners</span><span>{kes(d.totals.owed_to_owners)}</span></div>
             {d.totals.refunds_to_take_back > 0 && <div className="kv"><span>Refunds to take off next payouts</span><span>{kes(d.totals.refunds_to_take_back)}</span></div>}
             {d.totals.mpesa_pending > 0 && <div className="kv"><span>M-Pesa waiting for confirmation</span><span>{kes(d.totals.mpesa_pending)}</span></div>}

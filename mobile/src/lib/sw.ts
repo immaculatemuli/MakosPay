@@ -565,4 +565,21 @@ export const SW: Record<string, string> = {
   'Sharing the car’s position with booked passengers while on this trip.': 'Mahali gari lilipo linaonyeshwa kwa abiria waliolipa wakati wa safari hii.',
   'Location is off: booked passengers can’t see the car on the map. Allow location for FarePay in your phone settings.':
     'Mahali pamezimwa: abiria waliolipa hawawezi kuona gari kwenye ramani. Ruhusu mahali kwa FarePay kwenye mipangilio ya simu.',
+
+  // Loyalty: free rides
+  'Free ride': 'Safari ya bure',
+  'Free ride given back': 'Safari ya bure imerudishwa',
+  'Seat booking (held)': 'Nafasi ya kiti (imeshikiliwa)',
+  'Seat booking released': 'Nafasi ya kiti imeachiliwa',
+  'Your next ride is free': 'Safari yako inayofuata ni ya bure',
+  'Pay your next fare as usual: nothing will be taken.': 'Lipa nauli inayofuata kama kawaida: hakuna pesa itakayokatwa.',
+  '{rides} of {needed} rides': 'Safari {rides} kati ya {needed}',
+  '{rides} of {needed} rides: your {nth} ride is free': 'Safari {rides} kati ya {needed}: safari yako ya {nth} ni ya bure',
+  'Your {nth} ride is free. Rides from the last {days} days count.': 'Safari yako ya {nth} ni ya bure. Safari za siku {days} zilizopita zinahesabiwa.',
+  'Get my free ride': 'Pata safari yangu ya bure',
+  'This ride is free: thank you for riding with us! Nothing is taken from your wallet.': 'Safari hii ni ya bure: asante kwa kusafiri nasi! Hakuna pesa itakayokatwa kwenye mkoba wako.',
+  '{amount} · free, paid by the SACCO': '{amount} · bure, imelipwa na SACCO',
+  'This booking is your free ride: nothing is charged.': 'Nafasi hii ni safari yako ya bure: hakuna malipo.',
+  'Book my free ride': 'Weka safari yangu ya bure',
+  'Cancel (keep my free ride)': 'Ghairi (baki na safari yangu ya bure)',
 };

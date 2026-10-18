@@ -46,7 +46,9 @@ export async function passengerFor(phone) {
 /** Sends the PIN prompt for one fare. Returns the token the page uses to follow it. */
 export async function startNoAppFare({ qr, stopId, expectedFare, phone, idempotencyKey }) {
   const userId = await passengerFor(phone);
-  await startFarePayment(userId, { qr, stopId, expectedFare, idempotencyKey, phone });
+  const started = await startFarePayment(userId, { qr, stopId, expectedFare, idempotencyKey, phone });
+  // A free ride (loyalty): paid at once by the SACCO, no M-Pesa prompt and nothing to follow.
+  if (started.trip?.free_ride) return { status: 'paid', amount: 0, reason: null, free_ride: true, ticket: ticketOf(started.trip) };
   const payment = await db.get('SELECT id FROM mpesa_payments WHERE user_id = ? AND idempotency_key = ? ORDER BY id DESC LIMIT 1', userId, idempotencyKey);
   return {
     status_token: jwt.sign({ pid: payment.id }, config.jwtSecret, { audience: STATUS_AUDIENCE, expiresIn: '2d' }),
@@ -62,17 +64,20 @@ async function noAppPaymentStatus(paymentId) {
     status: trip ? 'paid' : payment.status === 'completed' ? 'paid_late' : payment.status === 'failed' ? 'failed' : 'waiting',
     amount: payment.amount,
     reason: payment.status === 'failed' ? payment.result_desc : null,
-    ticket: trip && {
-      code: trip.ticket_code,
-      plate: trip.plate,
-      route_name: trip.route_name,
-      stop_name: trip.stop_name,
-      fare: trip.fare,
-      paid_at: trip.created_at,
-      status: trip.status,
-    },
+    ticket: trip && ticketOf(trip),
   };
 }
+
+const ticketOf = (trip) => ({
+  code: trip.ticket_code,
+  plate: trip.plate,
+  route_name: trip.route_name,
+  stop_name: trip.stop_name,
+  fare: trip.fare,
+  paid_at: trip.created_at,
+  status: trip.status,
+  free_ride: Boolean(trip.free_ride),
+});
 
 /** The pay page asks how its payment is going (and M-Pesa is asked if it is still waiting). */
 export async function noAppPaymentByToken(token) {

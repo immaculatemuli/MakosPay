@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
+import { FreeRideCard } from '@/components/FreeRideCard';
 import { WhereGoing } from '@/components/WhereGoing';
 import { Badge, colors, Empty, ErrorBox, List, ListRow, Loading, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -69,6 +70,8 @@ export default function PassengerHome() {
           </View>
         </View>
       )}
+
+      {s && s.free_ride.every > 0 && <FreeRideCard p={s.free_ride} />}
 
       <List>
         <ListRow icon="people-outline" title={t('Book a seat')} subtitle={t('From anywhere: at the stage or on the road')} onPress={() => router.push('/passenger/book')} />

@@ -19,6 +19,7 @@ import { kesText, notify, notifyOffice } from './notifications.js';
 import { getPayment, refreshPayment, requireMpesa, sendPrompt } from './payments.js';
 import { applyDueFareChanges, getRoute, listRoutes, requireActiveStop } from './routes.js';
 import { queueSms } from './sms.js';
+import { afterPaidRide, creditFreeRide, nextRideIsFree, reverseFreeRide } from './rewards.js';
 import { recordTrip } from './trips.js';
 import { NO_APP_PASSWORD } from './users.js';
 import { createWithdrawal, dispatchWithdrawal } from './withdrawals.js';
@@ -154,6 +155,7 @@ export async function seatView(bookingId) {
     reason: b.status === 'failed' ? b.result_desc : b.status === 'cancelled' ? b.cancel_reason : null,
     refund_to: b.refund_to,
     can_cancel: OPEN.includes(b.status),
+    free_ride: Boolean(b.free_ride),
   };
 }
 
@@ -246,6 +248,27 @@ export async function bookSeats({ passengerId, phone, routeId, pickupStopId = nu
     }
     const amount = stop.app_fare * seats;
     const code = await uniqueCode();
+    // Loyalty: a one-seat booking can be the passenger's free ride (the SACCO pays it; nothing is charged).
+    const free = seats === 1 && (await nextRideIsFree(passengerId));
+    if (free) {
+      const bookingId = await db.insert(
+        `INSERT INTO seat_bookings (code, passenger_id, route_id, pickup_stop_id, stop_id, seats, fare_each, amount, pay_with, status, queued_at, idempotency_key, free_ride)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'wallet', 'queued', ${NOW}, ?, TRUE)`,
+        code,
+        passengerId,
+        routeId,
+        pickupStopId,
+        stop.id,
+        seats,
+        stop.app_fare,
+        amount,
+        idempotencyKey,
+      );
+      await creditFreeRide(passengerId, amount, code);
+      await postWalletEntry(passengerId, { type: 'booking_hold', amount: -amount, reference: code, description: holdText(seats, route, stop) });
+      await afterQueued(bookingId);
+      return { bookingId };
+    }
     if (payWith === 'wallet') {
       const bookingId = await db.insert(
         `INSERT INTO seat_bookings (code, passenger_id, route_id, pickup_stop_id, stop_id, seats, fare_each, amount, pay_with, status, queued_at, idempotency_key)
@@ -558,8 +581,9 @@ export async function boardSeat(bookingId, { vehicleId = null } = {}) {
     const vehicle = await getVehicle(b.vehicle_id);
     const stop = await db.get('SELECT * FROM route_stops WHERE id = ?', b.stop_id);
     await postWalletEntry(b.passenger_id, { type: 'booking_release', amount: b.amount, reference: b.code, description: `Seat booking ${b.code}: boarded ${b.plate}` });
-    const tripId = await recordTrip({ passengerId: b.passenger_id, vehicle, stop, fare: b.amount, idempotencyKey: `seat-${b.id}` });
+    const tripId = await recordTrip({ passengerId: b.passenger_id, vehicle, stop, fare: b.amount, idempotencyKey: `seat-${b.id}`, freeRide: Boolean(b.free_ride) });
     await db.run(`UPDATE seat_bookings SET status = 'boarded', boarded_at = ${NOW}, trip_id = ? WHERE id = ?`, tripId, b.id);
+    if (!b.free_ride) await afterPaidRide(b.passenger_id);
     await notify([b.passenger_id], { kind: 'seat.boarded', title: `On board ${b.plate}`, body: `Have a good trip to ${b.stop_name}.`, target: 'seats' });
   });
   return seatView(bookingId);
@@ -590,14 +614,16 @@ export async function cancelSeat(bookingId, { reason, by }) {
     const b = await getRow(bookingId);
     if (!b) throw notFound('Booking');
     if (!OPEN.includes(b.status)) throw new HttpError(409, 'CANNOT_CANCEL', 'Only a booking that is waiting or on a car (not boarded) can be cancelled.');
-    const toMpesa = b.pay_with === 'mpesa';
+    const toMpesa = b.pay_with === 'mpesa' && !b.free_ride;
     await db.run(
       `UPDATE seat_bookings SET status = 'cancelled', cancelled_at = ${NOW}, cancel_reason = ?, refund_to = ? WHERE id = ?`,
       reason,
-      toMpesa ? 'mpesa' : 'wallet',
+      b.free_ride ? null : toMpesa ? 'mpesa' : 'wallet',
       b.id,
     );
     await postWalletEntry(b.passenger_id, { type: 'booking_release', amount: b.amount, reference: b.code, description: `Seat booking ${b.code} cancelled` });
+    // A free ride is not turned into money: the passenger keeps it for their next ride instead.
+    if (b.free_ride) await reverseFreeRide(b.passenger_id, b.amount, b.code);
     let withdrawal = null;
     if (toMpesa) {
       const user = await db.get('SELECT id, phone FROM users WHERE id = ?', b.passenger_id);
@@ -607,8 +633,12 @@ export async function cancelSeat(bookingId, { reason, by }) {
     await tell(b, {
       kind: 'seat.cancelled',
       title: `Booking ${b.code} cancelled`,
-      body: `${reason}. ${kesText(b.amount)} ${toMpesa ? 'is being sent back to your M-Pesa' : 'is back in your FarePay wallet'}.`,
-      sms: `Makos: booking ${b.code} cancelled (${reason}). ${kesText(b.amount)} ${toMpesa ? 'is being sent back to your M-Pesa' : 'is back in your FarePay wallet'}.`,
+      body: b.free_ride
+        ? `${reason}. Your free ride is kept for your next trip.`
+        : `${reason}. ${kesText(b.amount)} ${toMpesa ? 'is being sent back to your M-Pesa' : 'is back in your FarePay wallet'}.`,
+      sms: b.free_ride
+        ? `Makos: booking ${b.code} cancelled (${reason}). Your free ride is kept for your next trip.`
+        : `Makos: booking ${b.code} cancelled (${reason}). ${kesText(b.amount)} ${toMpesa ? 'is being sent back to your M-Pesa' : 'is back in your FarePay wallet'}.`,
     });
     if (b.status === 'assigned') {
       await tellCrew(b.vehicle_id, { kind: 'seat.cancelled', title: `Booking ${b.code} cancelled`, body: `Don't pick ${b.passenger_name} at ${pickupPlace(b)}.` });

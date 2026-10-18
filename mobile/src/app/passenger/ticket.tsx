@@ -18,7 +18,7 @@ export default function Ticket() {
       <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
         <Ionicons name={refunded ? 'return-down-back' : 'checkmark-circle'} size={64} color={refunded ? colors.danger : colors.primary} />
         <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 8 }}>
-          {refunded ? t('Refunded to your wallet') : t('Paid')}
+          {refunded ? t('Refunded to your wallet') : p.free === '1' ? t('Free ride') : t('Paid')}
         </Text>
         {refunded && !!p.reason && <Text style={{ color: colors.muted, marginTop: 4 }}>{p.reason}</Text>}
         <Text style={{ color: colors.muted, marginTop: 16 }}>{t('Ticket code')}</Text>
@@ -41,7 +41,7 @@ export default function Ticket() {
         <KeyValue label={t('Vehicle')} value={p.plate} />
         <KeyValue label={t('Route')} value={p.route} />
         {!!p.stop && <KeyValue label={t('Getting off at')} value={p.stop} />}
-        <KeyValue label={t('Fare')} value={kes(Number(p.fare))} />
+        <KeyValue label={t('Fare')} value={p.free === '1' ? t('{amount} · free, paid by the SACCO', { amount: kes(Number(p.fare)) }) : kes(Number(p.fare))} />
         <KeyValue label={t('Time')} value={p.at ? dateTime(p.at) : ''} />
         {p.balance !== undefined && <KeyValue label={t('Wallet balance')} value={kes(Number(p.balance))} />}
       </Card>

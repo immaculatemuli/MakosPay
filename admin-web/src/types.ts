@@ -115,6 +115,7 @@ export interface Reconciliation {
     wallet_balances: number;
     paid_out_to_owners: number;
     being_paid_out: number;
+    free_rides_paid_by_sacco?: number;
     owed_to_owners: number;
     refunds_to_take_back: number;
     mpesa_pending: number;

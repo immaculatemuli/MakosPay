@@ -14,6 +14,10 @@ const LABEL: Record<WalletTx['type'], string> = {
   test_credit: 'Test credit',
   withdrawal: 'Withdrawal to M-Pesa',
   withdrawal_reversal: 'Withdrawal not sent',
+  booking_hold: 'Seat booking (held)',
+  booking_release: 'Seat booking released',
+  free_ride: 'Free ride',
+  free_ride_reversal: 'Free ride given back',
 };
 
 type Attempt = Pick<MpesaPayment, 'id' | 'amount' | 'purpose' | 'status' | 'result_desc'> & { created_at: string };

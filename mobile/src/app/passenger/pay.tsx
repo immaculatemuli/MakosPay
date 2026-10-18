@@ -50,7 +50,7 @@ export default function Pay() {
 
   const q = quote.data;
   const stop = q.route.stops.find((s) => s.id === stopId) ?? null;
-  const canPay = stop !== null && q.wallet_balance >= stop.app_fare;
+  const canPay = stop !== null && (q.free_ride || q.wallet_balance >= stop.app_fare);
 
   /** Pays from the wallet, or (byMpesa) sends an M-Pesa PIN prompt for the fare. */
   const pay = async (byMpesa: boolean) => {
@@ -136,8 +136,9 @@ export default function Pay() {
             <Text style={{ color: colors.muted }}>{t('You pay to {stop}', { stop: stop.name })}</Text>
             <Text style={{ fontSize: 40, fontWeight: '800', color: colors.text }}>{kes(stop.app_fare)}</Text>
           </View>
+          {q.free_ride && <Notice tone="success">{t('This ride is free: thank you for riding with us! Nothing is taken from your wallet.')}</Notice>}
           <KeyValue label={t('Wallet balance')} value={kes(q.wallet_balance)} />
-          {canPay && <KeyValue label={t('Balance after')} value={kes(q.wallet_balance - stop.app_fare)} />}
+          {canPay && !q.free_ride && <KeyValue label={t('Balance after')} value={kes(q.wallet_balance - stop.app_fare)} />}
         </Card>
       )}
 
@@ -153,6 +154,8 @@ export default function Pay() {
 
       {!stop ? (
         <Button title={t('Choose where you get off')} disabled onPress={() => {}} />
+      ) : q.free_ride ? (
+        <Button title={t('Get my free ride')} icon="gift-outline" onPress={() => pay(false)} loading={paying} />
       ) : canPay ? (
         <Button title={t('Pay {amount} from wallet', { amount: kes(stop.app_fare) })} icon="checkmark-circle-outline" onPress={() => pay(false)} loading={paying} />
       ) : (

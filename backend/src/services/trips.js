@@ -3,6 +3,7 @@ import { HttpError } from '../errors.js';
 import { parseQr, randomCode } from '../util.js';
 import { kesText, notify } from './notifications.js';
 import { applyDueFareChanges, getRoute, getStop, requireActiveStop } from './routes.js';
+import { afterPaidRide, creditFreeRide, nextRideIsFree, notifyFreeRide, reverseFreeRide } from './rewards.js';
 import { getBalance, postWalletEntry } from './wallet.js';
 
 const RECENT_PAYMENT_WINDOW_MS = 30 * 60 * 1000;
@@ -45,7 +46,10 @@ export async function quoteFare(passengerId, qr, chosenStopId) {
   const stop = onThisRoute ? chosen : route.stops.length === 1 ? route.stops[0] : null;
   const otherRoute = chosen && !onThisRoute ? await db.get('SELECT name FROM routes WHERE id = ?', chosen.route_id) : null;
 
+  // Loyalty: this ride is the passenger's free one (paid by the SACCO).
+  const freeRide = await nextRideIsFree(passengerId);
   return {
+    free_ride: freeRide,
     vehicle: { id: vehicle.id, plate: vehicle.plate, description: vehicle.description, conductor_name: vehicle.conductor_name ?? null },
     route: { id: route.id, name: route.name, origin: route.origin, stops: route.stops },
     stop: stop ? { id: stop.id, name: stop.name } : null,
@@ -53,8 +57,8 @@ export async function quoteFare(passengerId, qr, chosenStopId) {
     cash_fare: stop?.cash_fare ?? null,
     you_save: stop ? stop.cash_fare - stop.app_fare : null,
     wallet_balance: balance,
-    can_pay: stop ? balance >= stop.app_fare : false,
-    shortfall: stop ? Math.max(0, stop.app_fare - balance) : 0,
+    can_pay: stop ? freeRide || balance >= stop.app_fare : false,
+    shortfall: stop && !freeRide ? Math.max(0, stop.app_fare - balance) : 0,
     // Set when the drop-off the passenger chose is on a different route from this vehicle's.
     chosen_elsewhere: otherRoute ? { route_name: otherRoute.name, stop_name: chosen.name } : null,
     // "You already paid on this vehicle 5 minutes ago": avoids paying twice by mistake.
@@ -75,7 +79,7 @@ export const TRIP_SELECT = `
          t.vehicle_id, v.plate, v.description AS vehicle_description,
          t.route_id, r.name AS route_name, r.origin, t.stop_id, t.stop_name,
          t.conductor_id, c.name AS conductor_name, t.owner_name, t.owner_phone, t.payout_id,
-         t.status, t.refunded_at, t.refund_reason
+         t.status, t.refunded_at, t.refund_reason, t.free_ride
   FROM trips t
   JOIN users p ON p.id = t.passenger_id
   JOIN vehicles v ON v.id = t.vehicle_id
@@ -87,14 +91,19 @@ export const getTrip = (id) => db.get(`${TRIP_SELECT} WHERE t.id = ?`, id);
 /**
  * Pays the fare from the wallet. `expectedFare` is the fare the passenger saw; if it changed since,
  * we refuse rather than charge a surprise amount. `idempotencyKey` (one per confirmation, made by the
- * app) means a retry after a network failure never charges twice.
+ * app) means a retry after a network failure never charges twice. When the passenger's next ride is free
+ * (loyalty), the SACCO pays it instead: nothing is taken from the wallet.
  */
 export function payFare({ passengerId, qr, stopId, expectedFare, idempotencyKey }) {
   return tx(async () => {
     const existing = await findTrip(passengerId, idempotencyKey);
     if (existing) return { trip: existing, replayed: true };
     const { vehicle, stop } = await checkFare(qr, stopId, expectedFare);
-    const tripId = await recordTrip({ passengerId, vehicle, stop, fare: stop.app_fare, idempotencyKey });
+    const free = await nextRideIsFree(passengerId);
+    if (free) await creditFreeRide(passengerId, stop.app_fare, `FREE-${idempotencyKey}`.slice(0, 60));
+    const tripId = await recordTrip({ passengerId, vehicle, stop, fare: stop.app_fare, idempotencyKey, freeRide: free });
+    if (free) await notifyFreeRide(passengerId, stop.app_fare);
+    else await afterPaidRide(passengerId);
     return { trip: await getTrip(tripId), replayed: false };
   });
 }
@@ -112,12 +121,14 @@ export function refundTrip(tripId, reason) {
 
     await db.run(`UPDATE trips SET status = 'refunded', refund_reason = ?, refunded_at = ${NOW} WHERE id = ?`, reason, tripId);
     await postWalletEntry(trip.passenger_id, { type: 'refund', amount: trip.fare, reference: trip.ticket_code, description: `Refund: ${reason}` });
+    // A free ride is not turned into money: its credit goes back, and the passenger's next ride is free instead.
+    if (trip.free_ride) await reverseFreeRide(trip.passenger_id, trip.fare, trip.ticket_code);
     if (trip.payout_id) {
       await db.run('INSERT INTO owner_deductions (owner_phone, amount, trip_id) VALUES (?, ?, ?)', trip.owner_phone, trip.fare, trip.id);
     }
     await notify([trip.passenger_id], {
       kind: 'fare.refunded',
-      title: `${kesText(trip.fare)} refunded to your wallet`,
+      title: trip.free_ride ? 'Free ride given back' : `${kesText(trip.fare)} refunded to your wallet`,
       body: `Ticket ${trip.ticket_code}${trip.stop_name ? ` to ${trip.stop_name}` : ''}. Reason: ${reason}`,
       target: 'trips',
     });
@@ -144,8 +155,9 @@ export async function checkFare(qr, stopId, expectedFare) {
 /**
  * Takes the fare from the wallet and records the trip with a new ticket code. Must run inside tx().
  * Also used when a fare paid by M-Pesa is confirmed: that money is first added to the wallet, then taken here.
+ * `freeRide`: a loyalty free ride (the caller has already credited the SACCO's payment to the wallet).
  */
-export async function recordTrip({ passengerId, vehicle, stop, fare, idempotencyKey }) {
+export async function recordTrip({ passengerId, vehicle, stop, fare, idempotencyKey, freeRide = false }) {
   const route = await db.get('SELECT id, name FROM routes WHERE id = ?', stop.route_id);
   const ticketCode = await uniqueTicketCode();
   await postWalletEntry(passengerId, {
@@ -156,8 +168,8 @@ export async function recordTrip({ passengerId, vehicle, stop, fare, idempotency
   });
   return db.insert(
     `INSERT INTO trips (ticket_code, passenger_id, vehicle_id, route_id, stop_id, stop_name, conductor_id, owner_name, owner_phone,
-                        fare, cash_fare, idempotency_key)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        fare, cash_fare, idempotency_key, free_ride)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ticketCode,
     passengerId,
     vehicle.id,
@@ -170,5 +182,6 @@ export async function recordTrip({ passengerId, vehicle, stop, fare, idempotency
     fare,
     stop.cash_fare,
     idempotencyKey,
+    freeRide,
   );
 }

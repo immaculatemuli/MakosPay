@@ -125,7 +125,8 @@ async function pay() {
     const result = await call('POST', '/pay-api/pay', { qr, stop_id: stop.id, expected_fare: stop.fare, phone, idempotency_key: newKey() });
     remember.set('phone', phone);
     remember.set(`stop.${page.route.id}`, stop.id);
-    remember.set('last', { token: result.status_token, qr, at: Date.now() });
+    // A free ride (loyalty) is paid at once, with nothing to follow.
+    if (result.status_token) remember.set('last', { token: result.status_token, qr, at: Date.now() });
     follow(result.status_token, result);
   } catch (err) {
     // Back to the choose screen (never quick pay again on its own) with the reason.
@@ -150,7 +151,7 @@ function showWaiting(amount, note) {
 function showTicket(ticket) {
   $('t-code').textContent = ticket.code;
   $('t-plate').textContent = ticket.plate;
-  $('t-trip').textContent = `${ticket.route_name} to ${ticket.stop_name} · ${kes(ticket.fare)}${ticket.status === 'refunded' ? ' · REFUNDED' : ''}`;
+  $('t-trip').textContent = `${ticket.route_name} to ${ticket.stop_name} · ${ticket.free_ride ? 'FREE RIDE: thank you for riding with us!' : kes(ticket.fare)}${ticket.status === 'refunded' ? ' · REFUNDED' : ''}`;
   $('t-time').textContent = new Date(ticket.paid_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi', dateStyle: 'medium', timeStyle: 'short' });
   show('paid');
 }

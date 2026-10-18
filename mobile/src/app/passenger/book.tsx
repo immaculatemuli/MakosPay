@@ -6,7 +6,7 @@ import { Button, Card, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, M
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { kes } from '@/lib/format';
 import { useT } from '@/lib/i18n';
-import type { SeatBooking, SeatRoutes } from '@/lib/types';
+import type { PassengerSummary, SeatBooking, SeatRoutes } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
 const MAX_SEATS = 10;
@@ -30,6 +30,7 @@ export default function BookSeat() {
   const data = useApi<SeatRoutes>('/passenger/seat-routes');
   const mine = useApi<SeatBooking[]>('/passenger/seats');
   const wallet = useApi<{ balance: number }>('/passenger/wallet');
+  const summary = useApi<PassengerSummary>('/passenger/summary');
   const [routeId, setRouteId] = useState<number | null>(null);
   // undefined = not chosen yet; null = at the stage.
   const [pickupId, setPickupId] = useState<number | null | undefined>(undefined);
@@ -47,6 +48,8 @@ export default function BookSeat() {
   const stop = dropOffs.find((s) => s.id === stopId) ?? null;
   const total = stop ? stop.fare * seats : 0;
   const balance = wallet.data?.balance ?? 0;
+  // Loyalty: a one-seat booking can be the passenger's free ride.
+  const freeNow = Boolean(summary.data?.free_ride.next_is_free) && seats === 1;
   const open = (mine.data ?? []).filter((b) => ['paying', 'queued', 'assigned'].includes(b.status));
   const earlier = (mine.data ?? []).filter((b) => !open.includes(b));
 
@@ -176,9 +179,15 @@ export default function BookSeat() {
           </Card>
           {pickupStop && <Muted>{t('The fare is the same as from the stage, wherever you are picked.')}</Muted>}
           {error && <ErrorBox message={error} />}
+          {freeNow && <Notice tone="success">{t('This booking is your free ride: nothing is charged.')}</Notice>}
+          {freeNow && <Button title={t('Book my free ride')} icon="gift-outline" loading={busy} onPress={() => void book('wallet')} />}
+          {!freeNow && (
+          <>
           <Button title={t('Pay {amount} from wallet', { amount: kes(total) })} icon="wallet-outline" disabled={balance < total} loading={busy} onPress={() => void book('wallet')} />
           <Button title={t('Pay {amount} with M-Pesa', { amount: kes(total) })} variant="secondary" icon="phone-portrait-outline" disabled={busy} onPress={() => void book('mpesa')} />
           {balance < total && <Muted center>{t('Your wallet is short by {amount}: pay with M-Pesa, or add money first.', { amount: kes(total - balance) })}</Muted>}
+          </>
+          )}
           <Muted center>{t('If no car takes you today, the money goes back the way you paid.')}</Muted>
         </>
       )}
