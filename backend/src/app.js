@@ -85,8 +85,10 @@ export function createApp() {
   const statementJson = express.json({ limit: '6mb' });
   const photoJson = express.json({ limit: '3mb' });
   const PHOTO_PATHS = /^\/(passenger|crew|conductor)\/reports(\/\d+\/messages)?$/;
+  // A spreadsheet of hundreds of vehicles or crew, read into rows by the dashboard.
+  const IMPORT_PATH = /^\/admin\/import\/\w+$/;
   app.use((req, res, next) =>
-    (req.path === '/admin/statement-check' ? statementJson : PHOTO_PATHS.test(req.path) ? photoJson : smallJson)(req, res, next),
+    (req.path === '/admin/statement-check' || IMPORT_PATH.test(req.path) ? statementJson : PHOTO_PATHS.test(req.path) ? photoJson : smallJson)(req, res, next),
   );
 
   // For the hosting's uptime check: also makes sure the database answers.

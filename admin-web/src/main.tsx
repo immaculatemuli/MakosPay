@@ -15,6 +15,8 @@ import { PayoutDetail } from './pages/PayoutDetail';
 import { Payouts } from './pages/Payouts';
 import { Crew, Passengers } from './pages/People';
 import { Reports } from './pages/Reports';
+import { Import } from './pages/Import';
+import { Stickers } from './pages/Stickers';
 import { RouteEdit } from './pages/RouteEdit';
 import { Routes as RoutesPage } from './pages/Routes';
 import { Statement } from './pages/Statement';
@@ -35,6 +37,8 @@ function App() {
         <Route path="payments" element={<Payments />} />
         <Route path="vehicles" element={<Vehicles />} />
         <Route path="vehicles/new" element={<VehicleForm />} />
+        <Route path="vehicles/stickers" element={<Stickers />} />
+        <Route path="import" element={<Import />} />
         <Route path="vehicles/:id" element={<VehicleDetail />} />
         <Route path="vehicles/:id/edit" element={<VehicleForm />} />
         <Route path="staff" element={<Staff />} />
