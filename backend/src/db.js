@@ -617,6 +617,19 @@ CREATE INDEX IF NOT EXISTS idx_seat_bookings_load ON seat_bookings(load_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_seat_bookings_payment ON seat_bookings(mpesa_payment_id) WHERE mpesa_payment_id IS NOT NULL;
 `);
 
+// Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS vehicle_locations (
+  vehicle_id  INTEGER PRIMARY KEY REFERENCES vehicles(id),
+  lat         REAL NOT NULL CHECK (lat BETWEEN -90 AND 90),
+  lng         REAL NOT NULL CHECK (lng BETWEEN -180 AND 180),
+  heading     REAL,
+  speed       REAL,
+  accuracy    REAL,
+  recorded_at TEXT NOT NULL DEFAULT (${NOW})
+);
+`);
+
 /**
  * Runs fn inside a write transaction. fn must be synchronous (no await inside),
  * which together with node:sqlite's synchronous API makes it atomic.

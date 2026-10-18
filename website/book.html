@@ -7,8 +7,10 @@
   <title>Book a seat · FarePay · Makos Sacco</title>
   <meta name="description" content="Book and pay for your Makos Sacco seat from anywhere: at the stage, or to be picked on the road.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/site.css">
   <script src="/site.js" defer></script>
+  <script src="/vendor/leaflet/leaflet.js" defer></script>
   <script src="/book.js" defer></script>
 </head>
 <body>
@@ -89,6 +91,9 @@
         <div class="muted" id="b-paid"></div>
       </div>
       <p class="car-line" id="b-line"></p>
+      <p class="center muted" id="b-eta" hidden></p>
+      <div id="b-map" class="car-map" hidden></div>
+      <p class="center muted small" id="b-map-time" hidden></p>
       <p class="center" id="b-call" hidden></p>
       <p class="error" id="b-error" hidden></p>
       <button type="button" id="here" hidden>I'm at the pickup point</button>

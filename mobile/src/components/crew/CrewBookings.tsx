@@ -6,6 +6,7 @@ import { api, errorMessage } from '@/lib/api';
 import { kes, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import type { CrewBooking, CrewLoad } from '@/lib/types';
+import { useShareCarLocation } from '@/lib/shareLocation';
 import { SeatPickups } from './SeatPickups';
 import { useApi } from '@/lib/useApi';
 
@@ -34,6 +35,8 @@ export function CrewBookings() {
     const timer = setInterval(() => void reload(), 15_000);
     return () => clearInterval(timer);
   }, [loadingNow, reload]);
+  // On a trip, this phone shows the car on the map for the passengers it picks and the marshal.
+  const sharing = useShareCarLocation(loadingNow);
 
   if (load.loading && !load.data) return <Loading />;
   const d = load.data;
@@ -89,6 +92,8 @@ export function CrewBookings() {
   return (
     <Screen refreshing={load.refreshing} onRefresh={load.refresh}>
       {(load.error || error) && <ErrorBox message={(error ?? load.error)!} onRetry={error ? undefined : load.reload} />}
+      {sharing === 'sharing' && <Muted>{t('Sharing the car’s position with booked passengers while on this trip.')}</Muted>}
+      {sharing === 'denied' && <Muted>{t('Location is off: booked passengers can’t see the car on the map. Allow location for FarePay in your phone settings.')}</Muted>}
       <SeatPickups />
 
       {d?.on_road && (

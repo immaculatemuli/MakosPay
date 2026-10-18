@@ -558,4 +558,11 @@ export const SW: Record<string, string> = {
   'Waiting there now': 'Anasubiri pale sasa',
   'Picked up': 'Amepanda',
   'On board: {names}': 'Wamepanda: {names}',
+
+  // The live map
+  'It usually reaches {place} about {time}.': 'Kwa kawaida hufika {place} karibu saa {time}.',
+  'Position at {time}': 'Mahali lilipo saa {time}',
+  'Sharing the car’s position with booked passengers while on this trip.': 'Mahali gari lilipo linaonyeshwa kwa abiria waliolipa wakati wa safari hii.',
+  'Location is off: booked passengers can’t see the car on the map. Allow location for FarePay in your phone settings.':
+    'Mahali pamezimwa: abiria waliolipa hawawezi kuona gari kwenye ramani. Ruhusu mahali kwa FarePay kwenye mipangilio ya simu.',
 };

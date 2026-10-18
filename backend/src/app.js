@@ -41,9 +41,10 @@ function serveOfficeDashboard(app) {
   );
 }
 
-// The public website: its own stylesheet, script and pictures only.
+// The public website: its own stylesheet, script and pictures only (plus OpenStreetMap's map tiles, for the map
+// of the car coming to pick a passenger).
 const WEBSITE_CSP =
-  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; " +
+  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self'; " +
   "base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 function serveWebsite(app) {

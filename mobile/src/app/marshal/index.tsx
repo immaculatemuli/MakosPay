@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { CarMap } from '@/components/CarMap';
 import { Badge, Button, Card, Chips, colors, Empty, ErrorBox, Loading, Muted, Notice, Screen, SectionTitle } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { displayPhone, time } from '@/lib/format';
@@ -217,6 +218,12 @@ export default function StageQueue() {
 
           <SectionTitle>{t('On the road')}</SectionTitle>
           {onRoad.length === 0 && <Muted>{t('No cars on the road.')}</Muted>}
+          {onRoad.some((c) => c.location) && (
+            <CarMap
+              height={280}
+              cars={onRoad.filter((c) => c.location).map((c) => ({ id: c.load_id, lat: c.location!.lat, lng: c.location!.lng, label: c.plate }))}
+            />
+          )}
           {onRoad.map((car) => {
             const toPick = car.bookings.filter((b) => b.status === 'assigned');
             return (

@@ -43,7 +43,8 @@ export function auditChanges(req, res, next) {
   const end = res.end;
   res.end = function finish(...args) {
     res.end = end;
-    if (res.statusCode >= 300 || !req.user) return end.apply(res, args);
+    // Not recorded: failures, and frequent routine updates (a car's position every few seconds).
+    if (res.statusCode >= 300 || !req.user || req.skipAudit) return end.apply(res, args);
     const pattern = `${req.baseUrl}${req.route?.path ?? ''}`;
     const entityId = Number(req.params?.id ?? req.params?.stopId) || null;
     const entity = pattern.split('/').filter((p) => p && !p.startsWith(':'))[1] ?? null;

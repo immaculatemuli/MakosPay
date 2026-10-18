@@ -547,6 +547,7 @@ export interface QueueCar {
   stops_reached: number[];
   driver: CrewContact | null;
   conductor: CrewContact | null;
+  location: CarLocation | null;
   bookings: QueueBooking[];
 }
 
@@ -579,6 +580,15 @@ export interface MarshalVehicle {
   busy: 'loading' | 'departed' | null;
 }
 
+/** A car's latest position from its crew's phone. */
+export interface CarLocation {
+  lat: number;
+  lng: number;
+  heading: number | null;
+  speed: number | null;
+  at: string;
+}
+
 /** A person on a car's crew, to call. */
 export interface CrewContact {
   name: string;
@@ -608,6 +618,10 @@ export interface SeatBooking {
     departed_at: string | null;
     driver: CrewContact | null;
     conductor: CrewContact | null;
+    /** Where the car is (while the passenger waits for it), from its crew's phone. */
+    location: CarLocation | null;
+    /** A road pickup's car on the way: when it usually reaches the pickup. */
+    expected_at_pickup: string | null;
   } | null;
   boarded_at: string | null;
   reason: string | null;
