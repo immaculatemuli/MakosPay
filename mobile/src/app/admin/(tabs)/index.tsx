@@ -110,6 +110,7 @@ export default function AdminHome() {
         <ListRow icon="add-circle-outline" title="Add vehicle" subtitle="Plate, owner's M-Pesa number, QR sticker" onPress={() => router.push('/admin/vehicle-form')} />
         <ListRow icon="person-add-outline" title="Add conductor" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'conductor' } })} />
         <ListRow icon="car-outline" title="Add driver" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'driver' } })} />
+        <ListRow icon="download-outline" title="Reports & downloads" subtitle="Takings and payouts for the accountant (Excel)" onPress={() => router.push('/admin/exports')} />
         <ListRow icon="megaphone-outline" title="Message crew" subtitle="One message to all drivers on a route" onPress={() => router.push('/admin/broadcast')} />
         <ListRow icon="people-outline" title="Vehicle owners" subtitle="Their cars, takings and payouts" onPress={() => router.push('/admin/owners')} />
         <ListRow icon="flag-outline" title="Stage marshals" subtitle="Manage the queue of booked passengers" onPress={() => router.push({ pathname: '/admin/crew', params: { role: 'marshal' } })} />

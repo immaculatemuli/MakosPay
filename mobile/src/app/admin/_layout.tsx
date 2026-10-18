@@ -23,6 +23,7 @@ export default function AdminLayout() {
       <Stack.Screen name="search" options={{ title: 'Search' }} />
       <Stack.Screen name="owners" options={{ title: 'Vehicle owners' }} />
       <Stack.Screen name="broadcast" options={{ title: 'Message crew' }} />
+      <Stack.Screen name="exports" options={{ title: 'Reports & downloads' }} />
       <Stack.Screen name="owner/[id]" options={{ title: 'Owner' }} />
       <Stack.Screen name="owner-form" options={{ title: 'Owner' }} />
       <Stack.Screen name="set-password" options={{ title: 'Set new password' }} />
