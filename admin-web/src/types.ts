@@ -27,6 +27,7 @@ export interface Route {
 
 export interface Vehicle {
   id: number;
+  owner_id: number | null;
   plate: string;
   description: string | null;
   owner_name: string;

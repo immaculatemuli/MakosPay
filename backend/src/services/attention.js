@@ -159,6 +159,14 @@ export async function searchEverything(raw) {
   );
   for (const v of vehicles) results.push({ kind: 'vehicle', id: v.id, title: v.plate, subtitle: `${v.route_name ?? 'No route'}${v.is_active ? '' : ' · switched off'}`, link: `vehicle:${v.id}` });
 
+  const owners = await db.all(
+    `SELECT o.id, o.name, o.phone, (SELECT COUNT(*) FROM vehicles v WHERE v.owner_id = o.id) AS cars FROM owners o
+     WHERE LOWER(o.name) LIKE ? OR o.phone = ? ORDER BY o.name LIMIT 6`,
+    like,
+    phone ?? '',
+  );
+  for (const o of owners) results.push({ kind: 'owner', id: o.id, title: o.name, subtitle: `Owner · ${plural(o.cars, 'car')} · 0${o.phone.slice(3)}`, link: `owner:${o.id}` });
+
   const people = await db.all(
     `SELECT id, name, phone, role, is_active FROM users
      WHERE phone NOT LIKE 'deleted-%' AND (LOWER(name) LIKE ? OR phone = ? OR (CAST(? AS TEXT) <> '' AND phone LIKE ?))

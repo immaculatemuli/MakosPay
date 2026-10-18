@@ -114,6 +114,7 @@ export default function VehicleForm() {
       />
 
       <SectionTitle>Owner (receives the fares)</SectionTitle>
+      <Muted>If this phone number already belongs to an owner, the car is added to their cars and their payment details are used. Changing them here changes them for all their cars.</Muted>
       <Field label="Owner's name" value={ownerName} onChangeText={setOwnerName} />
       <Field
         label="Owner's phone number"

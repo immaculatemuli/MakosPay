@@ -46,7 +46,7 @@ export function VehicleDetail() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
         <div className="card">
           <div className="kv"><span>Route</span><span>{v.route_name ?? 'None yet'}</span></div>
-          <div className="kv"><span>Owner</span><span>{v.owner_name}</span></div>
+          <div className="kv"><span>Owner</span><span>{v.owner_id ? <Link to={`/owners/${v.owner_id}`}>{v.owner_name}</Link> : v.owner_name}</span></div>
           <div className="kv"><span>Owner's phone</span><span>{displayPhone(v.owner_phone)}</span></div>
           <div className="kv">
             <span>Owner is paid to</span>

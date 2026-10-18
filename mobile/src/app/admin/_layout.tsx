@@ -21,6 +21,9 @@ export default function AdminLayout() {
       <Stack.Screen name="payout/[id]" options={{ title: 'Payout' }} />
       <Stack.Screen name="passengers" options={{ title: 'Passengers' }} />
       <Stack.Screen name="search" options={{ title: 'Search' }} />
+      <Stack.Screen name="owners" options={{ title: 'Vehicle owners' }} />
+      <Stack.Screen name="owner/[id]" options={{ title: 'Owner' }} />
+      <Stack.Screen name="owner-form" options={{ title: 'Owner' }} />
       <Stack.Screen name="set-password" options={{ title: 'Set new password' }} />
       <Stack.Screen name="refund" options={{ title: 'Refund fare' }} />
       <Stack.Screen name="staff" options={{ title: 'Office staff' }} />

@@ -635,6 +635,34 @@ if (!hasColumn('trips', 'free_ride')) db.exec('ALTER TABLE trips ADD COLUMN free
 if (!hasColumn('seat_bookings', 'free_ride')) db.exec('ALTER TABLE seat_bookings ADD COLUMN free_ride INTEGER NOT NULL DEFAULT 0');
 db.exec("CREATE INDEX IF NOT EXISTS idx_trips_passenger_paid ON trips(passenger_id, created_at) WHERE status = 'paid'");
 
+// Vehicle owners set up once (the same as migrations/013_owners.sql for PostgreSQL).
+if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'owners'").get()) {
+  db.exec(`
+CREATE TABLE owners (
+  id             INTEGER PRIMARY KEY,
+  name           TEXT NOT NULL,
+  phone          TEXT NOT NULL UNIQUE,
+  id_number      TEXT,
+  payout_method  TEXT NOT NULL DEFAULT 'mpesa' CHECK (payout_method IN ('mpesa', 'bank')),
+  bank_name      TEXT,
+  bank_paybill   TEXT,
+  bank_account   TEXT,
+  created_at     TEXT NOT NULL DEFAULT (${NOW})
+);
+`);
+  if (!hasColumn('vehicles', 'owner_id')) db.exec('ALTER TABLE vehicles ADD COLUMN owner_id INTEGER REFERENCES owners(id)');
+  if (!hasColumn('payouts', 'owner_id')) db.exec('ALTER TABLE payouts ADD COLUMN owner_id INTEGER REFERENCES owners(id)');
+  db.exec(`
+CREATE INDEX IF NOT EXISTS idx_vehicles_owner ON vehicles(owner_id);
+CREATE INDEX IF NOT EXISTS idx_trips_owner_unpaid ON trips(owner_phone) WHERE payout_id IS NULL;
+INSERT INTO owners (name, phone, payout_method, bank_name, bank_paybill, bank_account)
+SELECT v.owner_name, v.owner_phone, v.owner_payout_method, v.owner_bank_name, v.owner_bank_paybill, v.owner_bank_account
+FROM vehicles v WHERE v.id = (SELECT MAX(v2.id) FROM vehicles v2 WHERE v2.owner_phone = v.owner_phone);
+UPDATE vehicles SET owner_id = (SELECT o.id FROM owners o WHERE o.phone = vehicles.owner_phone);
+UPDATE payouts SET owner_id = (SELECT o.id FROM owners o WHERE o.phone = payouts.owner_phone);
+`);
+}
+
 // Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
 db.exec(`
 CREATE TABLE IF NOT EXISTS vehicle_locations (

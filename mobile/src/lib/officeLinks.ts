@@ -26,6 +26,8 @@ export function officeHref(link: string | null): Href | null {
       return value ? { pathname: '/admin/vehicles', params: { filter: value } } : '/admin/vehicles';
     case 'vehicle':
       return `/admin/vehicle/${value}`;
+    case 'owner':
+      return `/admin/owner/${value}`;
     case 'passenger':
       return { pathname: '/admin/passengers', params: { q: value } };
     case 'crew':

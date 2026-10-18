@@ -50,6 +50,7 @@ export interface Conductor {
 
 export interface Vehicle extends OwnerPayoutDetails {
   id: number;
+  owner_id: number | null;
   plate: string;
   description: string | null;
   owner_name: string;
