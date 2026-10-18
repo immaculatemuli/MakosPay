@@ -2,9 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Text, View } from 'react-native';
+import { CarMap } from '@/components/CarMap';
 import { Button, Card, colors, ErrorBox, KeyValue, Loading, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
-import { dateTime, displayPhone, kes } from '@/lib/format';
+import { dateTime, displayPhone, kes, time } from '@/lib/format';
 import { t, useT } from '@/lib/i18n';
 import type { SeatBooking } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
@@ -105,6 +106,15 @@ export default function BookingScreen() {
       </Card>
       <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, textAlign: 'center', marginVertical: 8 }}>{line(b)}</Text>
 
+      {b.status === 'assigned' && b.car?.expected_at_pickup && (
+        <Muted center>{t('It usually reaches {place} about {time}.', { place: b.pickup.name, time: time(b.car.expected_at_pickup) })}</Muted>
+      )}
+      {b.status === 'assigned' && b.car?.location && (
+        <>
+          <CarMap cars={[{ id: b.id, lat: b.car.location.lat, lng: b.car.location.lng, label: b.car.plate }]} />
+          <Muted center>{t('Position at {time}', { time: time(b.car.location.at) })}</Muted>
+        </>
+      )}
       {crew && (
         <Button
           title={t('Call {who} ({name})', { who: b.car?.conductor ? t('the conductor') : t('the driver'), name: crew.name })}

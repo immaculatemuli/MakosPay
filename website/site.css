@@ -168,3 +168,5 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
 .trip .stop-name { font-weight: 600; }
 .trip .stop-time { white-space: nowrap; }
 .booking .center { text-align: center; }
+.car-map { height: 260px; border-radius: 12px; margin: 14px 0 4px; border: 1px solid var(--line); }
+.car-pin { background: var(--brand); color: #fff; font-weight: 700; font-size: 13px; padding: 3px 7px; border-radius: 6px; border: 2px solid #fff; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); }

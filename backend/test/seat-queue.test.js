@@ -295,3 +295,26 @@ test('the money check adds up after all of it', async () => {
   assert.equal(r.all_ok, true, JSON.stringify(r.checks.filter((c) => !c.ok)));
   assert.equal(r.totals.seat_bookings_held, 0);
 });
+
+test("the car's position is shared only while it is on a trip, shown to the passenger it is picking", async () => {
+  const where = { lat: -1.0922, lng: 37.0124, heading: 90, speed: 12 };
+  // Not on a trip (KDA 111A's last trip finished): nothing kept.
+  await api('POST', '/crew/road/finish', { token: s.driver });
+  assert.deepEqual((await api('POST', '/crew/location', { token: s.driver, body: where })).body, { shared: false });
+
+  await api('POST', '/marshal/cars/arrived', { token: s.marshal, body: { vehicle_id: s.carA.id } });
+  await api('POST', `/marshal/cars/${s.carA.id}/left`, { token: s.marshal });
+  assert.deepEqual((await api('POST', '/crew/location', { token: s.driver, body: where })).body, { shared: true });
+  const before = (await db.get("SELECT COUNT(*) AS n FROM audit_log WHERE action LIKE '%location%'")).n;
+  assert.equal(before, 0, 'not written to the audit log');
+
+  const r = await book(s.p1, { pickup_stop_id: s.juja.id, expected_fare: 400 });
+  const car = (await queues()).cars.find((c) => c.plate === 'KDA 111A');
+  assert.equal(car.location.lat, -1.0922, 'the marshal sees it');
+  await api('POST', `/marshal/seats/${r.body.id}/assign`, { token: s.marshal, body: { load_id: car.load_id } });
+  const mine = await seat(s.p1, r.body.id);
+  assert.equal(mine.car.location.lng, 37.0124, 'the passenger waiting for it sees it');
+  await api('POST', `/passenger/seats/${r.body.id}/cancel`, { token: s.p1.token });
+  assert.equal((await seat(s.p1, r.body.id)).car, null, 'not after the booking is over');
+  assert.equal((await api('POST', '/crew/location', { token: s.driver, body: { lat: 200, lng: 0 } })).status, 400);
+});

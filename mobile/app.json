@@ -57,6 +57,12 @@
       "expo-font",
       "expo-sharing",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "While your car is on a trip, FarePay shows its position to the passengers it is picking up and to the stage marshal."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Allow FarePay to add a photo (like a screenshot of an M-Pesa message) to a problem report.",

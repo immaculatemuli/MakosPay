@@ -224,6 +224,26 @@ function line(b) {
   return `Wait at ${b.pickup.name}. We'll tell you which car is coming for you.`;
 }
 
+// The car coming for the passenger on an OpenStreetMap map (Leaflet, served from this site), moved in place.
+let map = null;
+let marker = null;
+function renderMap(b) {
+  const where = b.status === 'assigned' ? b.car?.location : null;
+  $('b-map').hidden = !where || !window.L;
+  $('b-map-time').hidden = !where;
+  if (!where || !window.L) return;
+  $('b-map-time').textContent = `Position at ${hm(where.at)}`;
+  if (!map) {
+    map = L.map('b-map').setView([where.lat, where.lng], 15);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', referrerPolicy: 'origin' }).addTo(map);
+    const label = el('div', 'car-pin', b.car.plate);
+    marker = L.marker([where.lat, where.lng], { icon: L.divIcon({ className: '', html: label, iconSize: null }) }).addTo(map);
+  } else {
+    marker.setLatLng([where.lat, where.lng]);
+  }
+}
+const hm = (iso) => new Date(iso).toLocaleTimeString('en-KE', { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit' });
+
 // Something can still change while it is being paid, waiting, or on a car not yet boarded.
 const stillMoving = (b) => ['paying', 'queued', 'assigned'].includes(b.status);
 
@@ -235,6 +255,10 @@ function renderBooking(b) {
   $('b-trip').textContent = `${b.route.name} · ${b.pickup.name} to ${b.stop_name} · ${seatWord(b.seats)} · ${kes(b.amount)}`;
   $('b-paid').textContent = `Booked ${new Date(b.booked_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi', dateStyle: 'medium', timeStyle: 'short' })}`;
   $('b-line').textContent = line(b);
+  const eta = b.status === 'assigned' ? b.car?.expected_at_pickup : null;
+  $('b-eta').hidden = !eta;
+  if (eta) $('b-eta').textContent = `It usually reaches ${b.pickup.name} about ${hm(eta)}.`;
+  renderMap(b);
   // Call the car's crew once a car is given.
   const crew = b.status === 'assigned' ? (b.car.conductor ?? b.car.driver) : null;
   const call = $('b-call');

@@ -6,7 +6,7 @@ import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, startLoading } from '../services/bookings.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
-import { boardSeat, crewSeats } from '../services/seats.js';
+import { boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
 import { TRIP_SELECT } from '../services/trips.js';
@@ -129,6 +129,22 @@ router.post('/seats/:id/board', async (req, res) => {
   const vehicle = await myVehicle(req.user);
   await boardSeat(parse(id, req.params.id), { vehicleId: vehicle.id });
   res.json(await crewSeats(vehicle.id));
+});
+
+// Where the car is, from the crew's phone while on a trip (shown to the passengers it picks and the marshals).
+router.post('/location', async (req, res) => {
+  const body = parse(
+    z.object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+      heading: z.number().nullable().optional(),
+      speed: z.number().nullable().optional(),
+      accuracy: z.number().nullable().optional(),
+    }),
+    req.body,
+  );
+  req.skipAudit = true;
+  res.json({ shared: await saveCarLocation((await myVehicle(req.user)).id, body) });
 });
 
 // On the road: the car reached a stop (passengers who booked see it), and the end of the trip.

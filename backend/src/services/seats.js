@@ -13,7 +13,7 @@ import { config } from '../config.js';
 import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { nairobiToday, randomCode } from '../util.js';
-import { departLoad, isLoading, startLoading } from './bookings.js';
+import { departLoad, isLoading, startLoading, typicalMinutes } from './bookings.js';
 import { runDaily } from './jobs.js';
 import { kesText, notify, notifyOffice } from './notifications.js';
 import { getPayment, refreshPayment, requireMpesa, sendPrompt } from './payments.js';
@@ -50,6 +50,42 @@ const SEAT_SELECT = `
 
 const getRow = (bookingId) => db.get(`${SEAT_SELECT} WHERE sb.id = ?`, bookingId);
 
+// ---------- Where the cars are ----------
+
+// A position older than this is not shown (the phone stopped sharing).
+const LOCATION_FRESH_MS = 10 * 60_000;
+
+/** A car's latest position from its crew's phone (null if none in the last 10 minutes). */
+export async function carLocation(vehicleId) {
+  const l = vehicleId ? await db.get('SELECT * FROM vehicle_locations WHERE vehicle_id = ?', vehicleId) : null;
+  if (!l || Date.now() - Date.parse(l.recorded_at) > LOCATION_FRESH_MS) return null;
+  return { lat: l.lat, lng: l.lng, heading: l.heading, speed: l.speed, at: l.recorded_at };
+}
+
+/**
+ * The crew's phone says where the car is. Kept only while the car is on a trip (loading at the stage, or on the road
+ * and not finished), so nobody is followed after work. Returns whether it was kept.
+ */
+export async function saveCarLocation(vehicleId, { lat, lng, heading = null, speed = null, accuracy = null }) {
+  const onTrip = await db.get(
+    "SELECT 1 FROM loads WHERE vehicle_id = ? AND (status = 'loading' OR (status = 'departed' AND finished_at IS NULL))",
+    vehicleId,
+  );
+  if (!onTrip) return false;
+  await db.run(
+    `INSERT INTO vehicle_locations (vehicle_id, lat, lng, heading, speed, accuracy, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ${NOW})
+     ON CONFLICT (vehicle_id) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, heading = excluded.heading,
+       speed = excluded.speed, accuracy = excluded.accuracy, recorded_at = excluded.recorded_at`,
+    vehicleId,
+    lat,
+    lng,
+    heading,
+    speed,
+    accuracy,
+  );
+  return true;
+}
+
 /** Where the passenger is picked, in words. */
 const pickupPlace = (b) => b.pickup_name ?? `${b.origin} stage`;
 
@@ -82,6 +118,9 @@ export async function seatView(bookingId) {
     b = await getRow(bookingId);
   }
   const assigned = b.status === 'assigned' || b.status === 'boarded';
+  // A road pickup's car on the way: when it usually reaches the pickup, from past trips.
+  const minutes =
+    b.status === 'assigned' && b.pickup_stop_id && b.car_status === 'departed' && !b.finished_at ? await typicalMinutes(b.pickup_stop_id) : null;
   return {
     id: b.id,
     code: b.code,
@@ -104,6 +143,9 @@ export async function seatView(bookingId) {
           departed_at: b.departed_at,
           driver: b.driver_name ? { name: b.driver_name, phone: b.driver_phone } : null,
           conductor: b.conductor_name ? { name: b.conductor_name, phone: b.conductor_phone } : null,
+          // Only while the passenger is waiting for it.
+          location: b.status === 'assigned' ? await carLocation(b.vehicle_id) : null,
+          expected_at_pickup: minutes === null ? null : new Date(Date.parse(b.departed_at) + minutes * 60_000).toISOString(),
         }
       : null,
     assigned_at: b.assigned_at,
@@ -679,6 +721,7 @@ export async function marshalQueues() {
         stops_reached: reached.map((x) => x.stop_id),
         driver: l.driver_name ? { name: l.driver_name, phone: l.driver_phone } : null,
         conductor: l.conductor_name ? { name: l.conductor_name, phone: l.conductor_phone } : null,
+        location: await carLocation(l.vehicle_id),
         bookings: onIt.map((b) => marshalBooking(b, null)),
       });
     }
