@@ -19,9 +19,17 @@ export function Vehicles() {
   return (
     <>
       <PageHead title="Vehicles & QR stickers" subtitle="Open a vehicle to print its QR sticker, change its details or replace its QR code.">
-        <Link className="button" to="/vehicles/new">
-          Add vehicle
-        </Link>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Link className="button secondary-link" to="/vehicles/stickers">
+            Print all stickers
+          </Link>
+          <Link className="button secondary-link" to="/import">
+            Import from Excel
+          </Link>
+          <Link className="button" to="/vehicles/new">
+            Add vehicle
+          </Link>
+        </div>
       </PageHead>
       {filter && (
         <div className="banner warning">

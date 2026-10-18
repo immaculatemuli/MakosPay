@@ -25,6 +25,7 @@ import {
 } from '../services/routes.js';
 import { officeTrip, officeTrips } from '../services/bookings.js';
 import { needsAttention, searchEverything, vehicleIdsFor } from '../services/attention.js';
+import { importRows, IMPORT_KINDS, TEMPLATES } from '../services/importer.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
 import { getPhoto, officeReply, officeReports, replySchema, sendPhoto, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
@@ -460,6 +461,35 @@ router.get('/vehicles', async (req, res) => {
 // What needs the office now, most urgent first, and one search across cars, people, tickets, bookings and parcels.
 router.get('/attention', async (_req, res) => {
   res.json(await needsAttention());
+});
+
+// ---------- Spreadsheet import (routes, crew, vehicles) and every QR sticker at once ----------
+
+router.get('/import/templates', (_req, res) => {
+  res.json(TEMPLATES);
+});
+
+// Checks the rows (commit: false) or, when every row is right, saves them all (commit: true).
+router.post('/import/:kind', async (req, res) => {
+  const kind = parse(z.enum(IMPORT_KINDS), req.params.kind);
+  const body = parse(z.object({ rows: z.array(z.record(z.string(), z.any())).max(3000), commit: z.boolean().default(false) }), req.body);
+  const result = await importRows(kind, body.rows, { commit: body.commit, by: req.user.id });
+  // The audit log keeps what was imported, not the whole file (which can hold passwords).
+  req.skipAudit = true;
+  if (result.saved) await audit(req.user, `import.${kind}`, null, null, { rows: result.total, summary: result.summary });
+  res.status(result.saved ? 201 : 200).json(result);
+});
+
+// Every vehicle's sticker on one page to print (optionally one route's).
+router.get('/vehicles/stickers', async (req, res) => {
+  const { route_id } = parse(z.object({ route_id: id.optional() }), req.query);
+  const rows = await db.all(
+    `SELECT v.id, v.plate, r.name AS route_name FROM vehicles v LEFT JOIN routes r ON r.id = v.route_id
+     WHERE v.is_active = TRUE AND (CAST(? AS INTEGER) IS NULL OR v.route_id = ?) ORDER BY v.plate`,
+    route_id ?? null,
+    route_id ?? null,
+  );
+  res.json({ opens_with_camera: config.qrPrefix.startsWith('https://'), vehicles: rows });
 });
 
 router.get('/search', async (req, res) => {
