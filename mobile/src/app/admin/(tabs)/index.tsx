@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { NeedsAttention } from '@/components/admin/NeedsAttention';
 import { Hero } from '@/components/Hero';
 import { Card, colors, ErrorBox, List, ListRow, Loading, Muted, Notice, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -77,6 +78,12 @@ export default function AdminHome() {
       </Hero>
 
       {summary.error && <ErrorBox message={summary.error} onRetry={summary.reload} />}
+      <Pressable style={({ pressed }) => [styles.search, pressed && { opacity: 0.7 }]} onPress={() => router.push('/admin/search')} accessibilityRole="search">
+        <Ionicons name="search" size={20} color={colors.muted} />
+        <Text style={{ color: colors.muted, fontSize: 15 }}>Search plate, name, phone, ticket…</Text>
+      </Pressable>
+      {nextStep && <Notice>{nextStep}</Notice>}
+      <NeedsAttention />
       <List>
         <ListRow
           icon="bar-chart-outline"
@@ -85,15 +92,6 @@ export default function AdminHome() {
           onPress={() => router.push('/admin/dashboard')}
         />
       </List>
-      {nextStep && <Notice>{nextStep}</Notice>}
-      {!!s?.open_reports && (
-        <ListRow
-          icon="chatbox-ellipses-outline"
-          title={`${s.open_reports} problem report${s.open_reports === 1 ? '' : 's'} waiting`}
-          subtitle="Tap to read and reply"
-          onPress={() => router.push('/admin/reports')}
-        />
-      )}
 
       {s && (
         <View style={styles.tiles}>
@@ -150,6 +148,17 @@ export default function AdminHome() {
 }
 
 const styles = StyleSheet.create({
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
   heroTotals: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
   heroLabel: { color: colors.primarySoft, fontSize: 13 },
   heroValue: { color: '#fff', fontSize: 26, fontWeight: '800' },

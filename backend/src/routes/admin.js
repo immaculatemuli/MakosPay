@@ -24,6 +24,7 @@ import {
   withOneFare,
 } from '../services/routes.js';
 import { officeTrip, officeTrips } from '../services/bookings.js';
+import { needsAttention, searchEverything, vehicleIdsFor } from '../services/attention.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
 import { getPhoto, officeReply, officeReports, replySchema, sendPhoto, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
@@ -448,8 +449,22 @@ async function checkVehicleLinks(fields, vehicleId = null) {
   }
 }
 
-router.get('/vehicles', async (_req, res) => {
-  res.json(await db.all(`${VEHICLE_SELECT} ORDER BY v.is_active DESC, v.plate`));
+// All vehicles, or (?filter=) only those needing attention: no_route | no_driver | idle (no payments today).
+router.get('/vehicles', async (req, res) => {
+  const { filter } = parse(z.object({ filter: z.enum(['no_route', 'no_driver', 'idle']).optional() }), req.query);
+  const rows = await db.all(`${VEHICLE_SELECT} ORDER BY v.is_active DESC, v.plate`);
+  const only = filter ? await vehicleIdsFor(filter) : null;
+  res.json(only ? rows.filter((v) => only.has(v.id)) : rows);
+});
+
+// What needs the office now, most urgent first, and one search across cars, people, tickets, bookings and parcels.
+router.get('/attention', async (_req, res) => {
+  res.json(await needsAttention());
+});
+
+router.get('/search', async (req, res) => {
+  const { q } = parse(z.object({ q: z.string().max(60).default('') }), req.query);
+  res.json(await searchEverything(q));
 });
 
 router.get('/vehicles/:id', async (req, res) => {

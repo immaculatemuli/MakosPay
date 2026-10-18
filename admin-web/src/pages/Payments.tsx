@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, errorText } from '../api';
 import { kes, nairobiToday, plural, prettyDate, time } from '../format';
 import type { Payment, PaymentsDay } from '../types';
@@ -49,7 +50,9 @@ function RefundDialog({ payment, onClose, onDone }: { payment: Payment; onClose:
 
 /** Every fare paid on one day (Kenyan time), with totals per vehicle, and refunds. */
 export function Payments() {
-  const [date, setDate] = useState(nairobiToday());
+  // ?date= opens that day (e.g. a ticket found with the office search).
+  const [params] = useSearchParams();
+  const [date, setDate] = useState(/^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? params.get('date')! : nairobiToday());
   const [vehicle, setVehicle] = useState('');
   const { data, error, loading, reload } = useApi<PaymentsDay>(`/admin/payments?date=${date}${vehicle ? `&vehicle_id=${vehicle}` : ''}`);
   const [refunding, setRefunding] = useState<Payment | null>(null);
