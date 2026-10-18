@@ -6,6 +6,7 @@ import { api, errorMessage } from '@/lib/api';
 import { kes, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import type { CrewBooking, CrewLoad } from '@/lib/types';
+import { SeatPickups } from './SeatPickups';
 import { useApi } from '@/lib/useApi';
 
 const STATUS: Record<CrewBooking['status'], { text: string; tone: 'success' | 'warning' | 'neutral' }> = {
@@ -25,9 +26,9 @@ export function CrewBookings() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // New bookings arrive while the car loads: look again every 15 seconds.
+  // New bookings arrive while the car loads or is on the road: look again every 15 seconds.
   const { reload } = load;
-  const loadingNow = Boolean(load.data?.loading);
+  const loadingNow = Boolean(load.data?.loading || load.data?.on_road);
   useEffect(() => {
     if (!loadingNow) return;
     const timer = setInterval(() => void reload(), 15_000);
@@ -88,6 +89,7 @@ export function CrewBookings() {
   return (
     <Screen refreshing={load.refreshing} onRefresh={load.refresh}>
       {(load.error || error) && <ErrorBox message={(error ?? load.error)!} onRetry={error ? undefined : load.reload} />}
+      <SeatPickups />
 
       {d?.on_road && (
         <>
