@@ -168,3 +168,8 @@ a.attention-item:hover { filter: brightness(0.97); }
   .sticker-sheet { position: absolute; left: 0; top: 0; right: 0; grid-template-columns: repeat(2, 1fr); gap: 0; }
   .sticker-sheet .sticker { position: static; border: 1px dashed #000; break-inside: avoid; page-break-inside: avoid; border-radius: 0; max-width: none; }
 }
+
+/* ---------- Reports & downloads ---------- */
+a.download { display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: var(--text); }
+a.download:hover { border-color: var(--brand); }
+a.download.disabled { opacity: 0.5; pointer-events: none; }

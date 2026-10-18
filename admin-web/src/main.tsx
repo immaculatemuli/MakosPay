@@ -19,6 +19,7 @@ import { Import } from './pages/Import';
 import { Stickers } from './pages/Stickers';
 import { OwnerPage, Owners } from './pages/Owners';
 import { Broadcast } from './pages/Broadcast';
+import { Downloads } from './pages/Downloads';
 import { RouteEdit } from './pages/RouteEdit';
 import { Routes as RoutesPage } from './pages/Routes';
 import { Statement } from './pages/Statement';
@@ -43,6 +44,7 @@ function App() {
         <Route path="import" element={<Import />} />
         <Route path="owners" element={<Owners />} />
         <Route path="message" element={<Broadcast />} />
+        <Route path="downloads" element={<Downloads />} />
         <Route path="owners/:id" element={<OwnerPage />} />
         <Route path="vehicles/:id" element={<VehicleDetail />} />
         <Route path="vehicles/:id/edit" element={<VehicleForm />} />

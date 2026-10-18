@@ -26,6 +26,7 @@ import {
 import { officeTrip, officeTrips } from '../services/bookings.js';
 import { needsAttention, searchEverything, vehicleIdsFor } from '../services/attention.js';
 import { AUDIENCES, recipients, sendBroadcast } from '../services/broadcast.js';
+import { EXPORTS, exportReport } from '../services/exports.js';
 import { importRows, IMPORT_KINDS, TEMPLATES } from '../services/importer.js';
 import { createOwner, findOrCreateOwner, getOwner, linkVehicle, listOwners, ownerDetail, updateOwner } from '../services/owners.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
@@ -506,6 +507,18 @@ router.post('/broadcast', async (req, res) => {
     req.body,
   );
   res.status(201).json(await sendBroadcast({ audience: body.audience, routeId: body.route_id, message: body.message, sms: body.sms }, req.user));
+});
+
+// Reports for the accountant as CSV files that open in Excel (?from=&to= Kenyan dates, inclusive).
+router.get('/exports', (_req, res) => {
+  res.json(Object.entries(EXPORTS).map(([kind, title]) => ({ kind, title })));
+});
+
+router.get('/exports/:kind', async (req, res) => {
+  const kind = parse(z.enum(Object.keys(EXPORTS)), req.params.kind);
+  const q = parse(z.object({ from: z.string().date().default(nairobiToday), to: z.string().date().default(nairobiToday) }), req.query);
+  const { name: fileName, text } = await exportReport(kind, q.from, q.to);
+  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${fileName}"` }).send(text);
 });
 
 router.get('/search', async (req, res) => {

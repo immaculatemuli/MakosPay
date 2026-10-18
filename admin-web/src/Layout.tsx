@@ -14,6 +14,7 @@ const GROUPS = [
       { to: '/payouts', label: 'Owner payouts' },
       { to: '/withdrawals', label: 'Passenger withdrawals' },
       { to: '/money-check', label: 'Money check' },
+      { to: '/downloads', label: 'Reports & downloads' },
       { to: '/statement', label: 'M-Pesa statement' },
     ],
   },
