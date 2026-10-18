@@ -144,3 +144,19 @@ tr.clickable:hover td { background: #fafafa; }
 .password-box .eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: transparent; color: var(--muted); padding: 6px 8px; border-radius: 8px; line-height: 0; }
 .password-box .eye:hover { background: var(--bg); color: var(--text); }
 
+
+/* ---------- Needs attention and the office search ---------- */
+.attention { margin-bottom: 20px; }
+.attention h2 { margin-top: 0; }
+.attention-item { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; margin-bottom: 8px; border-radius: 10px; border-left: 5px solid var(--muted); background: var(--bg); color: var(--text); text-decoration: none; }
+.attention-item span { font-size: 14px; }
+.attention-item.high { border-left-color: var(--danger); background: var(--danger-soft); }
+.attention-item.medium { border-left-color: var(--warning); background: var(--warning-soft); }
+a.attention-item:hover { filter: brightness(0.97); }
+.office-search { position: relative; margin: 0 4px 12px; }
+.office-search input { width: 100%; }
+.office-search-results { position: absolute; left: 0; right: -120px; top: 100%; z-index: 20; margin-top: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(17, 24, 39, 0.15); padding: 6px; display: flex; flex-direction: column; gap: 2px; max-height: 420px; overflow-y: auto; }
+.office-search-results .muted { padding: 8px; }
+.office-search-results button { display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; color: var(--text); padding: 8px 10px; font-weight: 400; }
+.office-search-results button:hover { background: var(--bg); }
+.office-search-results button span { font-size: 13px; color: var(--muted); }

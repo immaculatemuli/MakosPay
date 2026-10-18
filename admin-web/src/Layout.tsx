@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { OfficeSearch } from './attention';
 import { useAuth } from './auth';
 
 const GROUPS = [
@@ -56,6 +57,7 @@ export function Layout() {
           FarePay
           <small>{saccoName ? `${saccoName} office` : 'SACCO office'}</small>
         </div>
+        <OfficeSearch />
         <nav className="nav" aria-label="Main">
           {groups.map((g) => (
             <div key={g.title ?? 'home'}>

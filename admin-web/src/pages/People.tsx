@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { dateTime, displayPhone, kes } from '../format';
 import type { CrewMember, PassengerRow } from '../types';
@@ -44,7 +45,9 @@ const WORD = { conductor: 'conductor', driver: 'driver', marshal: 'stage marshal
 
 /** Conductors, drivers and stage marshals: add their sign-in, switch them off (frees their vehicle), reset passwords, delete. */
 export function Crew() {
-  const [role, setRole] = useState<'conductor' | 'driver' | 'marshal'>('conductor');
+  const [params] = useSearchParams();
+  const asked = params.get('role');
+  const [role, setRole] = useState<'conductor' | 'driver' | 'marshal'>(asked === 'driver' || asked === 'marshal' ? asked : 'conductor');
   const path = `/admin/${role}s`;
   const { data, error, loading, reload } = useApi<CrewMember[]>(path);
   const [adding, setAdding] = useState(false);
@@ -173,8 +176,10 @@ export function Crew() {
 
 /** Passengers, newest first, with their wallet balance; search by name or phone; reset a forgotten password. */
 export function Passengers() {
-  const [search, setSearch] = useState('');
-  const [q, setQ] = useState('');
+  // ?q= opens it already searched (e.g. from the office search).
+  const [params] = useSearchParams();
+  const [search, setSearch] = useState((params.get('q') ?? '').replace(/^254/, '0'));
+  const [q, setQ] = useState(params.get('q') ?? '');
   const { data, error, loading, reload } = useApi<PassengerRow[]>(`/admin/passengers${q ? `?q=${encodeURIComponent(q)}` : ''}`);
   const [password, setPassword] = useState<PassengerRow | null>(null);
   return (

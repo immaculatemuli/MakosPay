@@ -20,6 +20,7 @@ export default function AdminLayout() {
       <Stack.Screen name="crew-form" options={{ title: 'New crew member' }} />
       <Stack.Screen name="payout/[id]" options={{ title: 'Payout' }} />
       <Stack.Screen name="passengers" options={{ title: 'Passengers' }} />
+      <Stack.Screen name="search" options={{ title: 'Search' }} />
       <Stack.Screen name="set-password" options={{ title: 'Set new password' }} />
       <Stack.Screen name="refund" options={{ title: 'Refund fare' }} />
       <Stack.Screen name="staff" options={{ title: 'Office staff' }} />

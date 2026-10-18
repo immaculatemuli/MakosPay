@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { NeedsAttention } from '../attention';
 import { kes, plural, prettyDate } from '../format';
 import type { Dashboard as DashboardData } from '../types';
 import { Chips, Failed, Loading, PageHead, Stat, TestMoneyBanner } from '../ui';
@@ -39,6 +40,7 @@ export function Dashboard() {
       <PageHead title="Dashboard" subtitle={d && `${prettyDate(d.from_date)} – ${prettyDate(d.to_date)}`}>
         <Chips options={PERIODS} value={days} onChange={(v) => { setDays(v); setPicked(null); }} />
       </PageHead>
+      <NeedsAttention />
       {error && <Failed message={error} onRetry={reload} />}
       {loading && !d && <Loading />}
       {d && (
