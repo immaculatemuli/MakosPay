@@ -19,7 +19,19 @@ export const ROLES = ['admin', 'passenger', 'conductor', 'driver', 'platform_adm
 
 // Kinds of wallet entry. withdrawal: sent back to the passenger's M-Pesa; withdrawal_reversal: it couldn't be sent;
 // booking_hold / booking_release: a paid seat booking's money, held until the passenger boards or it is cancelled.
-const WALLET_TYPE_LIST = ['topup', 'fare', 'refund', 'test_credit', 'withdrawal', 'withdrawal_reversal', 'booking_hold', 'booking_release'];
+// free_ride / free_ride_reversal: the SACCO paying a passenger's free (50th) ride, and taking it back if refunded.
+const WALLET_TYPE_LIST = [
+  'topup',
+  'fare',
+  'refund',
+  'test_credit',
+  'withdrawal',
+  'withdrawal_reversal',
+  'booking_hold',
+  'booking_release',
+  'free_ride',
+  'free_ride_reversal',
+];
 const WALLET_TYPES = WALLET_TYPE_LIST.map((t) => `'${t}'`).join(', ');
 const MPESA_PURPOSES = ['wallet', 'fare', 'seat'];
 
@@ -582,7 +594,7 @@ function widenCheck(table, oldList, newList) {
 
 // Seat booking from anywhere (the same as migrations/010_seat_queue.sql for PostgreSQL).
 widenCheck('users', ROLES.slice(0, 5), ROLES);
-widenCheck('wallet_transactions', WALLET_TYPE_LIST.slice(0, 6), WALLET_TYPE_LIST);
+widenCheck('wallet_transactions', WALLET_TYPE_LIST.slice(0, 6), WALLET_TYPE_LIST.slice(0, 8));
 widenCheck('mpesa_payments', MPESA_PURPOSES.slice(0, 2), MPESA_PURPOSES);
 db.exec(`
 CREATE TABLE IF NOT EXISTS seat_bookings (
@@ -616,6 +628,12 @@ CREATE INDEX IF NOT EXISTS idx_seat_bookings_queue ON seat_bookings(route_id, st
 CREATE INDEX IF NOT EXISTS idx_seat_bookings_load ON seat_bookings(load_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_seat_bookings_payment ON seat_bookings(mpesa_payment_id) WHERE mpesa_payment_id IS NOT NULL;
 `);
+
+// Free rides (the same as migrations/012_free_rides.sql for PostgreSQL).
+widenCheck('wallet_transactions', WALLET_TYPE_LIST.slice(0, 8), WALLET_TYPE_LIST);
+if (!hasColumn('trips', 'free_ride')) db.exec('ALTER TABLE trips ADD COLUMN free_ride INTEGER NOT NULL DEFAULT 0');
+if (!hasColumn('seat_bookings', 'free_ride')) db.exec('ALTER TABLE seat_bookings ADD COLUMN free_ride INTEGER NOT NULL DEFAULT 0');
+db.exec("CREATE INDEX IF NOT EXISTS idx_trips_passenger_paid ON trips(passenger_id, created_at) WHERE status = 'paid'");
 
 // Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
 db.exec(`

@@ -116,6 +116,8 @@ export interface CrewLoad {
 export type PublicRoute = Pick<Route, 'id' | 'name' | 'origin' | 'stops'>;
 
 export interface Quote {
+  /** This ride is the passenger's free one (loyalty). */
+  free_ride: boolean;
   vehicle: { id: number; plate: string; description: string | null; conductor_name: string | null };
   route: { id: number; name: string; origin: string; stops: Stop[] };
   /** The drop-off the fare is for: the one the passenger chose, if it is on this route. */
@@ -146,6 +148,17 @@ export interface Trip {
   status: 'paid' | 'refunded';
   refunded_at: string | null;
   refund_reason: string | null;
+  /** A loyalty free ride: paid by the SACCO, nothing taken from the passenger. */
+  free_ride?: boolean | number;
+}
+
+/** Loyalty: paid rides counted towards the next free one. */
+export interface FreeRideProgress {
+  every: number;
+  rides: number;
+  needed: number;
+  next_is_free: boolean;
+  window_days: number;
 }
 
 /** How a vehicle owner is paid: M-Pesa (to their phone) or a bank account (through the bank's M-Pesa paybill). */
@@ -273,6 +286,7 @@ export interface Reconciliation {
     wallet_balances: number;
     paid_out_to_owners: number;
     being_paid_out: number;
+    free_rides_paid_by_sacco?: number;
     owed_to_owners: number;
     refunds_to_take_back: number;
     mpesa_pending: number;
@@ -368,6 +382,7 @@ export interface StopChoice {
 export interface PassengerSummary {
   sacco_name: string;
   balance: number;
+  free_ride: FreeRideProgress;
   this_month: { trips: number; saved: number; spent: number };
   since_joining: { trips: number; saved: number; spent: number; joined_at: string };
   frequent: StopChoice[];
@@ -438,7 +453,7 @@ export interface MpesaResponse {
 
 export interface WalletTx {
   id: number;
-  type: 'topup' | 'fare' | 'refund' | 'test_credit' | 'withdrawal' | 'withdrawal_reversal';
+  type: 'topup' | 'fare' | 'refund' | 'test_credit' | 'withdrawal' | 'withdrawal_reversal' | 'booking_hold' | 'booking_release' | 'free_ride' | 'free_ride_reversal';
   amount: number;
   balance_after: number;
   reference: string | null;
@@ -627,6 +642,8 @@ export interface SeatBooking {
   reason: string | null;
   refund_to: 'mpesa' | 'wallet' | null;
   can_cancel: boolean;
+  /** The passenger's free ride (loyalty): nothing was charged. */
+  free_ride: boolean;
   wallet_balance?: number;
 }
 

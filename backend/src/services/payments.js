@@ -8,7 +8,8 @@ import * as mpesa from './mpesa.js';
 import { kesText, notify } from './notifications.js';
 import { handleParcelStkCallback, reconcileParcelPayments } from './parcels.js';
 import { seatPaymentConfirmed, seatPaymentFailed } from './seats.js';
-import { checkFare, findTrip, getTrip, recordTrip } from './trips.js';
+import { afterPaidRide, nextRideIsFree } from './rewards.js';
+import { checkFare, findTrip, getTrip, payFare, recordTrip } from './trips.js';
 import { getBalance, postWalletEntry } from './wallet.js';
 
 // What an M-Pesa payment that never got an answer is marked with (a late "success" can still complete it).
@@ -58,9 +59,11 @@ export async function startTopup(userId, { amount, phone }) {
  * this confirmation was already paid. Retries of the same confirmation never send a second prompt.
  */
 export async function startFarePayment(userId, { qr, stopId, expectedFare, idempotencyKey, phone }) {
-  requireMpesa();
   const trip = await findTrip(userId, idempotencyKey);
   if (trip) return { trip };
+  // A free ride (loyalty) needs no M-Pesa: the SACCO pays it at once.
+  if (await nextRideIsFree(userId)) return { trip: (await payFare({ passengerId: userId, qr, stopId, expectedFare, idempotencyKey })).trip };
+  requireMpesa();
   const previous = await db.get(
     "SELECT * FROM mpesa_payments WHERE user_id = ? AND idempotency_key = ? AND status IN ('initiating', 'pending', 'completed')",
     userId,
@@ -122,6 +125,7 @@ async function completeFare(payment, receipt) {
   const stop = await db.get('SELECT * FROM route_stops WHERE id = ?', payment.stop_id);
   const tripId = await recordTrip({ passengerId: payment.user_id, vehicle, stop, fare: payment.amount, idempotencyKey: payment.idempotency_key });
   await db.run('UPDATE mpesa_payments SET trip_id = ? WHERE id = ?', tripId, payment.id);
+  await afterPaidRide(payment.user_id);
 }
 
 /** Handles M-Pesa's answer (Safaricom's callback, or one built from asking Safaricom). Safe to receive more than once. */

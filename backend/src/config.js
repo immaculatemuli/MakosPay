@@ -52,6 +52,9 @@ export const config = {
   // time), and any paid booking not yet on a car at the cutoff is refunded.
   seatBookingCutoff: env.SEAT_BOOKING_CUTOFF ?? '22:00',
   seatBookingOpens: env.SEAT_BOOKING_OPENS ?? '04:00',
+  // Loyalty: every FREE_RIDE_EVERY-th paid ride is free (0 = off), counting paid rides in the last FREE_RIDE_WINDOW_DAYS.
+  freeRideEvery: num(env.FREE_RIDE_EVERY, 50),
+  freeRideWindowDays: num(env.FREE_RIDE_WINDOW_DAYS, 90),
   // Seat bookings one passenger can have waiting at once.
   maxOpenSeatBookings: num(env.MAX_OPEN_SEAT_BOOKINGS, 3),
 

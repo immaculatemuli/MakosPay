@@ -7,6 +7,7 @@ import { config } from '../config.js';
 import { HttpError } from '../errors.js';
 import { cancelPassengerBooking, MAX_SEATS_PER_BOOKING, passengerBooking, passengerBookings, routesForBooking, startBooking } from '../services/bookings.js';
 import { getUserPayment, startFarePayment, startTopup } from '../services/payments.js';
+import { freeRideProgress } from '../services/rewards.js';
 import { bookSeats, cancelSeat, MAX_SEATS, mySeat, mySeats, passengerHere, seatRoutes } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { listRoutes, publicFareChanges } from '../services/routes.js';
@@ -48,7 +49,7 @@ router.get('/summary', async (req, res) => {
   const monthStart = nairobiDayRange(`${nairobiToday().slice(0, 7)}-01`)[0];
   const totals = (from) =>
     db.get(
-      "SELECT COUNT(*) AS trips, COALESCE(SUM(cash_fare - fare), 0) AS saved, COALESCE(SUM(fare), 0) AS spent FROM trips WHERE passenger_id = ? AND status = 'paid' AND created_at >= ?",
+      "SELECT COUNT(*) AS trips, COALESCE(SUM(cash_fare - fare), 0) AS saved, COALESCE(SUM(CASE WHEN free_ride THEN 0 ELSE fare END), 0) AS spent FROM trips WHERE passenger_id = ? AND status = 'paid' AND created_at >= ?",
       userId,
       from,
     );
@@ -56,6 +57,8 @@ router.get('/summary', async (req, res) => {
   res.json({
     sacco_name: config.saccoName,
     balance: await getBalance(userId),
+    // Loyalty: rides counted towards the next free one.
+    free_ride: await freeRideProgress(userId),
     this_month: await totals(monthStart),
     since_joining: { ...(await totals(BEGINNING)), joined_at: joined },
     // The drop-offs this passenger pays to most, for one-tap choosing.

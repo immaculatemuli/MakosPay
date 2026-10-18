@@ -137,14 +137,17 @@ export default function BookingScreen() {
         <KeyValue label={t('Pickup')} value={b.pickup.name} />
         <KeyValue label={t('Getting off at')} value={b.stop_name} />
         <KeyValue label={t('Seats')} value={String(b.seats)} />
-        <KeyValue label={t('Paid')} value={`${kes(b.amount)} · ${b.pay_with === 'wallet' ? t('Wallet') : 'M-Pesa'}`} />
+        <KeyValue
+          label={t('Paid')}
+          value={b.free_ride ? t('{amount} · free, paid by the SACCO', { amount: kes(b.amount) }) : `${kes(b.amount)} · ${b.pay_with === 'wallet' ? t('Wallet') : 'M-Pesa'}`}
+        />
         <KeyValue label={t('Booked')} value={dateTime(b.booked_at)} />
       </Card>
 
       {error && <ErrorBox message={error} />}
       {b.can_cancel && (
         <Button
-          title={b.pay_with === 'wallet' ? t('Cancel booking (refund to wallet)') : t('Cancel booking (refund to M-Pesa)')}
+          title={b.free_ride ? t('Cancel (keep my free ride)') : b.pay_with === 'wallet' ? t('Cancel booking (refund to wallet)') : t('Cancel booking (refund to M-Pesa)')}
           variant="danger"
           loading={busy === 'cancel'}
           onPress={cancel}

@@ -86,7 +86,14 @@ async function checkEverything() {
     "SELECT COUNT(*) AS n FROM seat_bookings sb LEFT JOIN trips t ON t.id = sb.trip_id WHERE sb.status = 'boarded' AND (t.id IS NULL OR t.fare != sb.amount)",
   );
 
+  // 9. Free rides: what the SACCO paid (credits less those taken back) equals the free rides taken and the free
+  // seat bookings still waiting.
+  const freeCredits = await one("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_transactions WHERE type IN ('free_ride', 'free_ride_reversal')");
+  const freeTaken = await one("SELECT COALESCE(SUM(fare), 0) AS n FROM trips WHERE free_ride = TRUE AND status = 'paid'");
+  const freeWaiting = await one("SELECT COALESCE(SUM(amount), 0) AS n FROM seat_bookings WHERE free_ride = TRUE AND status IN ('queued', 'assigned')");
+
   const totals = {
+    free_rides_paid_by_sacco: freeTaken,
     seat_bookings_held: seatsHeld,
     real_money: live,
     mpesa_collected: mpesaCompleted,
@@ -131,6 +138,11 @@ async function checkEverything() {
       name: 'Every withdrawal matches its wallet entries',
       ok: withdrawalMismatches === 0,
       detail: withdrawalMismatches ? `${withdrawalMismatches} withdrawals out of step with the wallet` : null,
+    },
+    {
+      name: 'Free rides paid by the SACCO match the free rides taken',
+      ok: freeCredits === freeTaken + freeWaiting,
+      detail: freeCredits === freeTaken + freeWaiting ? null : `credited ${freeCredits}, taken ${freeTaken} + waiting ${freeWaiting}`,
     },
     {
       name: 'Seat booking money is held until boarding, then released once',

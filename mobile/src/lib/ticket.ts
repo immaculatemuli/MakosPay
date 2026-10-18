@@ -14,6 +14,8 @@ export type TicketParams = {
   balance?: string;
   refunded?: string;
   reason?: string;
+  /** '1' = a loyalty free ride. */
+  free?: string;
 };
 
 /** Opens the ticket for a trip (after paying, or from payment history); it is also saved on the phone. */
@@ -30,6 +32,7 @@ export function openTicket(trip: Trip, walletBalance?: number, replace = false) 
     at: trip.created_at,
     ...(walletBalance !== undefined && { balance: String(walletBalance) }),
     ...(trip.status === 'refunded' && { refunded: '1', reason: trip.refund_reason ?? '' }),
+    ...(trip.free_ride ? { free: '1' } : {}),
   };
   if (replace) router.replace({ pathname: '/passenger/ticket', params });
   else router.push({ pathname: '/passenger/ticket', params });
