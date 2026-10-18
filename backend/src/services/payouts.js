@@ -13,8 +13,14 @@ import { kesText, notifyOffice } from './notifications.js';
 
 export const getPayout = (id) => db.get('SELECT * FROM payouts WHERE id = ?', id);
 
-/** Where an owner wants to be paid: from their most recently added vehicle. */
+/** Where an owner wants to be paid: their owner record (else, for older data, their most recently added vehicle). */
 export async function ownerDestination(ownerPhone) {
+  const o = await db.get('SELECT payout_method, bank_name, bank_paybill, bank_account FROM owners WHERE phone = ?', ownerPhone);
+  if (o) {
+    return o.payout_method === 'bank'
+      ? { method: 'bank', bank_name: o.bank_name, bank_paybill: o.bank_paybill, bank_account: o.bank_account }
+      : { method: 'mpesa', bank_name: null, bank_paybill: null, bank_account: null };
+  }
   const v = await db.get(
     'SELECT owner_payout_method, owner_bank_name, owner_bank_paybill, owner_bank_account FROM vehicles WHERE owner_phone = ? ORDER BY id DESC LIMIT 1',
     ownerPhone,
@@ -62,9 +68,9 @@ export async function createPayout(ownerPhone, adminId, { manual = false } = {})
     if (owed.amount <= 0) throw new HttpError(409, 'NOTHING_TO_PAY', 'This owner has no fares waiting to be paid');
     const dest = await ownerDestination(ownerPhone);
     const id = await db.insert(
-      `INSERT INTO payouts (owner_name, owner_phone, amount, trip_count, status, conversation_id, created_by, method, bank_name, bank_paybill, bank_account)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      owed.owner_name,
+      `INSERT INTO payouts (owner_name, owner_phone, amount, trip_count, status, conversation_id, created_by, method, bank_name, bank_paybill, bank_account, owner_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT id FROM owners WHERE phone = ?))`,
+      (await db.get('SELECT name FROM owners WHERE phone = ?', ownerPhone))?.name ?? owed.owner_name,
       ownerPhone,
       owed.amount,
       owed.trip_count,
@@ -75,6 +81,7 @@ export async function createPayout(ownerPhone, adminId, { manual = false } = {})
       dest.bank_name,
       dest.bank_paybill,
       dest.bank_account,
+      ownerPhone,
     );
     await db.run("UPDATE trips SET payout_id = ? WHERE owner_phone = ? AND status = 'paid' AND payout_id IS NULL", id, ownerPhone);
     await db.run('UPDATE owner_deductions SET payout_id = ? WHERE owner_phone = ? AND payout_id IS NULL', id, ownerPhone);

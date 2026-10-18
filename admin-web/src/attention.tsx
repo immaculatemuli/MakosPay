@@ -31,6 +31,7 @@ export function officePath(link: string | null): string | null {
   if (kind === 'parcel') return `/parcels/${value}`;
   if (kind === 'vehicles') return value ? `/vehicles?filter=${encodeURIComponent(value)}` : '/vehicles';
   if (kind === 'vehicle') return `/vehicles/${value}`;
+  if (kind === 'owner') return `/owners/${value}`;
   if (kind === 'passenger') return `/passengers?q=${encodeURIComponent(value)}`;
   if (kind === 'crew') return `/crew?role=${encodeURIComponent(value)}`;
   if (kind === 'payments') return `/payments?date=${encodeURIComponent(value)}`;

@@ -29,6 +29,7 @@ const GROUPS = [
     links: [
       { to: '/routes', label: 'Routes & fares' },
       { to: '/vehicles', label: 'Vehicles & QR' },
+      { to: '/owners', label: 'Vehicle owners' },
       { to: '/crew', label: 'Crew' },
       { to: '/passengers', label: 'Passengers' },
       { to: '/import', label: 'Import from Excel' },

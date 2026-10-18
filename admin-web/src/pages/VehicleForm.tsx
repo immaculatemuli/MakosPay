@@ -128,6 +128,10 @@ export function VehicleForm() {
             Description (optional)
             <input value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="e.g. White 33-seater" />
           </label>
+          <p className="muted">
+            If this phone number already belongs to an owner, the car is added to their cars and their payment details (on their owner page) are
+            used. Changing them here changes them for all their cars.
+          </p>
           <label>
             Owner's name
             <input value={form.owner_name} onChange={(e) => set({ owner_name: e.target.value })} />

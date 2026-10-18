@@ -5,6 +5,7 @@ import { randomInt } from 'node:crypto';
 import { db, tx } from '../database.js';
 import { HttpError } from '../errors.js';
 import { newQrToken, normalizePhone } from '../util.js';
+import { findOrCreateOwner, linkVehicle } from './owners.js';
 import { createRoute } from './routes.js';
 import { createUser } from './users.js';
 
@@ -162,6 +163,8 @@ async function checkCrew(rows) {
 
 async function checkVehicles(rows) {
   const plates = new Map();
+  // One owner (by phone) can have many cars: the first row (or their existing owner record) sets how they are paid.
+  const owners = new Map();
   const drivers = new Map();
   const conductors = new Map();
   const vehicles = [];
@@ -209,6 +212,18 @@ async function checkVehicles(rows) {
       if (!/^\d{5,7}$/.test(r.bank_paybill ?? '')) errors.push("Bank paybill must be the bank's 5 to 7 digit M-Pesa paybill");
       if (!/^[A-Za-z0-9-]{4,30}$/.test(r.bank_account ?? '')) errors.push('Bank account number is missing or has odd characters');
     }
+    if (ownerPhone) {
+      const payout = bank ? `bank ${r.bank_paybill ?? ''} ${r.bank_account ?? ''}` : 'mpesa';
+      const saved = await db.get('SELECT name, payout_method, bank_paybill, bank_account FROM owners WHERE phone = ?', ownerPhone);
+      const known = owners.get(ownerPhone);
+      if (saved && r.paid_by) {
+        const savedPayout = saved.payout_method === 'bank' ? `bank ${saved.bank_paybill} ${saved.bank_account}` : 'mpesa';
+        if (savedPayout !== payout) errors.push(`${saved.name} is already set up to be paid by ${saved.payout_method === 'bank' ? 'bank' : 'M-Pesa'}: change it on their owner page, or leave Paid by empty`);
+      } else if (known && r.paid_by && known.payout !== payout) {
+        errors.push(`Different payment details for the same owner as row ${known.line}`);
+      }
+      if (!known) owners.set(ownerPhone, { line, payout });
+    }
     const driverId = await crewMember(r.driver_phone, 'driver', 'driver_id', drivers, line, errors);
     const conductorId = await crewMember(r.conductor_phone, 'conductor', 'conductor_id', conductors, line, errors);
     vehicles.push({ plate, seats, routeId, description: r.description || null, ownerName: r.owner_name, ownerPhone, bank, r, driverId, conductorId });
@@ -216,29 +231,34 @@ async function checkVehicles(rows) {
   }
   return {
     rows: checked,
-    summary: `${vehicles.length} vehicle${vehicles.length === 1 ? '' : 's'}`,
+    summary: `${vehicles.length} vehicle${vehicles.length === 1 ? '' : 's'} of ${owners.size} owner${owners.size === 1 ? '' : 's'}`,
     save: async () => {
       const made = [];
       for (const v of vehicles) {
-        await db.insert(
-          `INSERT INTO vehicles (plate, description, owner_name, owner_phone, owner_payout_method, owner_bank_name, owner_bank_paybill,
-                                 owner_bank_account, seats, conductor_id, driver_id, route_id, qr_token)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        const owner = await findOrCreateOwner({
+          name: v.ownerName,
+          phone: v.ownerPhone,
+          payout_method: v.bank ? 'bank' : 'mpesa',
+          bank_name: v.bank ? v.r.bank_name : null,
+          bank_paybill: v.bank ? v.r.bank_paybill : null,
+          bank_account: v.bank ? v.r.bank_account : null,
+        });
+        const vehicleId = await db.insert(
+          `INSERT INTO vehicles (plate, description, owner_name, owner_phone, seats, conductor_id, driver_id, route_id, qr_token, owner_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           v.plate,
           v.description,
-          v.ownerName,
-          v.ownerPhone,
-          v.bank ? 'bank' : 'mpesa',
-          v.bank ? v.r.bank_name : null,
-          v.bank ? v.r.bank_paybill : null,
-          v.bank ? v.r.bank_account : null,
+          owner.name,
+          owner.phone,
           v.seats,
           v.conductorId,
           v.driverId,
           v.routeId,
           newQrToken(),
+          owner.id,
         );
-        made.push({ plate: v.plate });
+        await linkVehicle(vehicleId, owner.id);
+        made.push({ plate: v.plate, owner: owner.name });
       }
       return made;
     },

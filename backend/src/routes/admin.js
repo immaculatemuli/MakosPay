@@ -3,7 +3,7 @@ import { Router } from 'express';
 import QRCode from 'qrcode';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { db } from '../database.js';
+import { db, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
 import { completePayout, createPayout, failPayout, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
@@ -26,6 +26,7 @@ import {
 import { officeTrip, officeTrips } from '../services/bookings.js';
 import { needsAttention, searchEverything, vehicleIdsFor } from '../services/attention.js';
 import { importRows, IMPORT_KINDS, TEMPLATES } from '../services/importer.js';
+import { createOwner, findOrCreateOwner, getOwner, linkVehicle, listOwners, ownerDetail, updateOwner } from '../services/owners.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
 import { getPhoto, officeReply, officeReports, replySchema, sendPhoto, updateReport } from '../services/reports.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
@@ -503,13 +504,16 @@ router.get('/vehicles/:id', async (req, res) => {
   res.json(vehicle);
 });
 
+// A vehicle belongs to an owner: chosen (owner_id), or given by name and phone (an owner with that phone gets this car
+// added to theirs, keeping their own payment details; a new phone sets up a new owner with these details).
 router.post('/vehicles', async (req, res) => {
   const body = parse(
     z.object({
       plate,
       description: optionalText.optional(),
-      owner_name: name,
-      owner_phone: phone,
+      owner_id: id.optional(),
+      owner_name: name.optional(),
+      owner_phone: phone.optional(),
       ...payoutFields,
       seats: seatCount.optional(),
       conductor_id: id.nullable().optional(),
@@ -521,35 +525,57 @@ router.post('/vehicles', async (req, res) => {
   if (await db.get('SELECT 1 FROM vehicles WHERE plate = ?', body.plate)) {
     throw new HttpError(409, 'PLATE_TAKEN', 'A vehicle with this number plate already exists');
   }
-  checkPayoutDetails(body);
+  if (!body.owner_id && !(body.owner_name && body.owner_phone)) {
+    throw new HttpError(400, 'VALIDATION_ERROR', 'Choose the owner, or give their name and phone number');
+  }
   await checkVehicleLinks(body);
-  const bank = body.owner_payout_method === 'bank';
-  const vehicleId = await db.insert(
-    `INSERT INTO vehicles (plate, description, owner_name, owner_phone, owner_payout_method, owner_bank_name, owner_bank_paybill,
-                           owner_bank_account, seats, conductor_id, driver_id, route_id, qr_token)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    body.plate,
-    body.description ?? null,
-    body.owner_name,
-    body.owner_phone,
-    bank ? 'bank' : 'mpesa',
-    bank ? body.owner_bank_name : null,
-    bank ? body.owner_bank_paybill : null,
-    bank ? body.owner_bank_account : null,
-    body.seats ?? 14,
-    body.conductor_id ?? null,
-    body.driver_id ?? null,
-    body.route_id ?? null,
-    newQrToken(),
-  );
-  res.status(201).json(await getVehicle(vehicleId));
+  const { vehicleId, existing } = await tx(async () => {
+    let owner;
+    let existed = true;
+    if (body.owner_id) {
+      owner = await getOwner(body.owner_id);
+      if (!owner) throw notFound('Owner');
+    } else {
+      existed = Boolean(await db.get('SELECT 1 FROM owners WHERE phone = ?', body.owner_phone));
+      if (!existed) checkPayoutDetails(body);
+      owner = await findOrCreateOwner({
+        name: body.owner_name,
+        phone: body.owner_phone,
+        payout_method: body.owner_payout_method ?? 'mpesa',
+        bank_name: body.owner_bank_name ?? null,
+        bank_paybill: body.owner_bank_paybill ?? null,
+        bank_account: body.owner_bank_account ?? null,
+      });
+    }
+    const newId = await db.insert(
+      `INSERT INTO vehicles (plate, description, owner_name, owner_phone, seats, conductor_id, driver_id, route_id, qr_token, owner_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      body.plate,
+      body.description ?? null,
+      owner.name,
+      owner.phone,
+      body.seats ?? 14,
+      body.conductor_id ?? null,
+      body.driver_id ?? null,
+      body.route_id ?? null,
+      newQrToken(),
+      owner.id,
+    );
+    await linkVehicle(newId, owner.id);
+    return { vehicleId: newId, existing: existed };
+  });
+  // owner_existing: the car was added to an owner who already had cars (their own payment details are used).
+  res.status(201).json({ ...(await getVehicle(vehicleId)), owner_existing: existing });
 });
 
+// Owner details sent here (older app screens) change the owner, so all their cars; a different owner phone (or
+// owner_id) moves the car to that owner.
 router.patch('/vehicles/:id', async (req, res) => {
   const vehicleId = parse(id, req.params.id);
   const body = parse(
     z.object({
       description: optionalText.optional(),
+      owner_id: id.optional(),
       owner_name: name.optional(),
       owner_phone: phone.optional(),
       ...payoutFields,
@@ -563,10 +589,60 @@ router.patch('/vehicles/:id', async (req, res) => {
   );
   const existing = await getVehicle(vehicleId);
   if (!existing) throw notFound('Vehicle');
-  checkPayoutDetails({ ...existing, ...body });
   await checkVehicleLinks(body, vehicleId);
-  await updateRow('vehicles', vehicleId, body);
+  const { owner_id, owner_name, owner_phone, owner_payout_method, owner_bank_name, owner_bank_paybill, owner_bank_account, ...vehicleFields } = body;
+  await tx(async () => {
+    if (owner_id && owner_id !== existing.owner_id) {
+      if (!(await getOwner(owner_id))) throw notFound('Owner');
+      await linkVehicle(vehicleId, owner_id);
+    } else if (owner_phone && owner_phone !== existing.owner_phone) {
+      const payout = { payout_method: owner_payout_method ?? 'mpesa', bank_name: owner_bank_name ?? null, bank_paybill: owner_bank_paybill ?? null, bank_account: owner_bank_account ?? null };
+      if (!(await db.get('SELECT 1 FROM owners WHERE phone = ?', owner_phone))) checkPayoutDetails({ owner_payout_method: payout.payout_method, owner_bank_name: payout.bank_name, owner_bank_paybill: payout.bank_paybill, owner_bank_account: payout.bank_account });
+      const owner = await findOrCreateOwner({ name: owner_name ?? existing.owner_name, phone: owner_phone, ...payout });
+      await linkVehicle(vehicleId, owner.id);
+    } else if (existing.owner_id && [owner_name, owner_payout_method, owner_bank_name, owner_bank_paybill, owner_bank_account].some((v) => v !== undefined)) {
+      await updateOwner(existing.owner_id, {
+        name: owner_name,
+        payout_method: owner_payout_method,
+        bank_name: owner_bank_name,
+        bank_paybill: owner_bank_paybill,
+        bank_account: owner_bank_account,
+      });
+    }
+    if (Object.keys(vehicleFields).length) await updateRow('vehicles', vehicleId, vehicleFields);
+  });
   res.json(await getVehicle(vehicleId));
+});
+
+// ---------- Vehicle owners ----------
+
+const ownerFields = {
+  name,
+  phone,
+  id_number: z.string().trim().max(30).transform((t) => t || null).nullable().optional(),
+  payout_method: z.enum(['mpesa', 'bank']).default('mpesa'),
+  bank_name: z.string().trim().max(60).transform((t) => t || null).nullable().optional(),
+  bank_paybill: z.string().trim().regex(/^\d{5,7}$/, "The bank's M-Pesa paybill number (5 to 7 digits)").nullable().optional(),
+  bank_account: z.string().trim().regex(/^[A-Za-z0-9-]{4,30}$/, 'Bank account number (letters, numbers or -)').nullable().optional(),
+};
+
+router.get('/owners', async (req, res) => {
+  const { q } = parse(z.object({ q: z.string().max(60).default('') }), req.query);
+  res.json(await listOwners(q));
+});
+
+router.get('/owners/:id', async (req, res) => {
+  res.json(await ownerDetail(parse(id, req.params.id)));
+});
+
+router.post('/owners', async (req, res) => {
+  res.status(201).json(await createOwner(parse(z.object(ownerFields), req.body)));
+});
+
+// A change reaches all the owner's cars; a new phone number takes the fares not yet paid out with it.
+router.patch('/owners/:id', async (req, res) => {
+  const changes = parse(z.object(Object.fromEntries(Object.entries(ownerFields).map(([k, v]) => [k, v.optional()]))), req.body);
+  res.json(await updateOwner(parse(id, req.params.id), changes));
 });
 
 // Makes the old sticker stop working (e.g. if it was copied onto another vehicle).
