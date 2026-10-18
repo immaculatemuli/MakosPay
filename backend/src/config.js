@@ -55,6 +55,8 @@ export const config = {
   // Loyalty: every FREE_RIDE_EVERY-th paid ride is free (0 = off), counting paid rides in the last FREE_RIDE_WINDOW_DAYS.
   freeRideEvery: num(env.FREE_RIDE_EVERY, 50),
   freeRideWindowDays: num(env.FREE_RIDE_WINDOW_DAYS, 90),
+  // Text each owner what they were paid, and from which cars, when a payout reaches them (OWNER_PAYOUT_SMS=0 turns it off).
+  ownerPayoutSms: env.OWNER_PAYOUT_SMS !== '0',
   // Seat bookings one passenger can have waiting at once.
   maxOpenSeatBookings: num(env.MAX_OPEN_SEAT_BOOKINGS, 3),
 
