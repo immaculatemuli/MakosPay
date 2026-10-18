@@ -25,6 +25,7 @@ import {
 } from '../services/routes.js';
 import { officeTrip, officeTrips } from '../services/bookings.js';
 import { needsAttention, searchEverything, vehicleIdsFor } from '../services/attention.js';
+import { AUDIENCES, recipients, sendBroadcast } from '../services/broadcast.js';
 import { importRows, IMPORT_KINDS, TEMPLATES } from '../services/importer.js';
 import { createOwner, findOrCreateOwner, getOwner, linkVehicle, listOwners, ownerDetail, updateOwner } from '../services/owners.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
@@ -491,6 +492,20 @@ router.get('/vehicles/stickers', async (req, res) => {
     route_id ?? null,
   );
   res.json({ opens_with_camera: config.qrPrefix.startsWith('https://'), vehicles: rows });
+});
+
+// One message to many crew at once (e.g. "Thika Road closed, use Kenol").
+router.get('/broadcast/count', async (req, res) => {
+  const q = parse(z.object({ audience: z.enum(AUDIENCES), route_id: id.optional() }), req.query);
+  res.json({ count: (await recipients(q.audience, q.route_id ?? null)).length });
+});
+
+router.post('/broadcast', async (req, res) => {
+  const body = parse(
+    z.object({ audience: z.enum(AUDIENCES), route_id: id.nullable().default(null), message: z.string().trim().min(3).max(300), sms: z.boolean().default(false) }),
+    req.body,
+  );
+  res.status(201).json(await sendBroadcast({ audience: body.audience, routeId: body.route_id, message: body.message, sms: body.sms }, req.user));
 });
 
 router.get('/search', async (req, res) => {

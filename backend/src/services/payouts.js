@@ -10,6 +10,7 @@ import { audit } from './audit.js';
 import { runDaily } from './jobs.js';
 import * as mpesa from './mpesa.js';
 import { kesText, notifyOffice } from './notifications.js';
+import { queueSms } from './sms.js';
 
 export const getPayout = (id) => db.get('SELECT * FROM payouts WHERE id = ?', id);
 
@@ -135,8 +136,29 @@ export function completePayout(payoutId, reference) {
     if (!payout) throw notFound('Payout');
     if (!['processing', 'manual'].includes(payout.status)) throw new HttpError(409, 'PAYOUT_FINISHED', `This payout is already ${payout.status}`);
     await db.run(`UPDATE payouts SET status = 'completed', reference = ?, completed_at = ${NOW} WHERE id = ?`, reference, payoutId);
+    if (config.ownerPayoutSms) await textOwner(payout, reference);
     return getPayout(payoutId);
   });
+}
+
+/**
+ * Tells the owner by SMS what reached them and from which cars, e.g. "Makos Sacco: KES 20,400 sent to your M-Pesa
+ * (QJK2X7). 86 fares from 5 cars: KDA 123A 4,000, ...". Saves the office "where is my money?" calls. Inside tx().
+ */
+async function textOwner(payout, reference) {
+  const cars = await db.all(
+    `SELECT v.plate, COUNT(*) AS fares, SUM(t.fare) AS total FROM trips t JOIN vehicles v ON v.id = t.vehicle_id
+     WHERE t.payout_id = ? GROUP BY v.plate ORDER BY total DESC`,
+    payout.id,
+  );
+  const shown = cars.slice(0, 6).map((c) => `${c.plate} ${c.total.toLocaleString('en-KE')}`);
+  if (cars.length > 6) shown.push(`+${cars.length - 6} more`);
+  const where = payout.method === 'bank' ? `your ${payout.bank_name ?? 'bank'} account` : 'your M-Pesa';
+  const fares = cars.reduce((n, c) => n + c.fares, 0);
+  const message =
+    `${config.saccoName}: ${kesText(payout.amount)} sent to ${where} (${reference}). ` +
+    (cars.length ? `${fares} fare${fares === 1 ? '' : 's'} from ${cars.length} car${cars.length === 1 ? '' : 's'}: ${shown.join(', ')}.` : 'Refund adjustments only.');
+  await queueSms(payout.owner_phone, 'payout.owner', message);
 }
 
 /** The money did not reach the owner: the fares go back to "owed" and will be in the next payout. */

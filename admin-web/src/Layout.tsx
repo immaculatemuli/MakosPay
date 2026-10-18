@@ -31,6 +31,7 @@ const GROUPS = [
       { to: '/vehicles', label: 'Vehicles & QR' },
       { to: '/owners', label: 'Vehicle owners' },
       { to: '/crew', label: 'Crew' },
+      { to: '/message', label: 'Message crew' },
       { to: '/passengers', label: 'Passengers' },
       { to: '/import', label: 'Import from Excel' },
     ],
