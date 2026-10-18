@@ -548,4 +548,14 @@ export const SW: Record<string, string> = {
   'The first passengers in the queue go on it and are told to board.': 'Abiria wa kwanza kwenye foleni wanawekwa kwenye gari hili na kuambiwa wapande.',
   'Yes, it is here': 'Ndiyo, limefika',
   'A car on a trip that arrives back is treated as having finished that trip.': 'Gari lililo safarini likirudi stejini, safari hiyo inahesabiwa imekwisha.',
+
+  // Driver / conductor: paid passengers to pick
+  'Paid passengers to pick': 'Abiria waliolipa wa kuchukua',
+  'Pick {n} at {place}': 'Chukua {n} {place}',
+  'At the stage: {n} seats': 'Stejini: viti {n}',
+  '{n} booked at the stage': 'Viti {n} vimewekwa stejini',
+  'Code {code}': 'Nambari {code}',
+  'Waiting there now': 'Anasubiri pale sasa',
+  'Picked up': 'Amepanda',
+  'On board: {names}': 'Wamepanda: {names}',
 };
