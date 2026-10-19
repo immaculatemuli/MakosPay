@@ -88,6 +88,7 @@ test('forgot password: a 6-digit code by SMS to the account number, never stored
   const res = await api('POST', '/auth/password-reset/request', { body: { phone: '0722000001' } });
   assert.equal(res.status, 200);
   assert.match(res.body.message, /If this number has a FarePay account/);
+  assert.equal(res.body.test_code, undefined, 'a real SMS provider: the code only goes by SMS');
   await until(() => textsTo('+254722000001').length === 1, 'the code SMS');
   const [text] = textsTo('+254722000001');
   assert.equal(text.apiKey, 'at-test-key');

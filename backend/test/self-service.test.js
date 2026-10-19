@@ -86,9 +86,11 @@ test('the office messages all crew on a route, or the marshals, by notification 
 });
 
 test('a driver resets their own password by SMS, without the office', async () => {
-  assert.equal((await api('POST', '/auth/password-reset/request', { body: { phone: '0711000001' } })).status, 200);
+  const asked = await api('POST', '/auth/password-reset/request', { body: { phone: '0711000001' } });
+  assert.equal(asked.status, 200);
   const sms = (await texts('254711000001')).find((t) => t.kind === 'password_reset');
   const code = sms.message.match(/\d{6}/)[0];
+  assert.equal(asked.body.test_code, code, 'SMS test mode: the app is given the code to show');
   assert.equal((await api('POST', '/auth/password-reset/confirm', { body: { phone: '0711000001', code, new_password: 'newpass9' } })).status, 200);
   assert.equal((await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'newpass9' } })).status, 200);
 });
