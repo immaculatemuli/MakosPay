@@ -32,7 +32,9 @@ const OPEN = ['queued', 'assigned'];
 const seatWord = (n) => `${n} seat${n === 1 ? '' : 's'}`;
 // A booking's time has come (it is in the queue, not booked for later). col: its queued_at column.
 const due = (col = 'queued_at') => `${col} <= ${NOW}`;
-const isLater = (b) => b.status === 'queued' && Date.parse(b.queued_at) > Date.now();
+// Only a booking with a chosen time can be for later. (The database's clock and this server's can differ a little,
+// so a booking for now, put in the queue at the database's "now", is never taken for later; 1 s allowed for that.)
+const isLater = (b) => b.status === 'queued' && Boolean(b.ready_at) && Date.parse(b.queued_at) > Date.now() + 1000;
 // A booking for later must be ready this long before the cutoff, so a car can still take it that day.
 const LATER_LAST_BEFORE_CUTOFF_MIN = 30;
 // The passenger is reminded this long before their time (only if they booked well before it).

@@ -692,6 +692,10 @@ for (const column of ['ready_at', 'reminded_at', 'marshals_told_at']) {
   if (!hasColumn('seat_bookings', column)) db.exec(`ALTER TABLE seat_bookings ADD COLUMN ${column} TEXT`);
 }
 
+// Retrying withdrawals that could not reach M-Pesa (the same as migrations/017_withdrawal_retries.sql for PostgreSQL).
+if (!hasColumn('withdrawals', 'send_attempts')) db.exec('ALTER TABLE withdrawals ADD COLUMN send_attempts INTEGER NOT NULL DEFAULT 0');
+if (!hasColumn('withdrawals', 'next_try_at')) db.exec('ALTER TABLE withdrawals ADD COLUMN next_try_at TEXT');
+
 // Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
 db.exec(`
 CREATE TABLE IF NOT EXISTS vehicle_locations (

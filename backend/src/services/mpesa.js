@@ -43,7 +43,9 @@ async function darajaFetch(url, init) {
     try {
       return await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
     } catch (err) {
-      if (attempt >= 2 || !NOT_CONNECTED.has(err.cause?.code)) throw err;
+      // notSent: Safaricom never got this request (so a payment can safely be tried again later).
+      if (NOT_CONNECTED.has(err.cause?.code)) err.notSent = true;
+      if (attempt >= 2 || !err.notSent) throw err;
       console.warn(`[mpesa] could not connect to Safaricom (${err.cause.code}), trying again`);
     }
   }
@@ -65,9 +67,14 @@ async function accessToken() {
 }
 
 async function post(path, body) {
+  // Signing in to Safaricom failed: the request itself was never sent.
+  const token = await accessToken().catch((err) => {
+    err.notSent = true;
+    throw err;
+  });
   const res = await darajaFetch(`${baseUrl}${path}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${await accessToken()}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));

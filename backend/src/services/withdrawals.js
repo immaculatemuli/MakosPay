@@ -83,6 +83,8 @@ async function sendByMpesa(withdrawal) {
   } catch (err) {
     if (err.rejected) {
       await failWithdrawal(withdrawal.id, `M-Pesa refused the payment: ${err.message}`);
+    } else if (err.notSent) {
+      await notSentYet(withdrawal, err);
     } else {
       // Network problem: M-Pesa may still have sent it, so the wallet is not refilled automatically.
       await db.run('UPDATE withdrawals SET result_desc = ? WHERE id = ?', `Result unknown (${err.message}). Check the M-Pesa statement.`, withdrawal.id);
@@ -95,6 +97,50 @@ async function sendByMpesa(withdrawal) {
     }
   }
   return getWithdrawal(withdrawal.id);
+}
+
+// Minutes to wait before each new try when M-Pesa could not be reached (about 17 hours in all); then the office.
+const RETRY_MINUTES = [2, 5, 10, 15, 30, 60, 60, 120, 240, 480];
+
+/**
+ * M-Pesa could not be reached at all (no connection), so nothing was sent: it is tried again automatically, later and
+ * later. After the last try the office is asked to send it by hand. The money stays out of the wallet meanwhile.
+ */
+async function notSentYet(withdrawal, err) {
+  const attempts = withdrawal.send_attempts + 1;
+  const reason = err.cause?.code ?? err.message;
+  const wait = RETRY_MINUTES[attempts - 1];
+  if (wait === undefined) {
+    await db.run(
+      "UPDATE withdrawals SET status = 'manual', send_attempts = ?, next_try_at = NULL, result_desc = ? WHERE id = ? AND status = 'processing'",
+      attempts,
+      `Could not reach M-Pesa after ${attempts} tries (${reason}). Nothing was sent: send it by hand.`,
+      withdrawal.id,
+    );
+    await dispatchWithdrawal(await getWithdrawal(withdrawal.id));
+    return;
+  }
+  const next = new Date(Date.now() + wait * 60_000).toISOString();
+  await db.run(
+    "UPDATE withdrawals SET send_attempts = ?, next_try_at = ?, result_desc = ? WHERE id = ? AND status = 'processing'",
+    attempts,
+    next,
+    `Could not reach M-Pesa (${reason}). Nothing was sent; trying again automatically.`,
+    withdrawal.id,
+  );
+}
+
+/** Every minute: withdrawals that could not reach M-Pesa and whose next try is due are sent again. */
+export async function retryUnsentWithdrawals() {
+  const due = await db.all(
+    `SELECT id FROM withdrawals WHERE status = 'processing' AND next_try_at IS NOT NULL AND next_try_at <= ${NOW} AND provider_reference IS NULL ORDER BY id`,
+  );
+  for (const { id } of due) {
+    // Taken by this run only (never two sends of one withdrawal at once).
+    const { changes } = await db.run('UPDATE withdrawals SET next_try_at = NULL WHERE id = ? AND next_try_at IS NOT NULL', id);
+    if (changes) await sendByMpesa(await getWithdrawal(id));
+  }
+  return due.length;
 }
 
 const displayPhone = (phone) => (phone.startsWith('254') ? `0${phone.slice(3)}` : phone);
