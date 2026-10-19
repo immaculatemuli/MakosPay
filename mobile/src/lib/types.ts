@@ -187,9 +187,22 @@ export interface ConductorVehicle {
 }
 
 /** One day's payments on the conductor's vehicle. */
+/** The car's latest trip today: from loading at the stage until it finished (or until now), and what was paid. */
+export interface CrewTrip {
+  id: number;
+  route_name: string;
+  started_at: string;
+  departed_at: string | null;
+  finished_at: string | null;
+  payments: number;
+  total: number;
+}
+
 export interface ConductorDay {
   date: string;
   summary: { payments: number; total: number };
+  /** Today only (null on other days, or before the car's first trip today). */
+  trip: CrewTrip | null;
   payments: Trip[];
 }
 

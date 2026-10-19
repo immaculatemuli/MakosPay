@@ -5,7 +5,7 @@ import { Badge, Button, Card, colors, Empty, ErrorBox, Loading, Muted, Screen, S
 import { api, errorMessage } from '@/lib/api';
 import { kes, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
-import type { CrewBooking, CrewLoad } from '@/lib/types';
+import type { ConductorDay, CrewBooking, CrewLoad } from '@/lib/types';
 import { useShareCarLocation } from '@/lib/shareLocation';
 import { SeatPickups } from './SeatPickups';
 import { useApi } from '@/lib/useApi';
@@ -46,6 +46,16 @@ export function CrewBookings() {
     setError(null);
     try {
       load.setData(await api<CrewLoad>(path, { method: 'POST' }));
+      // Left the stage or finished: what this trip has collected.
+      if (key === 'depart' || key === 'finish') {
+        const trip = (await api<ConductorDay>('/crew/payments').catch(() => null))?.trip;
+        if (trip) {
+          Alert.alert(
+            key === 'finish' ? t('Trip finished') : t('Left the stage'),
+            `${key === 'finish' ? t('This trip') : t('So far on this trip')}: ${t('{n} paid', { n: trip.payments })} · ${kes(trip.total)}`,
+          );
+        }
+      }
     } catch (err) {
       setError(errorMessage(err));
     } finally {

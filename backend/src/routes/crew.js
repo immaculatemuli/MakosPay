@@ -39,6 +39,30 @@ function daySummary(vehicleId, date) {
   );
 }
 
+/**
+ * The car's latest trip today: from when it started loading at the stage until it finished (or until now, while
+ * it is still on it), with the fares paid on the car in that time. Null if the car has started no trip today.
+ */
+async function tripSummary(vehicleId) {
+  const [today] = nairobiDayRange(nairobiToday());
+  const trip = await db.get(
+    `SELECT l.id, l.started_at, l.departed_at, l.finished_at, r.name AS route_name
+     FROM loads l JOIN routes r ON r.id = l.route_id
+     WHERE l.vehicle_id = ? AND l.started_at >= ? ORDER BY l.id DESC LIMIT 1`,
+    vehicleId,
+    today,
+  );
+  if (!trip) return null;
+  const until = trip.finished_at ?? new Date(Date.now() + 60_000).toISOString();
+  const totals = await db.get(
+    "SELECT COUNT(*) AS payments, COALESCE(SUM(fare), 0) AS total FROM trips WHERE vehicle_id = ? AND status = 'paid' AND created_at >= ? AND created_at < ?",
+    vehicleId,
+    trip.started_at,
+    until,
+  );
+  return { ...trip, ...totals };
+}
+
 const vehicleView = async (vehicle) => {
   const route = vehicle.route_id ? await getRoute(vehicle.route_id) : null;
   return {
@@ -58,7 +82,26 @@ router.get('/payments', async (req, res) => {
   const vehicle = await myVehicle(req.user);
   const [from, to] = nairobiDayRange(date);
   const trips = await db.all(`${TRIP_SELECT} WHERE t.vehicle_id = ? AND t.created_at >= ? AND t.created_at < ? ORDER BY t.id DESC`, vehicle.id, from, to);
-  res.json({ date, summary: await daySummary(vehicle.id, date), payments: trips.map(forCrew) });
+  res.json({
+    date,
+    summary: await daySummary(vehicle.id, date),
+    trip: date === nairobiToday() ? await tripSummary(vehicle.id) : null,
+    payments: trips.map(forCrew),
+  });
+});
+
+// A quick look the conductor's phone takes every few seconds: the newest payment on the car today and how many were
+// refunded. Only when either changes does the phone load the full list (and ring for the new payments).
+router.get('/payments/latest', async (req, res) => {
+  const vehicle = await myVehicle(req.user);
+  const [from, to] = nairobiDayRange(nairobiToday());
+  const row = await db.get(
+    "SELECT COALESCE(MAX(id), 0) AS latest_id, COALESCE(SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END), 0) AS refunded FROM trips WHERE vehicle_id = ? AND created_at >= ? AND created_at < ?",
+    vehicle.id,
+    from,
+    to,
+  );
+  res.json({ latest_id: Number(row.latest_id), refunded: Number(row.refunded) });
 });
 
 // Check the ticket code a passenger shows.
