@@ -17,6 +17,8 @@ export default function ForgotPassword() {
   const params = useLocalSearchParams<{ phone?: string }>();
   const [phone, setPhone] = useState(params.phone ?? '');
   const [sent, setSent] = useState<string | null>(null);
+  // Only while the server's SMS is in test mode (no SMS can reach the phone): the code, shown on screen.
+  const [testCode, setTestCode] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -28,8 +30,10 @@ export default function ForgotPassword() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ message: string }>('/auth/password-reset/request', { method: 'POST', body: { phone: phone.trim() } });
+      const res = await api<{ message: string; test_code?: string }>('/auth/password-reset/request', { method: 'POST', body: { phone: phone.trim() } });
       setSent(res.message);
+      setTestCode(res.test_code ?? null);
+      if (res.test_code) setCode(res.test_code);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -61,6 +65,7 @@ export default function ForgotPassword() {
       ) : (
         <>
           <Notice tone="success">{sent}</Notice>
+          {testCode && <Notice>{t('SMS test mode: no SMS is sent, so your code is {code}. It is filled in below.', { code: testCode })}</Notice>}
           <Field
             label={t('Code from the SMS')}
             keyboardType="number-pad"

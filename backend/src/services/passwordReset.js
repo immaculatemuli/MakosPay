@@ -41,6 +41,9 @@ export async function requestReset(phone, ip) {
     );
     await queueSms(phone, 'password_reset', `Your FarePay code is ${code}. It works for ${CODE_MINUTES} minutes. Never share it: FarePay and ${config.saccoName} will never ask for it.`);
   });
+  // SMS test mode (texts only go to the server's log, which the real server refuses to start with): the app shows
+  // the code, since no SMS can reach the phone.
+  if (config.sms.provider === 'log') return { message: SENT_MESSAGE, test_code: code };
   return { message: SENT_MESSAGE };
 }
 
