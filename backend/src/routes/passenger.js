@@ -220,6 +220,8 @@ router.post('/seats', async (req, res) => {
     z.object({
       route_id: id,
       pickup_stop_id: id.nullable().default(null),
+      // Booking for later: when they will be ready (ISO time, today or tomorrow); null = now.
+      ready_at: z.string().max(40).nullable().default(null),
       stop_id: id,
       seats: z.number().int().min(1).max(MAX_SEATS),
       expected_fare: kes,
@@ -234,6 +236,7 @@ router.post('/seats', async (req, res) => {
     phone: req.user.phone,
     routeId: body.route_id,
     pickupStopId: body.pickup_stop_id,
+    readyAt: body.ready_at,
     stopId: body.stop_id,
     seats: body.seats,
     expectedFare: body.expected_fare,

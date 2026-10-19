@@ -6,7 +6,7 @@ import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { CarMap } from '@/components/CarMap';
 import { Badge, Button, Card, Chips, colors, Empty, ErrorBox, Loading, Muted, Notice, Screen, SectionTitle } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
-import { displayPhone, time } from '@/lib/format';
+import { dayTime, displayPhone, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import type { CrewContact, MarshalQueues, QueueBooking, QueueCar, RouteQueue } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
@@ -214,6 +214,26 @@ export default function StageQueue() {
                 </Card>
               );
             })
+          )}
+
+          {route.later.length > 0 && (
+            <>
+              <SectionTitle>{t('Booked for later')}</SectionTitle>
+              <Card>
+                <Muted>{t('Paid. Each joins the queue at their time, ahead of anyone who chose a later time.')}</Muted>
+                {route.later.map((b) => (
+                  <View key={b.id} style={styles.row}>
+                    {passengerLine(b, [b.ready_at ? dayTime(b.ready_at) : '', b.pickup_name ? t('pick at {place}', { place: b.pickup_name }) : ''].filter(Boolean).join(' · '))}
+                    <Pressable onPress={() => call(b.passenger_phone)} hitSlop={8} accessibilityLabel={t('Call {name}', { name: b.passenger_name })}>
+                      <Ionicons name="call-outline" size={24} color={colors.primary} />
+                    </Pressable>
+                    <Pressable onPress={() => cancel(b)} hitSlop={8} style={{ marginLeft: 16 }} accessibilityLabel={t('Cancel booking {code}?', { code: b.code })}>
+                      <Ionicons name="close-circle-outline" size={24} color={colors.danger} />
+                    </Pressable>
+                  </View>
+                ))}
+              </Card>
+            </>
           )}
 
           <SectionTitle>{t('On the road')}</SectionTitle>

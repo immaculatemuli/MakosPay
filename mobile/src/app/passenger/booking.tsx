@@ -5,7 +5,7 @@ import { Alert, Linking, Text, View } from 'react-native';
 import { CarMap } from '@/components/CarMap';
 import { Button, Card, colors, ErrorBox, KeyValue, Loading, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
-import { dateTime, displayPhone, kes, time } from '@/lib/format';
+import { dateTime, dayTime, displayPhone, kes, time } from '@/lib/format';
 import { t, useT } from '@/lib/i18n';
 import type { SeatBooking } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
@@ -34,6 +34,9 @@ function line(b: SeatBooking) {
     if (b.pickup.at_stage) return t('Board {plate} now at {place}. Show this code when you get on.', { plate: b.car.plate, place: b.pickup.name });
     if (b.car.status === 'departed') return t('{plate} has left {origin} and is coming to pick you at {place}. Be ready with this code.', { plate: b.car.plate, origin: b.route.origin, place: b.pickup.name });
     return t('{plate} will pick you at {place}. We’ll tell you when it leaves {origin}.', { plate: b.car.plate, place: b.pickup.name, origin: b.route.origin });
+  }
+  if (b.later && b.ready_at) {
+    return t('Booked for {when}. Be at {place} by then: you join the queue at that time and we’ll tell you which car. You can cancel free until then.', { when: dayTime(b.ready_at), place: b.pickup.name });
   }
   if (b.pickup.at_stage) {
     return b.place_in_queue === 0
@@ -122,7 +125,7 @@ export default function BookingScreen() {
           onPress={() => void Linking.openURL(`tel:${displayPhone(crew.phone)}`)}
         />
       )}
-      {(b.status === 'queued' || b.status === 'assigned') && !b.passenger_here_at && (
+      {(b.status === 'queued' || b.status === 'assigned') && !b.later && !b.passenger_here_at && (
         <Button title={t('I’m at the pickup point')} variant="secondary" icon="location-outline" loading={busy === 'here'} onPress={() => void act('here')} />
       )}
       {b.passenger_here_at && b.status !== 'boarded' && (
@@ -135,6 +138,7 @@ export default function BookingScreen() {
       <Card>
         <KeyValue label={t('Route')} value={b.route.name} />
         <KeyValue label={t('Pickup')} value={b.pickup.name} />
+        {b.ready_at && <KeyValue label={t('Ready from')} value={dayTime(b.ready_at)} />}
         <KeyValue label={t('Getting off at')} value={b.stop_name} />
         <KeyValue label={t('Seats')} value={String(b.seats)} />
         <KeyValue

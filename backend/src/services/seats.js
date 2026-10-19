@@ -7,7 +7,9 @@
 // for exactly that, and M-Pesa's answer must match it. Paid money is held in the passenger's wallet history
 // (booking_hold) until they board; then it is released and paid as one fare on the car they boarded (so that car's
 // owner is paid). A cancelled booking is released and refunded: to M-Pesa if paid by M-Pesa, to the wallet if paid
-// from it. Bookings are for today only: anything not on a car at the cutoff is refunded.
+// from it. A booking is for now, or for later today or tomorrow: the passenger says when they will be ready, and it joins
+// the queue only at that time (ahead of anyone who chose a later time). Anything not on a car at the cutoff is refunded
+// (tomorrow's bookings wait for tomorrow).
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { db, NOW, tx } from '../database.js';
@@ -28,6 +30,13 @@ import { postWalletEntry } from './wallet.js';
 export const MAX_SEATS = 10;
 const OPEN = ['queued', 'assigned'];
 const seatWord = (n) => `${n} seat${n === 1 ? '' : 's'}`;
+// A booking's time has come (it is in the queue, not booked for later). col: its queued_at column.
+const due = (col = 'queued_at') => `${col} <= ${NOW}`;
+const isLater = (b) => b.status === 'queued' && Date.parse(b.queued_at) > Date.now();
+// A booking for later must be ready this long before the cutoff, so a car can still take it that day.
+const LATER_LAST_BEFORE_CUTOFF_MIN = 30;
+// The passenger is reminded this long before their time (only if they booked well before it).
+const REMIND_BEFORE_MIN = 30;
 
 // ---------- Reading ----------
 
@@ -92,10 +101,10 @@ const pickupPlace = (b) => b.pickup_name ?? `${b.origin} stage`;
 
 /** How many are before this booking in its stage queue (0 = next), or null when it isn't waiting at the stage. */
 async function placeInQueue(b) {
-  if (b.status !== 'queued' || b.pickup_stop_id) return null;
+  if (b.status !== 'queued' || b.pickup_stop_id || isLater(b)) return null;
   return (
     await db.get(
-      `SELECT COUNT(*) AS n FROM seat_bookings WHERE route_id = ? AND status = 'queued' AND pickup_stop_id IS NULL
+      `SELECT COUNT(*) AS n FROM seat_bookings WHERE route_id = ? AND status = 'queued' AND pickup_stop_id IS NULL AND ${due()}
        AND (queued_at < ? OR (queued_at = ? AND id < ?))`,
       b.route_id,
       b.queued_at,
@@ -134,6 +143,9 @@ export async function seatView(bookingId) {
     amount: b.amount,
     pay_with: b.pay_with,
     booked_at: b.created_at,
+    // Booked for later: when they will be ready (they join the queue then); later = that time hasn't come yet.
+    ready_at: b.ready_at,
+    later: isLater(b),
     place_in_queue: await placeInQueue(b),
     passenger_here_at: b.passenger_here_at,
     car: assigned
@@ -175,6 +187,43 @@ const nairobiMinutes = () => {
   return d.getUTCHours() * 60 + d.getUTCMinutes();
 };
 const toMinutes = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+const hhmm = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+/** A time's Kenyan date (YYYY-MM-DD) and minutes since midnight. */
+const nairobiParts = (ms) => {
+  const d = new Date(ms + 3 * 3600_000);
+  return { date: d.toISOString().slice(0, 10), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
+};
+const nairobiTomorrow = () => nairobiParts(Date.now() + 86_400_000).date;
+
+/** The latest "ready from" time a booking for later can choose (e.g. 21:30 with a 22:00 cutoff). */
+const lastReadyTime = () => hhmm(toMinutes(config.seatBookingCutoff) - LATER_LAST_BEFORE_CUTOFF_MIN);
+
+/** "today at 17:30" / "tomorrow at 06:00", in Kenyan time. */
+export function whenText(iso) {
+  const { date, minutes } = nairobiParts(Date.parse(iso));
+  const day = date === nairobiToday() ? 'today' : date === nairobiTomorrow() ? 'tomorrow' : date;
+  return `${day} at ${hhmm(minutes)}`;
+}
+
+/**
+ * The "ready from" time of a booking for later, checked: today or tomorrow, between opening and a little before the
+ * cutoff. Null (ready now) when none is given or it is within a few minutes from now.
+ */
+function laterTime(readyAt) {
+  if (readyAt === null || readyAt === undefined) return null;
+  const ms = Math.floor(Date.parse(readyAt) / 60_000) * 60_000;
+  if (Number.isNaN(ms)) throw new HttpError(400, 'BAD_TIME', 'Choose when you will be ready.');
+  if (ms <= Date.now() + 5 * 60_000) return null;
+  const { date, minutes } = nairobiParts(ms);
+  if (date !== nairobiToday() && date !== nairobiTomorrow()) throw new HttpError(400, 'TOO_FAR_AHEAD', 'You can book for today or tomorrow only.');
+  const opens = toMinutes(config.seatBookingOpens);
+  const last = toMinutes(config.seatBookingCutoff) - LATER_LAST_BEFORE_CUTOFF_MIN;
+  if (opens < last && (minutes < opens || minutes > last)) {
+    throw new HttpError(400, 'BAD_TIME', `Choose a time between ${config.seatBookingOpens} and ${hhmm(last)}.`);
+  }
+  return new Date(ms).toISOString();
+}
 
 /** Seat booking is closed from the cutoff (e.g. 22:00) until it opens (e.g. 04:00). */
 export function bookingClosed() {
@@ -190,7 +239,7 @@ export async function seatRoutes() {
   const result = [];
   for (const r of routes) {
     const waiting = await db.get(
-      "SELECT COALESCE(SUM(seats), 0) AS n FROM seat_bookings WHERE route_id = ? AND status = 'queued' AND pickup_stop_id IS NULL",
+      `SELECT COALESCE(SUM(seats), 0) AS n FROM seat_bookings WHERE route_id = ? AND status = 'queued' AND pickup_stop_id IS NULL AND ${due()}`,
       r.id,
     );
     const loading = await db.get("SELECT COUNT(*) AS n FROM loads WHERE route_id = ? AND status = 'loading'", r.id);
@@ -203,7 +252,14 @@ export async function seatRoutes() {
       cars_loading: loading.n,
     });
   }
-  return { open: !bookingClosed(), opens_at: config.seatBookingOpens, closes_at: config.seatBookingCutoff, routes: result };
+  return {
+    open: !bookingClosed(),
+    opens_at: config.seatBookingOpens,
+    closes_at: config.seatBookingCutoff,
+    // Booking for later: a "ready from" time today or tomorrow, from opens_at to last_ready_at (Kenyan time).
+    later: { today: nairobiToday(), tomorrow: nairobiTomorrow(), last_ready_at: lastReadyTime() },
+    routes: result,
+  };
 }
 
 async function uniqueCode() {
@@ -219,11 +275,12 @@ async function uniqueCode() {
  * and must equal what the passenger was shown (`expectedFare` per seat). Paid by M-Pesa PIN prompt, or from the
  * passenger's FarePay wallet at once. The same confirmation sent twice (idempotencyKey) returns the first booking.
  */
-export async function bookSeats({ passengerId, phone, routeId, pickupStopId = null, stopId, seats, expectedFare, idempotencyKey, payWith }) {
+export async function bookSeats({ passengerId, phone, routeId, pickupStopId = null, stopId, seats, expectedFare, idempotencyKey, payWith, readyAt = null }) {
   const previous = await db.get('SELECT id FROM seat_bookings WHERE passenger_id = ? AND idempotency_key = ?', passengerId, idempotencyKey);
   if (previous) return seatView(previous.id);
-  if (bookingClosed()) {
-    throw new HttpError(409, 'BOOKING_CLOSED', `Seat booking is closed for today. It opens again at ${config.seatBookingOpens}.`);
+  const later = laterTime(readyAt);
+  if (!later && bookingClosed()) {
+    throw new HttpError(409, 'BOOKING_CLOSED', `Seat booking is closed for today. It opens again at ${config.seatBookingOpens}, or book for tomorrow.`);
   }
   if (payWith === 'mpesa') requireMpesa();
   if (!Number.isInteger(seats) || seats < 1 || seats > MAX_SEATS) throw new HttpError(400, 'BAD_SEATS', `Book 1 to ${MAX_SEATS} seats.`);
@@ -252,8 +309,8 @@ export async function bookSeats({ passengerId, phone, routeId, pickupStopId = nu
     const free = seats === 1 && (await nextRideIsFree(passengerId));
     if (free) {
       const bookingId = await db.insert(
-        `INSERT INTO seat_bookings (code, passenger_id, route_id, pickup_stop_id, stop_id, seats, fare_each, amount, pay_with, status, queued_at, idempotency_key, free_ride)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'wallet', 'queued', ${NOW}, ?, TRUE)`,
+        `INSERT INTO seat_bookings (code, passenger_id, route_id, pickup_stop_id, stop_id, seats, fare_each, amount, pay_with, status, ready_at, queued_at, idempotency_key, free_ride)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'wallet', 'queued', ?, COALESCE(?, ${NOW}), ?, TRUE)`,
         code,
         passengerId,
         routeId,
@@ -262,6 +319,8 @@ export async function bookSeats({ passengerId, phone, routeId, pickupStopId = nu
         seats,
         stop.app_fare,
         amount,
+        later,
+        later,
         idempotencyKey,
       );
       await creditFreeRide(passengerId, amount, code);
@@ -271,8 +330,8 @@ export async function bookSeats({ passengerId, phone, routeId, pickupStopId = nu
     }
     if (payWith === 'wallet') {
       const bookingId = await db.insert(
-        `INSERT INTO seat_bookings (code, passenger_id, route_id, pickup_stop_id, stop_id, seats, fare_each, amount, pay_with, status, queued_at, idempotency_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'wallet', 'queued', ${NOW}, ?)`,
+        `INSERT INTO seat_bookings (code, passenger_id, route_id, pickup_stop_id, stop_id, seats, fare_each, amount, pay_with, status, ready_at, queued_at, idempotency_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'wallet', 'queued', ?, COALESCE(?, ${NOW}), ?)`,
         code,
         passengerId,
         routeId,
@@ -281,6 +340,8 @@ export async function bookSeats({ passengerId, phone, routeId, pickupStopId = nu
         seats,
         stop.app_fare,
         amount,
+        later,
+        later,
         idempotencyKey,
       );
       // Refused (and everything undone) if the wallet is short.
@@ -299,8 +360,8 @@ export async function bookSeats({ passengerId, phone, routeId, pickupStopId = nu
       `seat-${idempotencyKey}`,
     );
     const bookingId = await db.insert(
-      `INSERT INTO seat_bookings (code, passenger_id, route_id, pickup_stop_id, stop_id, seats, fare_each, amount, pay_with, mpesa_payment_id, status, idempotency_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'mpesa', ?, 'paying', ?)`,
+      `INSERT INTO seat_bookings (code, passenger_id, route_id, pickup_stop_id, stop_id, seats, fare_each, amount, pay_with, mpesa_payment_id, status, ready_at, idempotency_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'mpesa', ?, 'paying', ?, ?)`,
       code,
       passengerId,
       routeId,
@@ -310,6 +371,7 @@ export async function bookSeats({ passengerId, phone, routeId, pickupStopId = nu
       stop.app_fare,
       amount,
       paymentId,
+      later,
       idempotencyKey,
     );
     return { bookingId, paymentId, amount, code };
@@ -348,7 +410,9 @@ export async function seatPaymentConfirmed(payment, receipt, paidAmount) {
   const stop = await db.get('SELECT * FROM route_stops WHERE id = ?', b.stop_id);
   await postWalletEntry(b.passenger_id, { type: 'topup', amount: b.amount, reference, description: 'M-Pesa payment for a seat booking' });
   await postWalletEntry(b.passenger_id, { type: 'booking_hold', amount: -b.amount, reference: b.code, description: holdText(b.seats, route, stop) });
-  await db.run(`UPDATE seat_bookings SET status = 'queued', queued_at = ${NOW} WHERE id = ? AND status = 'paying'`, b.id);
+  // Booked for later: its place in the queue is its "ready from" time (unless that has already passed).
+  const later = b.ready_at && Date.parse(b.ready_at) > Date.now() ? b.ready_at : null;
+  await db.run(`UPDATE seat_bookings SET status = 'queued', queued_at = COALESCE(?, ${NOW}) WHERE id = ? AND status = 'paying'`, later, b.id);
   await afterQueued(b.id);
 }
 
@@ -360,9 +424,19 @@ export async function seatPaymentFailed(payment, reason) {
   await notify([b.passenger_id], { kind: 'seat.failed', title: 'Seat booking not paid', body: `${reason}. No money was taken.`, target: 'seats' });
 }
 
-/** A booking was just paid: tell the passenger, and seat them at once if a car at the stage has room. */
+/** A booking was just paid: tell the passenger, and (unless it is for later) seat them at once if a car at the stage has room. */
 async function afterQueued(bookingId) {
   const b = await getRow(bookingId);
+  if (isLater(b)) {
+    const when = whenText(b.queued_at);
+    await tell(b, {
+      kind: 'seat.queued',
+      title: `Seat booked for ${when}: ${b.code}`,
+      body: `${seatWord(b.seats)} to ${b.stop_name}, from ${pickupPlace(b)}. Be there ${when}: you join the queue then, ahead of anyone who chose a later time. We'll remind you before. Cancel free until then.`,
+      sms: `Makos seat booked (${b.code}) for ${when}: ${seatWord(b.seats)} to ${b.stop_name}, from ${pickupPlace(b)}. We'll remind you before.`,
+    });
+    return;
+  }
   if (b.pickup_stop_id) {
     await tell(b, {
       kind: 'seat.queued',
@@ -378,8 +452,80 @@ async function afterQueued(bookingId) {
       body: `${seatWord(b.seats)} to ${b.stop_name}. You're ${ordinal(ahead + 1)} in the queue at ${b.origin} stage. We'll tell you which car to board.`,
       sms: `Makos seat booked (${b.code}): ${seatWord(b.seats)} to ${b.stop_name}. You're ${ordinal(ahead + 1)} in the queue at ${b.origin}. We'll text you the car to board.`,
     });
-    await fillRoute(b.route_id);
   }
+  await joinedQueue(bookingId);
+}
+
+/**
+ * A booking's time has come (just paid, or its "ready from" time reached): a stage booking is put on a car if one has
+ * room, and the marshals are told (once) who joined their queue.
+ */
+async function joinedQueue(bookingId) {
+  const before = await getRow(bookingId);
+  if (!before.pickup_stop_id) await fillRoute(before.route_id);
+  const b = await getRow(bookingId);
+  const { changes } = await db.run(`UPDATE seat_bookings SET marshals_told_at = ${NOW} WHERE id = ? AND marshals_told_at IS NULL`, bookingId);
+  if (!changes || !OPEN.includes(b.status)) return;
+  const who = `${b.passenger_name}, code ${b.code}, going to ${b.stop_name}. Already paid.`;
+  if (b.pickup_stop_id) {
+    await tellMarshals({
+      kind: 'seat.new',
+      title: `Road pickup at ${b.pickup_name}: ${seatWord(b.seats)}`,
+      body: b.status === 'assigned' ? `${who} On ${b.plate}.` : `${who} Give it a car going that way.`,
+    });
+  } else {
+    await tellMarshals({
+      kind: 'seat.new',
+      title: `New in the ${b.origin} queue: ${seatWord(b.seats)}`,
+      body: b.status === 'assigned' ? `${who} Put on ${b.plate}.` : `${who} ${ordinal((await placeInQueue(b)) + 1)} in the queue.`,
+    });
+  }
+}
+
+/**
+ * Every minute: passengers booked for later are reminded shortly before their time, and when it comes they join the
+ * queue (a car at the stage takes them if it has room; the marshals are told).
+ */
+export async function runSeatTimers() {
+  const soon = new Date(Date.now() + REMIND_BEFORE_MIN * 60_000).toISOString();
+  const toRemind = await db.all(
+    `SELECT id FROM seat_bookings WHERE status = 'queued' AND ready_at IS NOT NULL AND reminded_at IS NULL AND queued_at > ${NOW} AND queued_at <= ?`,
+    soon,
+  );
+  for (const { id } of toRemind) {
+    const b = await getRow(id);
+    await db.run(`UPDATE seat_bookings SET reminded_at = ${NOW} WHERE id = ?`, id);
+    // Booked only a little before their time: they know already.
+    if (Date.parse(b.created_at) > Date.parse(b.ready_at) - (REMIND_BEFORE_MIN + 15) * 60_000) continue;
+    const time = hhmm(nairobiParts(Date.parse(b.ready_at)).minutes);
+    await tell(b, {
+      kind: 'seat.reminder',
+      title: `Your seat is at ${time}: ${b.code}`,
+      body: `Be at ${pickupPlace(b)} by ${time}. You join the queue then and we'll tell you which car. Can't make it? Cancel free before ${time}.`,
+      sms: `Makos reminder: be at ${pickupPlace(b)} by ${time} for booking ${b.code} (${seatWord(b.seats)} to ${b.stop_name}). We'll text you the car.`,
+    });
+  }
+  const nowDue = await db.all(
+    `SELECT id FROM seat_bookings WHERE status = 'queued' AND ready_at IS NOT NULL AND marshals_told_at IS NULL AND ${due()} ORDER BY queued_at, id`,
+  );
+  for (const { id } of nowDue) {
+    try {
+      const b = await getRow(id);
+      if (!b.pickup_stop_id) {
+        const ahead = await placeInQueue(b);
+        await tell(b, {
+          kind: 'seat.in_queue',
+          title: `You're in the queue: ${b.code}`,
+          body: `You're ${ordinal(ahead + 1)} in the queue at ${b.origin} stage. We'll tell you which car to board.`,
+          sms: `Makos: booking ${b.code}, you're ${ordinal(ahead + 1)} in the queue at ${b.origin}. We'll text you the car to board.`,
+        });
+      }
+      await joinedQueue(id);
+    } catch (err) {
+      console.error(`[seat timers] booking ${id}:`, err.message);
+    }
+  }
+  return { reminded: toRemind.length, joined: nowDue.length };
 }
 
 const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
@@ -390,11 +536,17 @@ async function tell(b, { kind, title, body, sms }) {
   if (b.no_app && sms) await queueSms(b.passenger_phone, kind, sms);
 }
 
-/** Tells the crew of a car (driver, and conductor on buses). */
-async function tellCrew(vehicleId, message) {
+/** Tells the crew of a car (driver, and conductor on buses): in the app, and by SMS too when sms is given. */
+async function tellCrew(vehicleId, { sms, ...message }) {
   const v = await db.get('SELECT driver_id, conductor_id FROM vehicles WHERE id = ?', vehicleId);
   const ids = [v?.driver_id, v?.conductor_id].filter(Boolean);
-  if (ids.length) await notify(ids, { ...message, target: 'seats' });
+  if (!ids.length) return;
+  await notify(ids, { ...message, target: 'seats' });
+  if (!sms) return;
+  for (const id of ids) {
+    const crew = await db.get('SELECT phone FROM users WHERE id = ? AND is_active = TRUE', id);
+    if (crew) await queueSms(crew.phone, message.kind, sms);
+  }
 }
 
 const tellMarshals = async (message) => {
@@ -430,7 +582,7 @@ export async function fillRoute(routeId) {
       let left = load.seats - (await seatsTaken(load.id));
       if (left <= 0) continue;
       const queue = await db.all(
-        "SELECT id, seats FROM seat_bookings WHERE route_id = ? AND status = 'queued' AND pickup_stop_id IS NULL ORDER BY queued_at, id",
+        `SELECT id, seats FROM seat_bookings WHERE route_id = ? AND status = 'queued' AND pickup_stop_id IS NULL AND ${due()} ORDER BY queued_at, id`,
         routeId,
       );
       for (const q of queue) {
@@ -458,6 +610,7 @@ async function assign(bookingId, load) {
       kind: 'seat.pickup',
       title: `Pick ${seatWord(b.seats)} at ${b.pickup_name}`,
       body: `${b.passenger_name}, code ${b.code}, going to ${b.stop_name}. Already paid.`,
+      sms: `Makos: pick ${seatWord(b.seats)} at ${b.pickup_name} for ${b.plate}: ${b.passenger_name}, code ${b.code}, to ${b.stop_name}. Already paid.`,
     });
   } else {
     await tell(b, {
@@ -547,6 +700,7 @@ export async function assignPickup(bookingId, loadId) {
     const b = await db.get('SELECT * FROM seat_bookings WHERE id = ?', bookingId);
     if (!b) throw notFound('Booking');
     if (b.status !== 'queued' || !b.pickup_stop_id) throw new HttpError(409, 'NOT_WAITING', 'This booking is not waiting to be picked on the road.');
+    if (isLater(b)) throw new HttpError(409, 'NOT_YET', `This passenger is ready ${whenText(b.queued_at)}. Give them a car then.`);
     const load = await db.get('SELECT * FROM loads WHERE id = ?', loadId);
     if (!load || load.finished_at || load.route_id !== b.route_id) throw new HttpError(409, 'WRONG_CAR', 'Choose a car on this route that is loading or on the road.');
     const passed = await db.get('SELECT 1 FROM load_stops WHERE load_id = ? AND stop_id = ?', loadId, b.pickup_stop_id);
@@ -641,7 +795,12 @@ export async function cancelSeat(bookingId, { reason, by }) {
         : `Makos: booking ${b.code} cancelled (${reason}). ${kesText(b.amount)} ${toMpesa ? 'is being sent back to your M-Pesa' : 'is back in your FarePay wallet'}.`,
     });
     if (b.status === 'assigned') {
-      await tellCrew(b.vehicle_id, { kind: 'seat.cancelled', title: `Booking ${b.code} cancelled`, body: `Don't pick ${b.passenger_name} at ${pickupPlace(b)}.` });
+      await tellCrew(b.vehicle_id, {
+        kind: 'seat.cancelled',
+        title: `Booking ${b.code} cancelled`,
+        body: `Don't pick ${b.passenger_name} at ${pickupPlace(b)}.`,
+        sms: b.pickup_stop_id ? `Makos: booking ${b.code} cancelled. Don't pick ${b.passenger_name} at ${b.pickup_name}.` : undefined,
+      });
     }
     return { withdrawal, routeId: b.route_id, freedSeat: b.status === 'assigned', by };
   });
@@ -650,11 +809,11 @@ export async function cancelSeat(bookingId, { reason, by }) {
   return seatView(bookingId);
 }
 
-/** At the cutoff: every booking not on a car (or on a car that never left) is refunded; bookings stay for today only. */
+/** At the cutoff: every booking not on a car (or on a car that never left) is refunded; tomorrow's bookings wait. */
 export async function refundUnboarded() {
   const rows = await db.all(
     `SELECT sb.id FROM seat_bookings sb LEFT JOIN loads l ON l.id = sb.load_id
-     WHERE sb.status = 'queued' OR (sb.status = 'assigned' AND NOT (l.status = 'departed' AND l.finished_at IS NULL))`,
+     WHERE (sb.status = 'queued' AND ${due('sb.queued_at')}) OR (sb.status = 'assigned' AND NOT (l.status = 'departed' AND l.finished_at IS NULL))`,
   );
   for (const { id } of rows) {
     try {
@@ -716,6 +875,7 @@ const marshalBooking = (b, place) => ({
   passenger_phone: b.passenger_phone,
   passenger_here: Boolean(b.passenger_here_at),
   booked_at: b.queued_at ?? b.created_at,
+  ready_at: b.ready_at,
   place,
 });
 
@@ -727,7 +887,8 @@ export async function marshalQueues() {
   const routes = await listRoutes({ activeOnly: true });
   const out = [];
   for (const r of routes) {
-    const waiting = await db.all(`${SEAT_SELECT} WHERE sb.route_id = ? AND sb.status = 'queued' ORDER BY sb.queued_at, sb.id`, r.id);
+    const waiting = await db.all(`${SEAT_SELECT} WHERE sb.route_id = ? AND sb.status = 'queued' AND ${due('sb.queued_at')} ORDER BY sb.queued_at, sb.id`, r.id);
+    const later = await db.all(`${SEAT_SELECT} WHERE sb.route_id = ? AND sb.status = 'queued' AND sb.queued_at > ${NOW} ORDER BY sb.queued_at, sb.id`, r.id);
     const loads = await db.all(
       `SELECT l.*, v.plate, v.description, dr.name AS driver_name, dr.phone AS driver_phone, co.name AS conductor_name, co.phone AS conductor_phone
        FROM loads l JOIN vehicles v ON v.id = l.vehicle_id LEFT JOIN users dr ON dr.id = v.driver_id LEFT JOIN users co ON co.id = v.conductor_id
@@ -764,6 +925,8 @@ export async function marshalQueues() {
       stage_queue: stage.map((b, i) => marshalBooking(b, i + 1)),
       seats_waiting: stage.reduce((n, b) => n + b.seats, 0),
       road_pickups: waiting.filter((b) => b.pickup_stop_id).map((b) => marshalBooking(b, null)),
+      // Booked for later (today or tomorrow): they join the queue at their "ready from" time.
+      later: later.map((b) => marshalBooking(b, null)),
       cars,
     });
   }

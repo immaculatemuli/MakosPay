@@ -585,4 +585,24 @@ export const SW: Record<string, string> = {
   'This booking is your free ride: nothing is charged.': 'Nafasi hii ni safari yako ya bure: hakuna malipo.',
   'Book my free ride': 'Weka safari yangu ya bure',
   'Cancel (keep my free ride)': 'Ghairi (baki na safari yangu ya bure)',
+  // Booking a seat for later
+  'today {time}': 'leo saa {time}',
+  'tomorrow {time}': 'kesho saa {time}',
+  'Book for now, or for later today or tomorrow.': 'Weka nafasi ya sasa, au ya baadaye leo au kesho.',
+  'Booking for now is closed. It opens again at {time}. You can book for tomorrow.': 'Kuweka nafasi ya sasa kumefungwa. Kutafunguliwa tena saa {time}. Unaweza kuweka nafasi ya kesho.',
+  'When will you be ready?': 'Utakuwa tayari lini?',
+  Now: 'Sasa',
+  'Later today': 'Baadaye leo',
+  Tomorrow: 'Kesho',
+  'From what time? (hour)': 'Kuanzia saa ngapi? (saa)',
+  Minutes: 'Dakika',
+  'You join the queue at that time, ahead of anyone who chose a later time. We remind you 30 minutes before, and you can cancel free until then.':
+    'Utaingia kwenye foleni wakati huo, mbele ya yeyote aliyechagua wakati wa baadaye. Tutakukumbusha dakika 30 kabla, na unaweza kughairi bure hadi wakati huo.',
+  'Ready from {when}': 'Tayari kuanzia {when}',
+  'Ready from': 'Tayari kuanzia',
+  'If no car takes you that day, the money goes back the way you paid.': 'Gari lisipokuchukua siku hiyo, pesa zinarudi kwa njia uliyolipa.',
+  'Booked for {when}. Be at {place} by then: you join the queue at that time and we’ll tell you which car. You can cancel free until then.':
+    'Nafasi ya {when}. Fika {place} kufikia wakati huo: utaingia kwenye foleni wakati huo na tutakuambia gari lako. Unaweza kughairi bure hadi wakati huo.',
+  'Booked for later': 'Nafasi za baadaye',
+  'Paid. Each joins the queue at their time, ahead of anyone who chose a later time.': 'Zimelipwa. Kila mmoja anaingia kwenye foleni wakati wake, mbele ya aliyechagua wakati wa baadaye.',
 };

@@ -28,7 +28,7 @@
 
   <main class="wrap booking">
     <h1>Book a seat</h1>
-    <p class="lead">Book and pay for your seat from anywhere. Wait at the stage, or at a stop on the road to be picked. We tell you which car is yours as soon as it is there, and you show your booking code when you get on.</p>
+    <p class="lead">Book and pay for your seat from anywhere, for now or for later today or tomorrow. Wait at the stage, or at a stop on the road to be picked. We tell you which car is yours as soon as it is there, and you show your booking code when you get on.</p>
 
     <div id="mine" class="mine" hidden>
       <h2>Your bookings on this phone</h2>
@@ -65,12 +65,21 @@
         </div>
       </div>
       <label class="field">
+        <span class="field-label">When will you be ready?</span>
+        <select id="when"></select>
+      </label>
+      <div class="field" id="time-field" hidden>
+        <label class="field-label" for="time">From what time?</label>
+        <select id="time"></select>
+        <p class="muted small">You join the queue at that time, ahead of anyone who chose a later time. We remind you by SMS 30 minutes before, and you can cancel free until then.</p>
+      </div>
+      <label class="field">
         <span class="field-label">Your M-Pesa number</span>
         <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" maxlength="16">
       </label>
       <p class="error" id="book-error" hidden></p>
       <button type="button" id="book" disabled>Choose your drop-off</button>
-      <p class="muted small">You get the M-Pesa PIN prompt on this number. The fare is the same wherever you are picked. If no car takes you today, the money goes back to this M-Pesa number.</p>
+      <p class="muted small">You get the M-Pesa PIN prompt on this number. The fare is the same wherever you are picked. If no car takes you that day, the money goes back to this M-Pesa number.</p>
     </div>
 
     <!-- Paying -->

@@ -523,6 +523,8 @@ export interface SeatRoutes {
   open: boolean;
   opens_at: string;
   closes_at: string;
+  /** Booking for later: a "ready from" time today or tomorrow (YYYY-MM-DD), from opens_at to last_ready_at. */
+  later: { today: string; tomorrow: string; last_ready_at: string };
   routes: {
     id: number;
     name: string;
@@ -546,6 +548,8 @@ export interface QueueBooking {
   passenger_phone: string;
   passenger_here: boolean;
   booked_at: string;
+  /** Booked for later: when they will be ready. */
+  ready_at: string | null;
   /** Place in the stage queue (1 = next), or null. */
   place: number | null;
   at_stage?: boolean;
@@ -578,6 +582,8 @@ export interface RouteQueue {
   stage_queue: QueueBooking[];
   seats_waiting: number;
   road_pickups: QueueBooking[];
+  /** Booked for later (today or tomorrow): they join the queue at their "ready from" time. */
+  later: QueueBooking[];
   cars: QueueCar[];
 }
 
@@ -626,6 +632,9 @@ export interface SeatBooking {
   amount: number;
   pay_with: 'mpesa' | 'wallet';
   booked_at: string;
+  /** Booked for later: when they will be ready (they join the queue then). later: that time hasn't come yet. */
+  ready_at: string | null;
+  later: boolean;
   /** How many are ahead in the stage queue (0 = next); null when not waiting at the stage. */
   place_in_queue: number | null;
   passenger_here_at: string | null;
