@@ -93,6 +93,7 @@ export default function BookSeat() {
     data.refresh();
     mine.refresh();
     wallet.refresh();
+    summary.refresh(); // whether this booking can be the free ride
   };
 
   const book = async (payWith: 'wallet' | 'mpesa') => {
