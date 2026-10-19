@@ -125,10 +125,11 @@ test('the server refuses to start in production with weak settings, and real mon
       env: { PATH: process.env.PATH, ...env },
       encoding: 'utf8',
     });
-  const strong = { JWT_SECRET: 'x'.repeat(40), MPESA_CALLBACK_SECRET: 'y'.repeat(30), MPESA_CALLBACK_BASE_URL: 'https://api.example.co.ke', DB_PATH: './data/test-never-created.db' };
+  const strong = { JWT_SECRET: 'x'.repeat(40), MPESA_CALLBACK_SECRET: 'y'.repeat(30), USSD_SECRET: 'u'.repeat(30), MPESA_CALLBACK_BASE_URL: 'https://api.example.co.ke', DB_PATH: './data/test-never-created.db' };
   assert.match(start({ NODE_ENV: 'production', ...strong, JWT_SECRET: 'short' }).stderr, /JWT_SECRET must be set/);
   assert.match(start({ NODE_ENV: 'production', ...strong, MPESA_CALLBACK_SECRET: 'abc' }).stderr, /MPESA_CALLBACK_SECRET/);
   assert.match(start({ NODE_ENV: 'production', ...strong, MPESA_CALLBACK_BASE_URL: 'http://plain.example' }).stderr, /https/);
+  assert.match(start({ NODE_ENV: 'production', ...strong, USSD_SECRET: 'short' }).stderr, /USSD_SECRET/);
   assert.match(start({ ...strong, MPESA_MODE: 'production' }).stderr, /needs NODE_ENV=production/);
   assert.match(start({ NODE_ENV: 'production', ...strong, MPESA_MODE: 'production' }).stdout, /started/);
 });
