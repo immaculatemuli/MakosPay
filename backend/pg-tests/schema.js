@@ -28,7 +28,7 @@ before(async () => {
 });
 after(() => pool.end());
 
-const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql', '003_arrival_updates.sql', '004_parcels.sql', '005_wallet_bookings.sql', '006_sms_push_reset.sql', '007_report_messages.sql', '008_report_seen.sql', '009_report_photos.sql', '010_seat_queue.sql', '011_vehicle_locations.sql', '012_free_rides.sql', '013_owners.sql', '014_car_numbers_ussd.sql', '015_signup_codes.sql', '016_later_seat_bookings.sql'];
+const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql', '003_arrival_updates.sql', '004_parcels.sql', '005_wallet_bookings.sql', '006_sms_push_reset.sql', '007_report_messages.sql', '008_report_seen.sql', '009_report_photos.sql', '010_seat_queue.sql', '011_vehicle_locations.sql', '012_free_rides.sql', '013_owners.sql', '014_car_numbers_ussd.sql', '015_signup_codes.sql', '016_later_seat_bookings.sql', '017_withdrawal_retries.sql'];
 
 test('the migrations apply once; running them again changes nothing', async () => {
   assert.deepEqual(await migrate(pool), MIGRATIONS);

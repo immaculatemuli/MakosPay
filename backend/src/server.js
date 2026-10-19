@@ -7,7 +7,7 @@ import { reconcileProcessingPayouts, startDailyPayouts } from './services/payout
 import { startNightlyBackup } from './services/backup.js';
 import { startNightlyMoneyCheck } from './services/reconciliation.js';
 import { runSeatTimers, startNightlySeatRefunds } from './services/seats.js';
-import { reconcileProcessingWithdrawals } from './services/withdrawals.js';
+import { reconcileProcessingWithdrawals, retryUnsentWithdrawals } from './services/withdrawals.js';
 import { applyDueFareChanges } from './services/routes.js';
 import { flushPush } from './services/push.js';
 import { flushSms } from './services/sms.js';
@@ -48,6 +48,8 @@ createApp().listen(config.port, () => {
   if (isConfigured.b2c) {
     if (!isMock) every(config.mpesa.reconcileEveryMs, 'payouts', () => reconcileProcessingPayouts());
     if (!isMock) every(config.mpesa.reconcileEveryMs, 'withdrawals', () => reconcileProcessingWithdrawals());
+    // Refunds and withdrawals that could not reach M-Pesa (nothing sent) are tried again.
+    if (!isMock) every(60_000, 'withdrawal retries', () => retryUnsentWithdrawals());
     console.log(`  Owners are paid automatically every day at ${config.payoutDailyAt} (Kenyan time)`);
   } else {
     console.warn('! Automatic owner payouts are off: the office sends the money itself and records the M-Pesa code');
