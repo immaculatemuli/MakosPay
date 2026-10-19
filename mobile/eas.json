@@ -11,7 +11,7 @@
       },
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://cams-visitor-limitation-parent.trycloudflare.com"
+        "EXPO_PUBLIC_API_URL": "http://192.168.16.91:4000"
       }
     }
   }
