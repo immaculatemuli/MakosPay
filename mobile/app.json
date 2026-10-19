@@ -68,6 +68,12 @@
           "photosPermission": "Allow FarePay to add a photo (like a screenshot of an M-Pesa message) to a problem report.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": { "usesCleartextTraffic": true }
+        }
       ]
     ],
     "extra": {
