@@ -1,0 +1,64 @@
+# FarePay on Render's free plan, for the pilot (Render "Blueprint"). The database is on Neon (free).
+# No secrets in this file: Render makes the random ones (generateValue), and the rest (sync: false) are typed into
+# Render's settings page. Test money only: M-Pesa stays in the sandbox.
+services:
+  - type: web
+    name: makos-farepay
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: postgres
+    # The office dashboard is built first (it needs its development tools), then the server's own packages.
+    buildCommand: >-
+      cd admin-web && yarn install --frozen-lockfile --production=false && yarn build &&
+      cd ../backend && yarn install --frozen-lockfile --production=true
+    startCommand: cd backend && node src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      # Render's front door passes on the visitor's address.
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DB_ENGINE
+        value: postgres
+      # Neon's connection string (Neon dashboard → Connect).
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MPESA_CALLBACK_SECRET
+        generateValue: true
+      - key: USSD_SECRET
+        generateValue: true
+      - key: SACCO_NAME
+        value: Makos Sacco
+      # No SMS on the free pilot (Africa's Talking charges per text): sign-up needs no code; the office resets
+      # forgotten passwords.
+      - key: SMS_PROVIDER
+        value: "off"
+      - key: PAYMENT_PROVIDER
+        value: daraja
+      - key: MPESA_MODE
+        value: sandbox
+      # This service's own address, e.g. https://makos-farepay.onrender.com (no slash at the end).
+      - key: MPESA_CALLBACK_BASE_URL
+        sync: false
+      - key: MPESA_CONSUMER_KEY
+        sync: false
+      - key: MPESA_CONSUMER_SECRET
+        sync: false
+      - key: MPESA_SHORTCODE
+        sync: false
+      - key: MPESA_PASSKEY
+        sync: false
+      - key: MPESA_TRANSACTION_TYPE
+        value: CustomerPayBillOnline
+      - key: MPESA_B2C_SHORTCODE
+        sync: false
+      - key: MPESA_B2C_INITIATOR_NAME
+        sync: false
+      - key: MPESA_B2C_SECURITY_CREDENTIAL
+        sync: false
