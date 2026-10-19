@@ -50,6 +50,8 @@ export interface Conductor {
 
 export interface Vehicle extends OwnerPayoutDetails {
   id: number;
+  /** Short number on the sticker, typed by passengers who pay by USSD. */
+  car_number: number | null;
   owner_id: number | null;
   plate: string;
   description: string | null;

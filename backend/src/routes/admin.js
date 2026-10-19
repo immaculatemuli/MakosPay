@@ -487,12 +487,12 @@ router.post('/import/:kind', async (req, res) => {
 router.get('/vehicles/stickers', async (req, res) => {
   const { route_id } = parse(z.object({ route_id: id.optional() }), req.query);
   const rows = await db.all(
-    `SELECT v.id, v.plate, r.name AS route_name FROM vehicles v LEFT JOIN routes r ON r.id = v.route_id
+    `SELECT v.id, v.plate, v.car_number, r.name AS route_name FROM vehicles v LEFT JOIN routes r ON r.id = v.route_id
      WHERE v.is_active = TRUE AND (CAST(? AS INTEGER) IS NULL OR v.route_id = ?) ORDER BY v.plate`,
     route_id ?? null,
     route_id ?? null,
   );
-  res.json({ opens_with_camera: config.qrPrefix.startsWith('https://'), vehicles: rows });
+  res.json({ opens_with_camera: config.qrPrefix.startsWith('https://'), ussd_code: config.ussdCode, vehicles: rows });
 });
 
 // One message to many crew at once (e.g. "Thika Road closed, use Kenol").
@@ -576,8 +576,8 @@ router.post('/vehicles', async (req, res) => {
       });
     }
     const newId = await db.insert(
-      `INSERT INTO vehicles (plate, description, owner_name, owner_phone, seats, conductor_id, driver_id, route_id, qr_token, owner_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO vehicles (plate, description, owner_name, owner_phone, seats, conductor_id, driver_id, route_id, qr_token, owner_id, car_number)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(car_number), 100) + 1 FROM vehicles))`,
       body.plate,
       body.description ?? null,
       owner.name,
@@ -770,6 +770,8 @@ router.get('/vehicles/:id/qr', async (req, res) => {
   if (!vehicle) throw notFound('Vehicle');
   res.json({
     plate: vehicle.plate,
+    car_number: vehicle.car_number,
+    ussd_code: config.ussdCode,
     file_name: qrFileName(vehicle),
     png_base64: (await qrPng(vehicle)).toString('base64'),
     // A link sticker opens the pay page from any phone camera; otherwise only the FarePay app can read it.

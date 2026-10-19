@@ -34,6 +34,8 @@ export const config = {
 
   // Text inside each vehicle's QR sticker, followed by the vehicle's secret token. With the server's https
   // address set, the sticker is a link to its pay page, so any phone camera can pay (the app scans it too).
+  // The SACCO's USSD code (e.g. *384*12345#), printed on stickers for passengers without a smartphone. Empty: not yet.
+  ussdCode: env.USSD_CODE || null,
   qrPrefix: env.QR_PREFIX || (/^https:\/\//.test(env.MPESA_CALLBACK_BASE_URL ?? '') ? `${env.MPESA_CALLBACK_BASE_URL.replace(/\/+$/, '')}/pay?v=` : 'farepay://pay?v='),
 
   // Wallet limits, in whole shillings.

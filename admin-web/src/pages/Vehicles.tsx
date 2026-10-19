@@ -47,6 +47,7 @@ export function Vehicles() {
           <table>
             <thead>
               <tr>
+                <th>Car</th>
                 <th>Plate</th>
                 <th>Route</th>
                 <th>Owner</th>
@@ -59,6 +60,7 @@ export function Vehicles() {
             <tbody>
               {data.map((v) => (
                 <tr key={v.id} className="clickable" onClick={() => navigate(`/vehicles/${v.id}`)}>
+                  <td>{v.car_number ?? '—'}</td>
                   <td>
                     <strong>{v.plate}</strong>
                   </td>

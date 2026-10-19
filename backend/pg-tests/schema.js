@@ -28,7 +28,7 @@ before(async () => {
 });
 after(() => pool.end());
 
-const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql', '003_arrival_updates.sql', '004_parcels.sql', '005_wallet_bookings.sql', '006_sms_push_reset.sql', '007_report_messages.sql', '008_report_seen.sql', '009_report_photos.sql', '010_seat_queue.sql', '011_vehicle_locations.sql', '012_free_rides.sql', '013_owners.sql'];
+const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql', '003_arrival_updates.sql', '004_parcels.sql', '005_wallet_bookings.sql', '006_sms_push_reset.sql', '007_report_messages.sql', '008_report_seen.sql', '009_report_photos.sql', '010_seat_queue.sql', '011_vehicle_locations.sql', '012_free_rides.sql', '013_owners.sql', '014_car_numbers_ussd.sql'];
 
 test('the migrations apply once; running them again changes nothing', async () => {
   assert.deepEqual(await migrate(pool), MIGRATIONS);
@@ -44,8 +44,8 @@ test('all 30 FarePay tables exist, with the same columns as SQLite', async () =>
   assert.deepEqual(await cols('wallets'), ['balance', 'updated_at', 'user_id']);
   assert.deepEqual(await cols('users'), ['created_at', 'id', 'is_active', 'name', 'password_hash', 'phone', 'role', 'session_version']);
   assert.equal((await cols('trips')).length, 19);
-  assert.equal((await cols('vehicles')).length, 17); // 15 + seats (seat booking) + owner_id
-  assert.equal((await cols('mpesa_payments')).length, 17);
+  assert.equal((await cols('vehicles')).length, 18); // 15 + seats (seat booking) + owner_id + car_number (USSD)
+  assert.equal((await cols('mpesa_payments')).length, 18); // + channel (USSD)
 });
 
 test('every table has exactly the columns of the SQLite database the app uses today', async () => {

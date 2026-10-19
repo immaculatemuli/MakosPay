@@ -27,6 +27,8 @@ export interface Route {
 
 export interface Vehicle {
   id: number;
+  /** Short number on the sticker, typed by passengers who pay by USSD. */
+  car_number: number | null;
   owner_id: number | null;
   plate: string;
   description: string | null;
@@ -50,6 +52,9 @@ export interface Vehicle {
 
 export interface VehicleQr {
   plate: string;
+  car_number: number | null;
+  /** The SACCO's USSD code, once it has one (null: not yet). */
+  ussd_code: string | null;
   file_name: string;
   png_base64: string;
   opens_with_camera: boolean;

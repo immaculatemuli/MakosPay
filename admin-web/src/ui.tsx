@@ -56,6 +56,21 @@ export function Chips<T extends string | number>({ options, value, onChange }: {
   );
 }
 
+/** The sticker's car number and, once the SACCO has a USSD code, how to pay without a smartphone. */
+export function StickerUssd({ carNumber, ussdCode }: { carNumber: number | null; ussdCode: string | null }) {
+  if (carNumber === null) return null;
+  return (
+    <>
+      <div className="car-number">Car {carNumber}</div>
+      {ussdCode && (
+        <div className="hint">
+          No smartphone? Dial <strong>{ussdCode}</strong>, choose Pay fare and enter car <strong>{carNumber}</strong>.
+        </div>
+      )}
+    </>
+  );
+}
+
 export const Badge = ({ tone, children }: { tone?: 'success' | 'danger' | 'warning'; children: ReactNode }) => <span className={`badge ${tone ?? ''}`}>{children}</span>;
 
 /**

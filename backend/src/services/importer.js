@@ -244,8 +244,8 @@ async function checkVehicles(rows) {
           bank_account: v.bank ? v.r.bank_account : null,
         });
         const vehicleId = await db.insert(
-          `INSERT INTO vehicles (plate, description, owner_name, owner_phone, seats, conductor_id, driver_id, route_id, qr_token, owner_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO vehicles (plate, description, owner_name, owner_phone, seats, conductor_id, driver_id, route_id, qr_token, owner_id, car_number)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(car_number), 100) + 1 FROM vehicles))`,
           v.plate,
           v.description,
           owner.name,

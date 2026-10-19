@@ -129,6 +129,7 @@ tr.clickable:hover td { background: #fafafa; }
 .sticker img { width: 100%; max-width: 300px; display: block; margin: 12px auto; image-rendering: pixelated; }
 .sticker .plate { font-size: 28px; font-weight: 800; letter-spacing: 0.04em; }
 .sticker .hint { font-size: 14px; color: var(--muted); margin-top: 6px; }
+.sticker .car-number { font-size: 22px; font-weight: 800; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); }
 
 @media print {
   body, .shell, .main { background: #fff; }

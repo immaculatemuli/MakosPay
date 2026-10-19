@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { displayPhone } from '../format';
 import type { Vehicle, VehicleQr } from '../types';
-import { Banner, Dialog, Failed, Loading, PageHead } from '../ui';
+import { Banner, Dialog, Failed, Loading, PageHead, StickerUssd } from '../ui';
 import { useApi } from '../useApi';
 
 /** One vehicle and its QR sticker, ready to print (the print shows only the sticker). */
@@ -69,6 +69,7 @@ export function VehicleDetail() {
                   ? 'Scan with your phone camera to pay by M-Pesa, or with the FarePay app.'
                   : 'Open the FarePay app, tap Pay, and scan this code.'}
               </div>
+              <StickerUssd carNumber={qr.data.car_number} ussdCode={qr.data.ussd_code} />
             </div>
           )}
           <p className="muted">
