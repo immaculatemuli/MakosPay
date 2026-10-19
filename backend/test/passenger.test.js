@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -57,7 +58,7 @@ before(async () => {
     body: { plate: 'KDA 123A', description: 'White Nissan', owner_name: 'Mary Owner', owner_phone: '0744555666', conductor_id: conductor.id, route_id: s.route.id },
   })).body;
   s.qr = `farepay://pay?v=${s.vehicle.qr_token}`;
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722222222', password: 'pass123' } })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722222222', password: 'pass123' })).body.token;
 });
 after(() => server.close());
 

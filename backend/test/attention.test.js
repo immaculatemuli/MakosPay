@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -37,7 +38,7 @@ before(async () => {
   s.driver = (await api('POST', '/admin/drivers', { token: s.admin, body: { name: 'Dan Driver', phone: '0711000001', password: 'drive123' } })).body;
   s.withDriver = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: s.route.id, driver_id: s.driver.id } })).body;
   s.noRoute = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDB 222B', owner_name: 'John', owner_phone: '0755666777' } })).body;
-  s.p = (await api('POST', '/auth/register', { body: { name: 'Pat Wanjiku', phone: '0722333444', password: 'pass123' } })).body.token;
+  s.p = (await signUp(api, { name: 'Pat Wanjiku', phone: '0722333444', password: 'pass123' })).body.token;
 });
 after(() => server.close());
 

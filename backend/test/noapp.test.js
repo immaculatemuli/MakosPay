@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -114,17 +115,17 @@ test('the status link is not a sign-in, and a changed one does not work', async 
 });
 
 test('signing up in the app with that number takes over the fares paid without the app', async () => {
-  const res = await api('POST', '/auth/register', { body: { name: 'Nina NoApp', phone: '0733000111', password: 'pass1234' } });
+  const res = await signUp(api, { name: 'Nina NoApp', phone: '0733000111', password: 'pass1234' });
   assert.equal(res.status, 201);
   const trips = (await api('GET', '/passenger/trips', { token: res.body.token })).body.items;
   assert.deepEqual(trips.map((t) => t.ticket_code), [s.ticket]);
   // ...and once it has a password, nobody else can sign up with it.
-  const twice = await api('POST', '/auth/register', { body: { name: 'Someone', phone: '0733000111', password: 'other123' } });
+  const twice = await signUp(api, { name: 'Someone', phone: '0733000111', password: 'other123' });
   assert.equal(twice.body.error.code, 'PHONE_TAKEN');
 });
 
 test('an app passenger who pays from the page gets the ticket in their app', async () => {
-  const token = (await api('POST', '/auth/register', { body: { name: 'Pat App', phone: '0722222222', password: 'pass123' } })).body.token;
+  const token = (await signUp(api, { name: 'Pat App', phone: '0722222222', password: 'pass123' })).body.token;
   const res = await payPage('0722222222', { stopId: s.ruiru.id, fare: 50 });
   assert.equal(res.body.status, 'paid');
   const trips = (await api('GET', '/passenger/trips', { token })).body.items;

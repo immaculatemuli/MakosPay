@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -34,7 +35,7 @@ const s = {};
 
 // Three passengers, each with KES 2000 test money in the wallet.
 async function passenger(name, phone) {
-  const token = (await api('POST', '/auth/register', { body: { name, phone, password: 'pass123' } })).body.token;
+  const token = (await signUp(api, { name, phone, password: 'pass123' })).body.token;
   const userId = (await db.get('SELECT id FROM users WHERE phone = ?', `254${phone.slice(1)}`)).id;
   await tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 2000 }));
   return { token, userId };

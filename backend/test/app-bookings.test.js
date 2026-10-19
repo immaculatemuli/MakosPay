@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -40,8 +41,8 @@ before(async () => {
   const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Conductor', phone: '0711000001', password: 'cond123' } })).body;
   await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KAP 001A', owner_name: 'Owner', owner_phone: '0744555666', seats: 6, conductor_id: c.id, route_id: s.route.id } });
   s.crew = (await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'cond123' } })).body.token;
-  s.pat = (await api('POST', '/auth/register', { body: { name: 'Pat App', phone: '0722000001', password: 'pass1234' } })).body.token;
-  s.kim = (await api('POST', '/auth/register', { body: { name: 'Kim Other', phone: '0722000002', password: 'pass1234' } })).body.token;
+  s.pat = (await signUp(api, { name: 'Pat App', phone: '0722000001', password: 'pass1234' })).body.token;
+  s.kim = (await signUp(api, { name: 'Kim Other', phone: '0722000002', password: 'pass1234' })).body.token;
   await api('POST', '/passenger/wallet/topup', { token: s.pat, body: { amount: 500 } }); // test M-Pesa confirms at once
   await api('POST', '/crew/loading/start', { token: s.crew });
 });

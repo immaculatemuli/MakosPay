@@ -77,7 +77,15 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
-  s.pat = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722000001', password: 'oldpass1' } })).body.token;
+  // Signing up: the code comes by SMS (a real SMS provider never shows it in the answer).
+  const sent = await api('POST', '/auth/register/code', { body: { phone: '0722000001' } });
+  assert.equal(sent.body.test_code, undefined);
+  await until(() => textsTo('+254722000001').length === 1, 'the sign-up code SMS');
+  assert.match(textsTo('+254722000001')[0].message, /Your FarePay sign-up code is \d{6}\. It works for 10 minutes\./);
+  const code = codeIn(textsTo('+254722000001')[0].message);
+  s.pat = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722000001', password: 'oldpass1', code } })).body.token;
+  assert.ok(s.pat);
+  sms.splice(0); // the tests below count only their own texts
 });
 after(() => {
   server.close();

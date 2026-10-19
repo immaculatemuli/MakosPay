@@ -19,7 +19,7 @@ const refused = async (sql, params) => {
 
 const TABLES = [
   'audit_log', 'bookings', 'fare_changes', 'job_runs', 'load_stops', 'loads', 'mpesa_payments', 'notifications', 'owner_deductions', 'owners', 'parcel_payments', 'parcels', 'password_resets', 'payouts', 'push_tokens', 'report_messages', 'report_photos', 'reports',
-  'route_stops', 'routes', 'saved_stops', 'seat_bookings', 'sms_outbox', 'trips', 'users', 'vehicle_locations', 'vehicles', 'wallet_transactions', 'wallets', 'withdrawals',
+  'route_stops', 'routes', 'saved_stops', 'seat_bookings', 'signup_codes', 'sms_outbox', 'trips', 'users', 'vehicle_locations', 'vehicles', 'wallet_transactions', 'wallets', 'withdrawals',
 ];
 
 before(async () => {
@@ -28,7 +28,7 @@ before(async () => {
 });
 after(() => pool.end());
 
-const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql', '003_arrival_updates.sql', '004_parcels.sql', '005_wallet_bookings.sql', '006_sms_push_reset.sql', '007_report_messages.sql', '008_report_seen.sql', '009_report_photos.sql', '010_seat_queue.sql', '011_vehicle_locations.sql', '012_free_rides.sql', '013_owners.sql', '014_car_numbers_ussd.sql'];
+const MIGRATIONS = ['001_initial_schema.sql', '002_seat_booking.sql', '003_arrival_updates.sql', '004_parcels.sql', '005_wallet_bookings.sql', '006_sms_push_reset.sql', '007_report_messages.sql', '008_report_seen.sql', '009_report_photos.sql', '010_seat_queue.sql', '011_vehicle_locations.sql', '012_free_rides.sql', '013_owners.sql', '014_car_numbers_ussd.sql', '015_signup_codes.sql'];
 
 test('the migrations apply once; running them again changes nothing', async () => {
   assert.deepEqual(await migrate(pool), MIGRATIONS);
