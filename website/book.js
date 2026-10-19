@@ -1,5 +1,5 @@
 // Book a seat from anywhere: pick the route, where to be picked (the stage or a stop on the road), the drop-off and
-// the seats, and pay by M-Pesa. The booking joins the queue; its car is shown as soon as one takes it. Everything shown
+// the seats, when they will be ready (now, or later today or tomorrow), and pay by M-Pesa. The booking joins the queue; its car is shown as soon as one takes it. Everything shown
 // comes from FarePay as plain text (textContent, never HTML). A booking is kept as its link (/book.html?s=<token>)
 // and remembered on this phone.
 'use strict';
@@ -57,6 +57,9 @@ let stopId = null;
 let seats = 1;
 let pollTimer = null;
 let token = null; // the booking being shown
+let info = null; // what can be booked: open now?, opening time, and the days and times for later
+let when = null; // 'now' | 'today' | 'tomorrow'
+let readyMinutes = null; // the "ready from" time chosen for later (minutes after midnight)
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -94,6 +97,7 @@ function renderRoutes() {
 async function loadRoutes() {
   const data = await call('GET', '/book-api/seat-routes');
   routes = data.routes;
+  info = data;
   if (route) route = routes.find((r) => r.id === route.id) ?? null;
   return data;
 }
@@ -148,13 +152,58 @@ function renderDetails() {
   $('seats-minus').disabled = seats <= 1;
   $('seats-plus').disabled = seats >= MAX_SEATS;
   if (!$('phone').value) $('phone').value = remember.get('phone') ?? '';
+  renderWhen();
   updateBookButton();
 }
 
+// ---------- When: now, or a "ready from" time later today or tomorrow ----------
+
+const pad = (n) => String(n).padStart(2, '0');
+const toMinutes = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+const hhmm = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+
+/** The times (every 15 minutes) that can be chosen on a day; today only a little after now. */
+function readyTimes(day) {
+  const k = new Date(Date.now() + 3 * 3600_000);
+  const now = k.getUTCHours() * 60 + k.getUTCMinutes();
+  const out = [];
+  for (let m = Math.ceil(toMinutes(info.opens_at) / 15) * 15; m <= toMinutes(info.later.last_ready_at); m += 15) {
+    if (day === 'tomorrow' || m > now + 10) out.push(m);
+  }
+  return out;
+}
+
+function renderWhen() {
+  const choices = [
+    ...(info.open ? [['now', 'Now']] : []),
+    ...(readyTimes('today').length ? [['today', 'Later today']] : []),
+    ['tomorrow', 'Tomorrow'],
+  ];
+  if (!choices.some(([v]) => v === when)) when = choices[0][0];
+  $('when').replaceChildren(...choices.map(([v, label]) => Object.assign(el('option', null, label), { value: v, selected: v === when })));
+  $('time-field').hidden = when === 'now';
+  if (when === 'now') return (readyMinutes = null);
+  const times = readyTimes(when);
+  if (!times.includes(readyMinutes)) readyMinutes = null;
+  $('time').replaceChildren(
+    Object.assign(el('option', null, 'Choose a time'), { value: '', selected: readyMinutes === null }),
+    ...times.map((m) => Object.assign(el('option', null, hhmm(m)), { value: String(m), selected: m === readyMinutes })),
+  );
+}
+
+/** The "ready from" time to send (ISO, Kenyan time), or null for now. */
+const readyAt = () =>
+  when === 'now' || readyMinutes === null ? null : `${when === 'today' ? info.later.today : info.later.tomorrow}T${hhmm(readyMinutes)}:00+03:00`;
+const dayTime = (iso) => {
+  const day = new Date(Date.parse(iso) + 3 * 3600_000).toISOString().slice(0, 10);
+  return `${day === info?.later.today ? 'today' : day === info?.later.tomorrow ? 'tomorrow' : day} at ${hm(iso)}`;
+};
+
 function updateBookButton() {
   const stop = route?.stops.find((s) => s.id === stopId);
-  $('book').disabled = !stop || !normalPhone($('phone').value);
-  $('book').textContent = stop ? `Pay ${kes(stop.fare * seats)} with M-Pesa` : 'Choose your drop-off';
+  const timeMissing = when !== 'now' && readyMinutes === null;
+  $('book').disabled = !stop || !normalPhone($('phone').value) || timeMissing;
+  $('book').textContent = !stop ? 'Choose your drop-off' : timeMissing ? 'Choose a time' : `Pay ${kes(stop.fare * seats)} with M-Pesa`;
 }
 
 async function book() {
@@ -165,7 +214,8 @@ async function book() {
   $('book-error').hidden = true;
   $('book').disabled = true;
   $('paying-amount').textContent = kes(stop.fare * seats);
-  $('paying-what').textContent = `${seatWord(seats)} · ${route.name}, ${pickup} to ${stop.name} · prompt sent to ${spaced(phone)}`;
+  const ready = readyAt();
+  $('paying-what').textContent = `${seatWord(seats)} · ${route.name}, ${pickup} to ${stop.name}${ready ? ` · ready from ${dayTime(ready)}` : ''} · prompt sent to ${spaced(phone)}`;
   show('paying');
   try {
     const result = await call('POST', '/book-api/seats', {
@@ -174,6 +224,7 @@ async function book() {
       stop_id: stop.id,
       seats,
       expected_fare: stop.fare,
+      ready_at: ready,
       phone,
       idempotency_key: newKey(),
     });
@@ -215,7 +266,10 @@ function line(b) {
     if (b.car.status === 'departed') return `${b.car.plate} has left ${b.route.origin} and is coming to pick you at ${b.pickup.name}. Be ready with this code.`;
     return `${b.car.plate} will pick you at ${b.pickup.name}. We'll update this page when it leaves ${b.route.origin}.`;
   }
-  // Queued: waiting for a car.
+  // Queued: booked for later, or waiting for a car.
+  if (b.later && b.ready_at) {
+    return `Booked for ${dayTime(b.ready_at)}. Be at ${b.pickup.name} by then: you join the queue at that time and we'll tell you which car. You can cancel free until then.`;
+  }
   if (b.pickup.at_stage) {
     return b.place_in_queue === 0
       ? `You're next in the queue at ${b.pickup.name}. The next car to arrive is yours.`
@@ -252,7 +306,7 @@ function renderBooking(b) {
   $('b-code').textContent = b.code;
   $('b-plate').textContent = b.car ? b.car.plate : '';
   $('b-plate').hidden = !b.car;
-  $('b-trip').textContent = `${b.route.name} · ${b.pickup.name} to ${b.stop_name} · ${seatWord(b.seats)} · ${kes(b.amount)}`;
+  $('b-trip').textContent = `${b.route.name} · ${b.pickup.name} to ${b.stop_name} · ${seatWord(b.seats)} · ${kes(b.amount)}${b.ready_at ? ` · ready from ${dayTime(b.ready_at)}` : ''}`;
   $('b-paid').textContent = `Booked ${new Date(b.booked_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi', dateStyle: 'medium', timeStyle: 'short' })}`;
   $('b-line').textContent = line(b);
   const eta = b.status === 'assigned' ? b.car?.expected_at_pickup : null;
@@ -269,7 +323,7 @@ function renderBooking(b) {
     a.href = `tel:${localPhone(crew.phone)}`;
     call.append(a);
   }
-  $('here').hidden = !(stillMoving(b) && b.status !== 'paying') || Boolean(b.passenger_here_at);
+  $('here').hidden = !(stillMoving(b) && b.status !== 'paying') || b.later || Boolean(b.passenger_here_at);
   $('cancel').hidden = !b.can_cancel;
   $('cancel').textContent = `Cancel booking (refund to ${b.pay_with === 'wallet' ? 'FarePay wallet' : 'M-Pesa'})`;
   show('booking');
@@ -349,7 +403,10 @@ async function startOver() {
 async function start() {
   renderMine();
   const t = new URLSearchParams(location.search).get('s');
-  if (t) return openBooking(t);
+  if (t) {
+    loadRoutes().catch(() => {}); // for "today" / "tomorrow" in the booking's time
+    return openBooking(t);
+  }
   let data;
   try {
     data = await loadRoutes();
@@ -357,17 +414,28 @@ async function start() {
     $('problem-text').textContent = err.message;
     return show('problem');
   }
-  if (!data.open) {
-    $('closed-text').textContent = `Seat booking is closed for today. It opens again at ${data.opens_at}.`;
-    return show('closed');
-  }
   const last = remember.get('book.route');
   renderRoutes();
   if (routes.some((r) => r.id === last)) chooseRoute(last);
   else show('routes');
+  // Closed for now (at night): booking for tomorrow still works.
+  if (!data.open) {
+    $('closed-text').textContent = `Booking for now is closed. It opens again at ${data.opens_at}. You can book for tomorrow.`;
+    $('closed').hidden = false;
+  }
 }
 
 $('phone').addEventListener('input', updateBookButton);
+$('when').addEventListener('change', () => {
+  when = $('when').value;
+  readyMinutes = null;
+  renderWhen();
+  updateBookButton();
+});
+$('time').addEventListener('change', () => {
+  readyMinutes = $('time').value === '' ? null : Number($('time').value);
+  updateBookButton();
+});
 $('seats-minus').addEventListener('click', () => {
   seats = Math.max(1, seats - 1);
   renderDetails();

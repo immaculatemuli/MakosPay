@@ -687,6 +687,11 @@ CREATE TABLE IF NOT EXISTS signup_codes (
 CREATE INDEX IF NOT EXISTS idx_signup_codes_phone ON signup_codes(phone, created_at);
 `);
 
+// Seats booked for later (the same as migrations/016_later_seat_bookings.sql for PostgreSQL).
+for (const column of ['ready_at', 'reminded_at', 'marshals_told_at']) {
+  if (!hasColumn('seat_bookings', column)) db.exec(`ALTER TABLE seat_bookings ADD COLUMN ${column} TEXT`);
+}
+
 // Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
 db.exec(`
 CREATE TABLE IF NOT EXISTS vehicle_locations (
