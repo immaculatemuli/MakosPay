@@ -12,6 +12,7 @@ import bookingRoutes from './routes/booking.js';
 import crewRoutes from './routes/crew.js';
 import marshalRoutes from './routes/marshal.js';
 import mpesaRoutes from './routes/mpesa.js';
+import ussdRoutes from './routes/ussd.js';
 import notificationRoutes from './routes/notifications.js';
 import { payApi, payPage } from './routes/noapp.js';
 import passengerRoutes from './routes/passenger.js';
@@ -119,6 +120,8 @@ export function createApp() {
     next();
   }, mpesaRoutes);
   app.use('/mpesa', mpesaRoutes);
+  // USSD (Africa's Talking): /ussd/<secret>.
+  app.use('/ussd', ussdRoutes);
 
   // The office web dashboard (admin-web, built with `yarn build`), at the same address as the API.
   serveOfficeDashboard(app);

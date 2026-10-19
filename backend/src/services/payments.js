@@ -6,6 +6,7 @@ import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from './mpesa.js';
 import { kesText, notify } from './notifications.js';
+import { queueSms } from './sms.js';
 import { handleParcelStkCallback, reconcileParcelPayments } from './parcels.js';
 import { seatPaymentConfirmed, seatPaymentFailed } from './seats.js';
 import { afterPaidRide, nextRideIsFree } from './rewards.js';
@@ -58,7 +59,7 @@ export async function startTopup(userId, { amount, phone }) {
  * vehicle, drop-off and fare the passenger confirmed. Returns { payment } while waiting, or { trip } if
  * this confirmation was already paid. Retries of the same confirmation never send a second prompt.
  */
-export async function startFarePayment(userId, { qr, stopId, expectedFare, idempotencyKey, phone }) {
+export async function startFarePayment(userId, { qr, stopId, expectedFare, idempotencyKey, phone, channel = null }) {
   const trip = await findTrip(userId, idempotencyKey);
   if (trip) return { trip };
   // A free ride (loyalty) needs no M-Pesa: the SACCO pays it at once.
@@ -73,14 +74,15 @@ export async function startFarePayment(userId, { qr, stopId, expectedFare, idemp
 
   const { vehicle, stop } = await checkFare(qr, stopId, expectedFare);
   const id = await db.insert(
-    `INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status, vehicle_id, stop_id, idempotency_key)
-     VALUES (?, ?, ?, 'fare', 'initiating', ?, ?, ?)`,
+    `INSERT INTO mpesa_payments (user_id, phone, amount, purpose, status, vehicle_id, stop_id, idempotency_key, channel)
+     VALUES (?, ?, ?, 'fare', 'initiating', ?, ?, ?, ?)`,
     userId,
     phone,
     stop.app_fare,
     vehicle.id,
     stop.id,
     idempotencyKey,
+    channel,
   );
   await sendPrompt(id, { phone, amount: stop.app_fare, accountReference: vehicle.plate.replace(/\W/g, ''), description: 'Fare' });
   return { payment: await getPayment(id) };
@@ -125,7 +127,20 @@ async function completeFare(payment, receipt) {
   const stop = await db.get('SELECT * FROM route_stops WHERE id = ?', payment.stop_id);
   const tripId = await recordTrip({ passengerId: payment.user_id, vehicle, stop, fare: payment.amount, idempotencyKey: payment.idempotency_key });
   await db.run('UPDATE mpesa_payments SET trip_id = ? WHERE id = ?', tripId, payment.id);
+  // Paid by USSD: the ticket goes by SMS (no screen to show it on).
+  if (payment.channel === 'ussd') await smsTicket(payment.phone, tripId);
   await afterPaidRide(payment.user_id);
+}
+
+/** Texts the ticket of a fare paid by USSD, to show the conductor or driver. */
+export async function smsTicket(phone, tripId) {
+  const t = await db.get(
+    `SELECT t.ticket_code, t.fare, v.plate, v.car_number, s.name AS stop_name FROM trips t
+     JOIN vehicles v ON v.id = t.vehicle_id LEFT JOIN route_stops s ON s.id = t.stop_id WHERE t.id = ?`,
+    tripId,
+  );
+  const paid = t.fare > 0 ? `paid ${kesText(t.fare)}` : 'FREE RIDE';
+  await queueSms(phone, 'ticket', `${config.saccoName} ticket ${t.ticket_code}: ${paid}, car ${t.car_number ?? ''} (${t.plate})${t.stop_name ? ` to ${t.stop_name}` : ''}. Show this SMS when asked.`);
 }
 
 /** Handles M-Pesa's answer (Safaricom's callback, or one built from asking Safaricom). Safe to receive more than once. */

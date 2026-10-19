@@ -76,6 +76,12 @@ export const config = {
   // SMS (password reset codes, parcel codes): 'africastalking' (AT_USERNAME 'sandbox' = Africa's Talking's free
   // test system, whose texts appear in its online simulator), 'log' (development only: texts are written to the
   // server's log) or 'off'.
+  // USSD through Africa's Talking: its callback address carries this secret (/ussd/<secret>). The M-Pesa prompt is
+  // sent this long after the USSD session ends (a phone can't show it while a USSD screen is open).
+  ussd: {
+    callbackSecret: env.USSD_SECRET ?? 'dev-ussd-secret',
+    promptDelayMs: Number(env.USSD_PROMPT_DELAY_MS ?? 2500),
+  },
   sms: {
     provider: env.SMS_PROVIDER || (env.NODE_ENV === 'production' ? 'off' : 'log'),
     username: env.AT_USERNAME || 'sandbox',
@@ -123,6 +129,9 @@ if (config.env === 'production') {
   if (config.paymentProvider === 'daraja' && !/^https:\/\//.test(config.mpesa.callbackBaseUrl)) throw new Error('MPESA_CALLBACK_BASE_URL must be an https:// address in production');
   if (config.dbPath === ':memory:') throw new Error('DB_PATH must be a file in production');
   // 'log' writes password reset codes into the server's log: never on the real server.
+  if (config.ussd.callbackSecret === 'dev-ussd-secret' || config.ussd.callbackSecret.length < 24) {
+    throw new Error('USSD_SECRET must be set to a long random value in production');
+  }
   if (config.sms.provider === 'log') throw new Error('SMS_PROVIDER=log is for development only: use africastalking or off');
   if (config.sms.provider === 'africastalking' && !config.sms.apiKey) throw new Error('SMS_PROVIDER=africastalking needs AT_API_KEY');
 }

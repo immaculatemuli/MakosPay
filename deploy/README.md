@@ -87,12 +87,12 @@ sudo -u farepay yarn build
 
 ```bash
 sudo -u farepay cp /opt/farepay/deploy/env.production.example /opt/farepay/backend/.env
-openssl rand -hex 32   # run twice: one for JWT_SECRET, one for MPESA_CALLBACK_SECRET
+openssl rand -hex 32   # run three times: JWT_SECRET, MPESA_CALLBACK_SECRET and USSD_SECRET
 sudo -u farepay nano /opt/farepay/backend/.env
 sudo chmod 600 /opt/farepay/backend/.env
 ```
 
-Fill in the two secrets, the database password inside `DATABASE_URL`, `SACCO_NAME`, your address in
+Fill in the three secrets, the database password inside `DATABASE_URL`, `SACCO_NAME`, your address in
 `MPESA_CALLBACK_BASE_URL`, and the Daraja keys. The server refuses to start in production if a secret is
 missing or too short, or if the address isn't `https://`. Keep `MPESA_MODE=sandbox` until Safaricom
 approves Go Live.
