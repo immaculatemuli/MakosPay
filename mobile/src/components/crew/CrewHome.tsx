@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
 import { Badge, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Notice, Screen, SectionTitle } from '@/components/ui';
@@ -9,8 +9,7 @@ import { kes, nairobiDate, prettyDate, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { ROLE_LABEL, type ConductorDay, type ConductorVehicle } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
-
-const REFRESH_EVERY_MS = 10_000;
+import { usePaymentFeed } from './usePaymentFeed';
 
 const DAYS = [
   { value: 0, label: 'Today' },
@@ -33,14 +32,8 @@ export function CrewHome() {
   const date = nairobiDate(day);
   const payments = useApi<ConductorDay>(`/crew/payments?date=${date}`);
 
-  // New payments appear on their own: check every 10 seconds while this screen is open.
-  const reloadPayments = payments.reload;
-  useFocusEffect(
-    useCallback(() => {
-      const timer = setInterval(() => void reloadPayments(), REFRESH_EVERY_MS);
-      return () => clearInterval(timer);
-    }, [reloadPayments]),
-  );
+  // New payments appear within seconds, with a sound, a vibration and a big alert.
+  const feed = usePaymentFeed(payments.data, day === 0 && payments.data?.date === date, payments.reload);
 
   if (vehicle.loading && !vehicle.data) return <Loading />;
 
@@ -60,7 +53,11 @@ export function CrewHome() {
     payments.refresh();
   };
 
+  const trip = payments.data?.trip;
+  const latest = feed.fresh[0];
+
   return (
+    <View style={{ flex: 1 }}>
     <Screen refreshing={payments.refreshing || vehicle.refreshing} onRefresh={refresh}>
       <Hero name={user?.name} subtitle={`${roleLabel} · ${v.vehicle.plate}`}>
         <View style={styles.totals}>
@@ -74,6 +71,20 @@ export function CrewHome() {
           </View>
         </View>
       </Hero>
+
+      {day === 0 && trip && (
+        <View style={styles.tripCard}>
+          <Text style={styles.tripLabel}>
+            {trip.finished_at
+              ? t('Last trip · finished {time}', { time: time(trip.finished_at) })
+              : t('This trip · since {time}', { time: time(trip.started_at) })}
+          </Text>
+          <Text style={styles.tripTotal}>
+            {t('{n} paid', { n: trip.payments })} · {kes(trip.total)}
+          </Text>
+          <Text style={styles.tripSub}>{trip.route_name}</Text>
+        </View>
+      )}
 
       <Pressable
         style={({ pressed }) => [styles.routeCard, pressed && isConductor && { opacity: 0.7 }]}
@@ -108,7 +119,7 @@ export function CrewHome() {
               key={p.id}
               icon="person-circle-outline"
               title={p.passenger_name ?? t('Passenger')}
-              subtitle={`${time(p.created_at)} · ${t('to {place}', { place: p.stop_name ?? p.route_name })} · ${p.ticket_code}`}
+              subtitle={[time(p.created_at), p.passenger_phone, t('to {place}', { place: p.stop_name ?? p.route_name }), p.ticket_code].filter(Boolean).join(' · ')}
               right={kes(p.fare)}
               rightSub={
                 p.status === 'refunded' ? (
@@ -123,6 +134,22 @@ export function CrewHome() {
         </List>
       )}
     </Screen>
+      {latest && (
+        <Pressable style={styles.alert} onPress={feed.dismiss} accessibilityRole="alert">
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Ionicons name="checkmark-circle" size={40} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.alertAmount}>{t('{amount} paid', { amount: kes(latest.fare) })}</Text>
+              <Text style={styles.alertLine}>
+                {[latest.passenger_phone, t('to {place}', { place: latest.stop_name ?? latest.route_name })].filter(Boolean).join(' · ')}
+              </Text>
+              {latest.passenger_name && <Text style={styles.alertLine}>{latest.passenger_name}</Text>}
+              {feed.fresh.length > 1 && <Text style={styles.alertMore}>{t('+{n} more just paid', { n: feed.fresh.length - 1 })}</Text>}
+            </View>
+          </View>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -140,6 +167,34 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  tripCard: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  tripLabel: { fontSize: 13, color: colors.muted, fontWeight: '600' },
+  tripTotal: { fontSize: 26, fontWeight: '800', color: colors.text, marginTop: 2 },
+  tripSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  alert: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    backgroundColor: '#15803D',
+    borderRadius: 16,
+    padding: 16,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  alertAmount: { color: '#fff', fontSize: 28, fontWeight: '800' },
+  alertLine: { color: '#fff', fontSize: 17, fontWeight: '600', marginTop: 2 },
+  alertMore: { color: '#DCFCE7', fontSize: 14, marginTop: 4 },
   routeName: { fontSize: 17, fontWeight: '700', color: colors.text },
   routeSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
 });
