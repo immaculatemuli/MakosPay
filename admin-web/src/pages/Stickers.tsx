@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { Route } from '../types';
-import { Failed, Loading, PageHead } from '../ui';
+import { Failed, Loading, PageHead, StickerUssd } from '../ui';
 import { useApi } from '../useApi';
 
 interface StickerSheet {
   opens_with_camera: boolean;
-  vehicles: { id: number; plate: string; route_name: string | null }[];
+  ussd_code: string | null;
+  vehicles: { id: number; plate: string; car_number: number | null; route_name: string | null }[];
 }
 
 /** Every vehicle's QR sticker on one page (optionally one route's), to print all at once and cut out. */
@@ -41,6 +42,7 @@ export function Stickers() {
             <img src={`/admin/vehicles/${v.id}/qr.png`} alt={`QR code for ${v.plate}`} loading="lazy" />
             <div className="plate">{v.plate}</div>
             <div className="hint">{hint}</div>
+            <StickerUssd carNumber={v.car_number} ussdCode={sheet.data?.ussd_code ?? null} />
           </div>
         ))}
       </div>

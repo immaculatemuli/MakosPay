@@ -663,6 +663,16 @@ UPDATE payouts SET owner_id = (SELECT o.id FROM owners o WHERE o.phone = payouts
 `);
 }
 
+// Car numbers and USSD payments (the same as migrations/014_car_numbers_ussd.sql for PostgreSQL).
+if (!hasColumn('vehicles', 'car_number')) {
+  db.exec(`
+ALTER TABLE vehicles ADD COLUMN car_number INTEGER;
+UPDATE vehicles SET car_number = 100 + (SELECT COUNT(*) FROM vehicles v2 WHERE v2.id <= vehicles.id);
+CREATE UNIQUE INDEX idx_vehicles_car_number ON vehicles(car_number);
+`);
+}
+if (!hasColumn('mpesa_payments', 'channel')) db.exec("ALTER TABLE mpesa_payments ADD COLUMN channel TEXT CHECK (channel IN ('ussd'))");
+
 // Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
 db.exec(`
 CREATE TABLE IF NOT EXISTS vehicle_locations (
