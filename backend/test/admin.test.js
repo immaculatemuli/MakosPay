@@ -1,6 +1,7 @@
 // Step 2: the SACCO office sets up routes, conductors and vehicles (with the owner's M-Pesa number).
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -31,7 +32,7 @@ before(async () => {
 after(() => server.close());
 
 test('only the SACCO office can use these screens', async () => {
-  const p = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0722222222', password: 'pass123' } })).body.token;
+  const p = (await signUp(api, { name: 'Pat', phone: '0722222222', password: 'pass123' })).body.token;
   assert.equal((await api('GET', '/admin/routes', { token: p })).status, 403);
   assert.equal((await api('GET', '/admin/routes')).status, 401);
 });

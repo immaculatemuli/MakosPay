@@ -27,6 +27,8 @@ export const SW: Record<string, string> = {
   'New password': 'Nenosiri jipya',
   'Set new password and sign in': 'Weka nenosiri jipya na uingie',
   'Send a new code': 'Tuma nambari mpya ya siri',
+  'We sent a 6-digit code by SMS to {phone}. It works for 10 minutes.': 'Tumetuma nambari ya siri ya tarakimu 6 kwa SMS kwenda {phone}. Inafanya kazi kwa dakika 10.',
+  'Change number': 'Badilisha nambari',
   'SMS test mode: no SMS is sent, so your code is {code}. It is filled in below.': 'Hali ya majaribio ya SMS: hakuna SMS inayotumwa, kwa hiyo nambari yako ya siri ni {code}. Imejazwa hapa chini.',
   'Remembered it?': 'Umekumbuka?',
   'Server address': 'Anwani ya seva',

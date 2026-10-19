@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 const fake = { b2c: [], b2b: [] };
 const daraja = createServer(async (req, res) => {
@@ -73,7 +74,7 @@ before(async () => {
   s.stop = route.stops[0];
   s.routeId = route.id;
   s.mpesaVehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 111A', owner_name: 'Mary', owner_phone: '0744555666', route_id: route.id } })).body;
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0722333444', password: 'pass123' } })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
   s.passengerId = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(s.passengerId, { type: 'test_credit', amount: 1000 }));
 });
@@ -205,5 +206,5 @@ test('a passenger can delete their account once the wallet is empty', async () =
   assert.ok((await db.get('SELECT COUNT(*) AS n FROM trips WHERE passenger_id = ?', s.passengerId)).n > 0, 'payment records kept');
 
   // The number can be used again for a new account.
-  assert.equal((await api('POST', '/auth/register', { body: { name: 'New Pat', phone: '0722333444', password: 'pass123' } })).status, 201);
+  assert.equal((await signUp(api, { name: 'New Pat', phone: '0722333444', password: 'pass123' })).status, 201);
 });

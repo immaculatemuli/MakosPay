@@ -9,12 +9,13 @@ export const getUser = (id) => db.get('SELECT id, name, phone, role, is_active, 
 // so no password ever matches it and nobody can sign in as them.
 export const NO_APP_PASSWORD = 'no-app-passenger';
 
-export async function createUser({ name, phone, password, role }) {
+export async function createUser({ name, phone, password, role, takeOverNoApp = false }) {
   const passwordHash = await bcrypt.hash(password, 10);
   return tx(async () => {
     const existing = await db.get('SELECT id, role, password_hash, is_active FROM users WHERE phone = ?', phone);
-    // Someone who paid without the app now signs up with that number: their fares and wallet become theirs.
-    if (existing && role === 'passenger' && existing.role === 'passenger' && existing.password_hash === NO_APP_PASSWORD && existing.is_active) {
+    // Someone who paid without the app now signs up with that number (proven theirs by an SMS code): their fares and
+    // wallet become theirs.
+    if (takeOverNoApp && existing && role === 'passenger' && existing.role === 'passenger' && existing.password_hash === NO_APP_PASSWORD && existing.is_active) {
       await db.run('UPDATE users SET name = ?, password_hash = ?, session_version = session_version + 1 WHERE id = ?', name, passwordHash, existing.id);
       return getUser(existing.id);
     }

@@ -2,6 +2,7 @@
 // from other websites, and gets no CORS permission. The phone app's sign-in is unchanged.
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -27,7 +28,7 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
   await createUser({ name: 'Ian', phone: '254711000001', password: 'cond123', role: 'conductor' });
-  await request('POST', '/auth/register', { body: { name: 'Pat', phone: '0722333444', password: 'pass123' } });
+  await signUp(request, { name: 'Pat', phone: '0722333444', password: 'pass123' });
 });
 after(() => server.close());
 

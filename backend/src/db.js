@@ -673,6 +673,20 @@ CREATE UNIQUE INDEX idx_vehicles_car_number ON vehicles(car_number);
 }
 if (!hasColumn('mpesa_payments', 'channel')) db.exec("ALTER TABLE mpesa_payments ADD COLUMN channel TEXT CHECK (channel IN ('ussd'))");
 
+// Sign-up codes by SMS (the same as migrations/015_signup_codes.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS signup_codes (
+  id         INTEGER PRIMARY KEY,
+  phone      TEXT NOT NULL,
+  code_hash  TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  attempts   INTEGER NOT NULL DEFAULT 0,
+  used_at    TEXT,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_signup_codes_phone ON signup_codes(phone, created_at);
+`);
+
 // Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
 db.exec(`
 CREATE TABLE IF NOT EXISTS vehicle_locations (

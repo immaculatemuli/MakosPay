@@ -22,7 +22,8 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   signIn: (phone: string, password: string) => Promise<void>;
-  register: (name: string, phone: string, password: string) => Promise<void>;
+  /** code: the 6-digit sign-up code from the SMS (left out when the server sends none). */
+  register: (name: string, phone: string, password: string, code?: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   /** Passengers: corrects their name. */
   rename: (name: string) => Promise<void>;
@@ -74,8 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const register = useCallback(
-    async (name: string, phone: string, password: string) => {
-      const res = await api<Session>('/auth/register', { method: 'POST', body: { name, phone, password } });
+    async (name: string, phone: string, password: string, code?: string) => {
+      const res = await api<Session>('/auth/register', { method: 'POST', body: { name, phone, password, code } });
       await save(res);
     },
     [save],

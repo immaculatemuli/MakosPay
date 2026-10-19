@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -47,7 +48,7 @@ before(async () => {
   s.conductor = (await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'cond123' } })).body.token;
   s.free = (await api('POST', '/auth/login', { body: { phone: '0711111112', password: 'cond123' } })).body.token;
 
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' } })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' })).body.token;
   const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 500 }));
   for (const stop of s.route.stops) {

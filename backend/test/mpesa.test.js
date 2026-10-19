@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 const SHORTCODE = '174379';
 const PASSKEY = 'test-passkey';
@@ -98,7 +99,7 @@ before(async () => {
     body: { plate: 'KDA 123A', owner_name: 'Mary Owner', owner_phone: '0744555666', route_id: route.id },
   })).body;
   s.qr = `farepay://pay?v=${vehicle.qr_token}`;
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0712345678', password: 'secret1' } })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0712345678', password: 'secret1' })).body.token;
 });
 after(() => {
   server.close();

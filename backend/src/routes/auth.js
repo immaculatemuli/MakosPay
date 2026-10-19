@@ -6,16 +6,27 @@ import { HttpError } from '../errors.js';
 import { limitBy, passwordChecksByUser, signUpByIp, wrongPasswordByIp, wrongPasswordByPhone } from '../ratelimit.js';
 import { audit } from '../services/audit.js';
 import { confirmReset, requestReset } from '../services/passwordReset.js';
+import { checkPhoneFree, sendSignupCode, signupCodeNeeded, useSignupCode } from '../services/signupCodes.js';
 import { changePassword, createUser, deleteOwnAccount, renameSelf, verifyCredentials } from '../services/users.js';
 import { name, parse, password, phone } from '../validate.js';
 
 const router = Router();
 
 // Only passengers sign up themselves. Everyone else is created by the SACCO office.
+// Step 1: a 6-digit code by SMS to the number, proving it is theirs ({ code_needed: false } when the server has no SMS).
+router.post('/register/code', async (req, res) => {
+  const body = parse(z.object({ phone }), req.body);
+  res.json(await sendSignupCode(body.phone, req.ip));
+});
+
+// Step 2: the account, with the code.
 router.post('/register', async (req, res) => {
-  const body = parse(z.object({ name, phone, password }), req.body);
+  const body = parse(z.object({ name, phone, password, code: z.string().trim().regex(/^\d{6}$/, 'The 6-digit code from the SMS').optional() }), req.body);
   signUpByIp.hit(req.ip);
-  const user = await createUser({ ...body, role: 'passenger' });
+  const proven = signupCodeNeeded();
+  await checkPhoneFree(body.phone, { proven });
+  if (proven) await useSignupCode(body.phone, body.code);
+  const user = await createUser({ name: body.name, phone: body.phone, password: body.password, role: 'passenger', takeOverNoApp: proven });
   res.status(201).json({ token: await signToken(user), user });
 });
 

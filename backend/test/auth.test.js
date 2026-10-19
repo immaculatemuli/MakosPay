@@ -1,6 +1,7 @@
 // Step 1: accounts. Passengers sign up; everyone logs in with phone + password and gets their role.
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -27,7 +28,7 @@ before(async () => {
 after(() => server.close());
 
 test('a passenger signs up and is logged in straight away', async () => {
-  const res = await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722 222 222', password: 'pass123' } });
+  const res = await signUp(api, { name: 'Pat Passenger', phone: '0722 222 222', password: 'pass123' });
   assert.equal(res.status, 201);
   assert.equal(res.body.user.role, 'passenger');
   assert.equal(res.body.user.phone, '254722222222', 'phone stored in one standard format');
@@ -38,12 +39,12 @@ test('a passenger signs up and is logged in straight away', async () => {
 });
 
 test('the same phone number cannot sign up twice', async () => {
-  const res = await api('POST', '/auth/register', { body: { name: 'Again', phone: '+254722222222', password: 'pass123' } });
+  const res = await signUp(api, { name: 'Again', phone: '+254722222222', password: 'pass123' });
   assert.equal(res.status, 409);
 });
 
 test('bad sign-up details are refused with a clear message', async () => {
-  const res = await api('POST', '/auth/register', { body: { name: 'P', phone: '12345', password: '1' } });
+  const res = await signUp(api, { name: 'P', phone: '12345', password: '1' });
   assert.equal(res.status, 400);
   assert.deepEqual(res.body.error.details.map((d) => d.field).sort(), ['name', 'password', 'phone']);
 });
@@ -85,7 +86,7 @@ test('without logging in you cannot see account details', async () => {
   assert.equal((await api('GET', '/auth/me')).status, 401);
 });
 test('a passenger can fix their name; crew and office cannot change theirs', async () => {
-  const token = (await api('POST', '/auth/register', { body: { name: 'Jhon Typo', phone: '0722 999 001', password: 'pass123' } })).body.token;
+  const token = (await signUp(api, { name: 'Jhon Typo', phone: '0722 999 001', password: 'pass123' })).body.token;
   const res = await api('PATCH', '/auth/me', { token, body: { name: '  John Kamau ' } });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.equal(res.body.user.name, 'John Kamau');
