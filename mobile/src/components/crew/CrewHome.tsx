@@ -110,7 +110,14 @@ export function CrewHome() {
               title={p.passenger_name ?? t('Passenger')}
               subtitle={`${time(p.created_at)} · ${t('to {place}', { place: p.stop_name ?? p.route_name })} · ${p.ticket_code}`}
               right={kes(p.fare)}
-              rightSub={p.status === 'refunded' ? <Badge text={t('Refunded')} tone="danger" /> : undefined}
+              rightSub={
+                p.status === 'refunded' ? (
+                  <Badge text={t('Refunded')} tone="danger" />
+                ) : p.free_ride ? (
+                  // Loyalty: the passenger paid nothing; the SACCO pays the owner this fare.
+                  <Badge text={t('Free ride')} tone="success" />
+                ) : undefined
+              }
             />
           ))}
         </List>
