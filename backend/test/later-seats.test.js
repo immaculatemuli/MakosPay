@@ -18,7 +18,7 @@ const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
 const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
-const { refundUnboarded, runSeatTimers } = await import('../src/services/seats.js');
+const { nextSeatTimerAt, refundUnboarded, runSeatTimers } = await import('../src/services/seats.js');
 
 let server;
 let base;
@@ -95,6 +95,7 @@ test('a seat booked for tomorrow is paid and held, but not in the queue and offe
   assert.equal(r.body.place_in_queue, null);
   assert.equal(await balance(s.p1), 1600, '400 held');
   s.b1 = r.body.id;
+  assert.equal(await nextSeatTimerAt(), Date.parse(tomorrowAt('10:00')) - 30 * 60_000, 'a quiet server wakes for the reminder, 30 minutes before');
   const told = (await notes(s.p1.token)).find((n) => n.kind === 'seat.queued');
   assert.match(told.title, /for tomorrow at 10:00/);
 

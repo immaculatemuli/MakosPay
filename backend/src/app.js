@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { db } from './database.js';
 import { HttpError } from './errors.js';
 import { auditChanges } from './services/audit.js';
+import { noteActivity } from './services/quiet.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import bookingRoutes from './routes/booking.js';
@@ -92,10 +93,17 @@ export function createApp() {
     (req.path === '/admin/statement-check' || IMPORT_PATH.test(req.path) ? statementJson : PHOTO_PATHS.test(req.path) ? photoJson : smallJson)(req, res, next),
   );
 
-  // For the hosting's uptime check: also makes sure the database answers.
-  app.get('/health', async (_req, res) => {
+  // For the hosting's uptime check and the keep-awake ping: the server is up. It doesn't touch the database (so the
+  // pings let it sleep) and isn't counted as use. /health/db also makes sure the database answers.
+  app.get('/health', (_req, res) => res.json({ ok: true }));
+  app.get('/health/db', async (_req, res) => {
     await db.get('SELECT 1 AS ok');
-    res.json({ ok: true });
+    res.json({ ok: true, database: true });
+  });
+  // Anything else is FarePay in use: background jobs run for a while after it (services/quiet.js).
+  app.use((_req, _res, next) => {
+    noteActivity();
+    next();
   });
   app.use('/auth', authRoutes);
   // Every change made by office, platform and crew accounts is recorded in the audit log (auditChanges).
