@@ -96,6 +96,18 @@ export const config = {
     googleBaseUrl: env.GOOGLE_TILES_BASE_URL || 'https://tile.googleapis.com', // tests point this at a fake Google
   },
 
+  // GPS trackers fitted in the cars, read from the tracking company's system (TRACKER_PROVIDER=traccar) every few
+  // seconds. Each tracker is matched to a car by its name or identifier: the car number (e.g. 101) or the plate.
+  // Sign-in: TRACKER_TOKEN (an API token from the tracking system), or TRACKER_EMAIL + TRACKER_PASSWORD.
+  tracker: {
+    provider: env.TRACKER_PROVIDER || 'off',
+    url: (env.TRACKER_URL || '').replace(/\/+$/, ''),
+    token: env.TRACKER_TOKEN || null,
+    email: env.TRACKER_EMAIL || null,
+    password: env.TRACKER_PASSWORD || null,
+    pollMs: num(env.TRACKER_POLL_SECONDS, 20) * 1000,
+  },
+
   sms: {
     provider: env.SMS_PROVIDER || (env.NODE_ENV === 'production' ? 'off' : 'log'),
     username: env.AT_USERNAME || 'sandbox',
@@ -162,6 +174,11 @@ for (const key of ['seatBookingCutoff', 'seatBookingOpens', 'cashReminderAt']) {
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.backupDailyAt)) throw new Error('BACKUP_DAILY_AT must be HH:MM, e.g. 03:00');
 if (!['sqlite', 'postgres'].includes(config.dbEngine)) throw new Error('DB_ENGINE must be sqlite or postgres');
 if (!['africastalking', 'log', 'off'].includes(config.sms.provider)) throw new Error('SMS_PROVIDER must be africastalking, log or off');
+if (!['traccar', 'off'].includes(config.tracker.provider)) throw new Error('TRACKER_PROVIDER must be traccar or off');
+if (config.tracker.provider === 'traccar') {
+  if (!/^https?:\/\/\S+$/.test(config.tracker.url)) throw new Error('TRACKER_URL must be the tracking system’s address, e.g. https://demo4.traccar.org');
+  if (!config.tracker.token && !(config.tracker.email && config.tracker.password)) throw new Error('TRACKER_PROVIDER=traccar needs TRACKER_TOKEN, or TRACKER_EMAIL and TRACKER_PASSWORD');
+}
 if (!(Number.isInteger(config.webSessionHours) && config.webSessionHours >= 1 && config.webSessionHours <= 24)) throw new Error('WEB_SESSION_HOURS must be a whole number from 1 to 24');
 if (config.dbEngine === 'postgres' && !config.databaseUrl) throw new Error('DB_ENGINE=postgres needs DATABASE_URL');
 // e.g. 'DATABASE_URL=postgresql://...' pasted as the value, or with quotes: the driver would quietly try this machine instead.

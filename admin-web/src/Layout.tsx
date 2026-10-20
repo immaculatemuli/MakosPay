@@ -31,6 +31,7 @@ const GROUPS = [
     links: [
       { to: '/routes', label: 'Routes & fares' },
       { to: '/vehicles', label: 'Vehicles & QR' },
+      { to: '/tracker', label: 'Vehicle tracker' },
       { to: '/owners', label: 'Vehicle owners' },
       { to: '/crew', label: 'Crew' },
       { to: '/message', label: 'Message crew' },

@@ -12,6 +12,7 @@ import { reconcileProcessingWithdrawals, retryUnsentWithdrawals } from './servic
 import { applyDueFareChanges } from './services/routes.js';
 import { flushPush } from './services/push.js';
 import { flushSms } from './services/sms.js';
+import { syncTrackers, trackerOn } from './services/tracker.js';
 
 /** Runs fn on a timer in the background, never two runs at once. */
 function every(ms, label, fn) {
@@ -69,6 +70,11 @@ createApp().listen(config.port, () => {
   every(60_000, 'fare changes', () => applyDueFareChanges());
   // Seats booked for later: reminders before the time, and joining the queue when it comes.
   every(60_000, 'seat timers', () => runSeatTimers());
+  // GPS trackers in the cars: their positions are read from the tracking system every few seconds.
+  if (trackerOn) {
+    every(config.tracker.pollMs, 'tracker', () => syncTrackers());
+    console.log(`  Car trackers: read from ${config.tracker.url} every ${config.tracker.pollMs / 1000} seconds`);
+  }
   // Texts and push notifications waiting to go out (also sent straight after they are made).
   every(5_000, 'sms', () => flushSms());
   if (config.push.enabled) every(5_000, 'push', () => flushPush());
