@@ -123,6 +123,17 @@ export default function StageQueue() {
 
       {route && (
         <>
+          {/* The stage at a glance: who is waiting, and the car loading now. */}
+          <View style={styles.nowCard}>
+            <Text style={styles.nowLabel}>{t('Queue at {place}', { place: route.origin })}</Text>
+            <Text style={styles.nowBig}>{route.seats_waiting ? t('{n} seats waiting', { n: route.seats_waiting }) : t('Nobody is waiting.')}</Text>
+            <Text style={styles.nowLabel}>
+              {loading.length
+                ? loading.map((c) => `${c.plate}: ${c.full || !c.seats_left ? t('Full') : t('{n} left', { n: c.seats_left })}`).join(' · ')
+                : t('No car is loading.')}
+            </Text>
+          </View>
+
           {/* A car arrived: scan its sticker (quickest), or find it by plate. */}
           <Button
             title={t('A car has arrived: scan its sticker')}
@@ -287,6 +298,9 @@ export default function StageQueue() {
 }
 
 const styles = StyleSheet.create({
+  nowCard: { backgroundColor: colors.primary, borderRadius: 14, padding: 16, marginBottom: 10 },
+  nowLabel: { color: '#fff', fontSize: 13, fontWeight: '600', opacity: 0.9 },
+  nowBig: { color: '#fff', fontSize: 26, fontWeight: '800', marginVertical: 2 },
   carHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   plate: { fontSize: 24, fontWeight: '800', color: colors.text, letterSpacing: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
