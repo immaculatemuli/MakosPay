@@ -33,6 +33,7 @@ import { createOwner, findOrCreateOwner, getOwner, linkVehicle, listOwners, owne
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
 import { getPhoto, officeReply, officeReports, replySchema, sendPhoto, updateReport } from '../services/reports.js';
 import { approveRefund, declineRefund, listRefundRequests } from '../services/refundRequests.js';
+import { syncTrackers, trackerOn, trackerStatus } from '../services/tracker.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
 import { createUser, deleteCrewMember, resetPassword } from '../services/users.js';
 import { nairobiDayRange, nairobiToday, newQrToken } from '../util.js';
@@ -108,6 +109,18 @@ router.get('/payments', async (req, res) => {
 router.post('/payments/:id/refund', async (req, res) => {
   const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
   res.json(await refundTrip(parse(id, req.params.id), reason));
+});
+
+// GPS trackers in the cars: is the connection working, which tracker is on which car, where each car is.
+router.get('/tracker', async (_req, res) => {
+  res.json(await trackerStatus());
+});
+
+// Read the trackers now instead of waiting for the next automatic read.
+router.post('/tracker/check', async (_req, res) => {
+  if (!trackerOn) throw new HttpError(400, 'TRACKER_OFF', 'No tracking system is connected (TRACKER_PROVIDER is off).');
+  await syncTrackers().catch(() => {}); // the error is shown in the status
+  res.json(await trackerStatus());
 });
 
 // "Paid by mistake" requests from conductors and drivers: ?status=waiting (default) or all.

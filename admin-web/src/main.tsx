@@ -23,6 +23,7 @@ import { Downloads } from './pages/Downloads';
 import { RouteEdit } from './pages/RouteEdit';
 import { Routes as RoutesPage } from './pages/Routes';
 import { RefundRequests } from './pages/RefundRequests';
+import { Tracker } from './pages/Tracker';
 import { Statement } from './pages/Statement';
 import { TripPage, Trips } from './pages/Trips';
 import { VehicleDetail } from './pages/VehicleDetail';
@@ -56,6 +57,7 @@ function App() {
         <Route path="payouts/:id" element={<PayoutDetail />} />
         <Route path="withdrawals" element={<Withdrawals />} />
         <Route path="refund-requests" element={<RefundRequests />} />
+        <Route path="tracker" element={<Tracker />} />
         <Route path="trips" element={<Trips />} />
         <Route path="trips/:id" element={<TripPage />} />
         <Route path="parcels" element={<Parcels />} />
