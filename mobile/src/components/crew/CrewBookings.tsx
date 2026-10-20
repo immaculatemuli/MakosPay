@@ -6,6 +6,7 @@ import { api, errorMessage } from '@/lib/api';
 import { kes, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import type { ConductorDay, CrewBooking, CrewLoad } from '@/lib/types';
+import { useKeepAwakeWhile } from '@/lib/keepAwake';
 import { useShareCarLocation } from '@/lib/shareLocation';
 import { SeatPickups } from './SeatPickups';
 import { useApi } from '@/lib/useApi';
@@ -37,6 +38,8 @@ export function CrewBookings() {
   }, [loadingNow, reload]);
   // On a trip, this phone shows the car on the map for the passengers it picks and the marshal.
   const sharing = useShareCarLocation(loadingNow);
+  // The position only goes while the app is open: the screen stays on during the trip.
+  useKeepAwakeWhile(loadingNow, 'crew-trip');
 
   if (load.loading && !load.data) return <Loading />;
   const d = load.data;

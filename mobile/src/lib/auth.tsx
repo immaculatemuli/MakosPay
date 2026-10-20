@@ -5,9 +5,12 @@ import { registerForPush, unregisterPush } from './push';
 import { forgetSavedTickets, setTicketOwner } from './savedTickets';
 import type { User } from './types';
 
-// Older versions kept the sign-in on the phone; it is deleted at start-up. Now a sign-in lasts only while
-// the app is open: every time the app starts, it asks for the phone number and password.
+// Older versions kept the sign-in on the phone; it is deleted at start-up. Passengers and the office sign in each
+// time the app starts. Crew and marshals (who open the app many times a day) stay signed in for one shift.
 const OLD_SESSION_KEY = 'farepay.session';
+const SHIFT_KEY = 'farepay.shift';
+const SHIFT_HOURS = 12;
+const SHIFT_ROLES: User['role'][] = ['conductor', 'driver', 'marshal'];
 // The last phone number signed in with (not the password), to fill in the sign-in form.
 const LAST_PHONE_KEY = 'farepay.lastPhone';
 
@@ -16,6 +19,21 @@ export const lastPhoneNumber = () => SecureStore.getItemAsync(LAST_PHONE_KEY).ca
 interface Session {
   token: string;
   user: User;
+}
+
+/** The crew member's sign-in saved on the phone (encrypted), and when the shift ends. */
+interface Shift extends Session {
+  until: number;
+}
+
+async function savedShift(): Promise<Shift | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(SHIFT_KEY);
+    const shift = raw ? (JSON.parse(raw) as Shift) : null;
+    return shift && shift.until > Date.now() && SHIFT_ROLES.includes(shift.user.role) ? shift : null;
+  } catch {
+    return null;
+  }
 }
 
 interface AuthContextValue {
@@ -36,11 +54,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Kept in memory only, never saved on the phone. Signed in: this phone is registered for push notifications.
+  // Kept in memory (crew: also on the phone until the shift ends). Signed in: this phone is registered for push.
   const save = useCallback(async (next: Session | null) => {
     configureAuth(next?.token ?? null);
     setTicketOwner(next?.user.role === 'passenger' ? next.user.phone : null);
     setSession(next);
+    if (next && SHIFT_ROLES.includes(next.user.role)) {
+      const shift: Shift = { ...next, until: Date.now() + SHIFT_HOURS * 3600_000 };
+      await SecureStore.setItemAsync(SHIFT_KEY, JSON.stringify(shift)).catch(() => {});
+    } else {
+      await SecureStore.deleteItemAsync(SHIFT_KEY).catch(() => {});
+    }
     if (next) {
       await SecureStore.setItemAsync(LAST_PHONE_KEY, next.user.phone).catch(() => {});
       void registerForPush();
@@ -60,6 +84,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await loadApiUrl(); // the server address saved on this phone, if any
         await SecureStore.deleteItemAsync(OLD_SESSION_KEY).catch(() => {});
+        // A crew member still on their shift goes straight in (the shift's end is kept, not extended).
+        const shift = await savedShift();
+        if (shift) {
+          configureAuth(shift.token);
+          setSession({ token: shift.token, user: shift.user });
+          // Their details as they are now; a changed password or a removed account signs them out (401).
+          api<{ user: User }>('/auth/me')
+            .then((res) => setSession((current) => (current?.token === shift.token ? { ...current, user: res.user } : current)))
+            .catch(() => {});
+          void registerForPush();
+        } else {
+          await SecureStore.deleteItemAsync(SHIFT_KEY).catch(() => {});
+        }
       } finally {
         setLoading(false);
       }
