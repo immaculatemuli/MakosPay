@@ -89,6 +89,13 @@ export const config = {
     callbackSecret: urlSafe(env.USSD_SECRET ?? 'dev-ussd-secret'),
     promptDelayMs: Number(env.USSD_PROMPT_DELAY_MS ?? 2500),
   },
+  // The map of the car coming to pick a passenger: Google's map tiles when a key is set (Map Tiles API), else
+  // OpenStreetMap's (fine for trying things out, not for real use).
+  maps: {
+    googleKey: env.GOOGLE_MAPS_API_KEY || null,
+    googleBaseUrl: env.GOOGLE_TILES_BASE_URL || 'https://tile.googleapis.com', // tests point this at a fake Google
+  },
+
   sms: {
     provider: env.SMS_PROVIDER || (env.NODE_ENV === 'production' ? 'off' : 'log'),
     username: env.AT_USERNAME || 'sandbox',
@@ -157,3 +164,7 @@ if (!['sqlite', 'postgres'].includes(config.dbEngine)) throw new Error('DB_ENGIN
 if (!['africastalking', 'log', 'off'].includes(config.sms.provider)) throw new Error('SMS_PROVIDER must be africastalking, log or off');
 if (!(Number.isInteger(config.webSessionHours) && config.webSessionHours >= 1 && config.webSessionHours <= 24)) throw new Error('WEB_SESSION_HOURS must be a whole number from 1 to 24');
 if (config.dbEngine === 'postgres' && !config.databaseUrl) throw new Error('DB_ENGINE=postgres needs DATABASE_URL');
+// e.g. 'DATABASE_URL=postgresql://...' pasted as the value, or with quotes: the driver would quietly try this machine instead.
+if (config.dbEngine === 'postgres' && !/^postgres(ql)?:\/\/[^/\s]+@[^/\s]+\//.test(config.databaseUrl)) {
+  throw new Error('DATABASE_URL must be the address itself, starting with postgresql://user:password@host/ (no quotes, no "DATABASE_URL=" in front)');
+}
