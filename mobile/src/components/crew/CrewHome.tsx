@@ -9,6 +9,7 @@ import { kes, nairobiDate, prettyDate, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { ROLE_LABEL, type ConductorDay, type ConductorVehicle } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
+import { useKeepAwakeWhile } from '@/lib/keepAwake';
 import { usePaymentFeed } from './usePaymentFeed';
 
 const DAYS = [
@@ -34,6 +35,8 @@ export function CrewHome() {
 
   // New payments appear within seconds, with a sound, a vibration and a big alert.
   const feed = usePaymentFeed(payments.data, day === 0 && payments.data?.date === date, payments.reload);
+  // The feed only rings while the app is open: the screen stays on while today's payments are showing.
+  useKeepAwakeWhile(day === 0, 'crew-payments');
 
   if (vehicle.loading && !vehicle.data) return <Loading />;
 
