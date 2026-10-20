@@ -710,6 +710,23 @@ CREATE TABLE IF NOT EXISTS cash_declarations (
 );
 `);
 
+// Crew asking the office to refund a fare paid by mistake (the same as migrations/019_refund_requests.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS refund_requests (
+  id           INTEGER PRIMARY KEY,
+  trip_id      INTEGER NOT NULL REFERENCES trips(id),
+  requested_by INTEGER NOT NULL REFERENCES users(id),
+  reason       TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'refunded', 'declined')),
+  office_note  TEXT,
+  decided_by   INTEGER REFERENCES users(id),
+  decided_at   TEXT,
+  created_at   TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE UNIQUE INDEX IF NOT EXISTS refund_requests_one_waiting ON refund_requests (trip_id) WHERE status = 'waiting';
+CREATE INDEX IF NOT EXISTS refund_requests_status ON refund_requests (status, id);
+`);
+
 // Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
 db.exec(`
 CREATE TABLE IF NOT EXISTS vehicle_locations (

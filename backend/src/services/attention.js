@@ -52,6 +52,15 @@ export async function needsAttention() {
   });
 
   // Passengers waiting.
+  const refundAsks = await db.get("SELECT COUNT(*) AS n FROM refund_requests WHERE status = 'waiting'");
+  add({
+    key: 'refund_requests',
+    severity: 'high',
+    count: refundAsks.n,
+    title: `${plural(refundAsks.n, 'refund')} asked by crew`,
+    detail: 'Conductors or drivers say a passenger paid by mistake. Refund it, or say why not.',
+    link: 'refund-requests',
+  });
   const waitingReports = await count(
     `SELECT COUNT(*) AS n FROM reports r WHERE r.status != 'resolved' AND (r.office_seen_at IS NULL OR EXISTS (
        SELECT 1 FROM report_messages m WHERE m.report_id = r.id AND m.from_office = FALSE AND m.created_at > r.office_seen_at))`,

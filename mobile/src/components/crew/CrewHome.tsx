@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
-import { Badge, Button, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Notice, Screen, SectionTitle } from '@/components/ui';
+import { Badge, Button, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Muted, Notice, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { kes, nairobiDate, prettyDate, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
@@ -135,25 +135,52 @@ export function CrewHome() {
       {payments.data?.payments.length === 0 && <Empty text={day === 0 ? t('No payments yet today.') : t('No payments that day.')} />}
       {!!payments.data?.payments.length && (
         <List>
-          {payments.data.payments.map((p) => (
-            <ListRow
-              key={p.id}
-              icon="person-circle-outline"
-              title={p.passenger_name ?? t('Passenger')}
-              subtitle={[time(p.created_at), p.passenger_phone, t('to {place}', { place: p.stop_name ?? p.route_name }), p.ticket_code].filter(Boolean).join(' · ')}
-              right={kes(p.fare)}
-              rightSub={
-                p.status === 'refunded' ? (
-                  <Badge text={t('Refunded')} tone="danger" />
-                ) : p.free_ride ? (
-                  // Loyalty: the passenger paid nothing; the SACCO pays the owner this fare.
-                  <Badge text={t('Free ride')} tone="success" />
-                ) : undefined
-              }
-            />
-          ))}
+          {payments.data.payments.map((p) => {
+            const ask = p.refund_request;
+            // "Paid by mistake": tap a payment to ask the office for a refund (not while one is waiting).
+            const canAsk = p.status === 'paid' && ask?.status !== 'waiting';
+            return (
+              <ListRow
+                key={p.id}
+                icon="person-circle-outline"
+                title={p.passenger_name ?? t('Passenger')}
+                subtitle={[
+                  time(p.created_at),
+                  p.passenger_phone,
+                  t('to {place}', { place: p.stop_name ?? p.route_name }),
+                  p.ticket_code,
+                  ask?.status === 'declined' && ask.office_note ? t('Office: {note}', { note: ask.office_note }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                right={kes(p.fare)}
+                rightSub={
+                  p.status === 'refunded' ? (
+                    <Badge text={t('Refunded')} tone="danger" />
+                  ) : ask?.status === 'waiting' ? (
+                    <Badge text={t('Refund asked')} tone="warning" />
+                  ) : ask?.status === 'declined' ? (
+                    <Badge text={t('Refund refused')} tone="neutral" />
+                  ) : p.free_ride ? (
+                    // Loyalty: the passenger paid nothing; the SACCO pays the owner this fare.
+                    <Badge text={t('Free ride')} tone="success" />
+                  ) : undefined
+                }
+                onPress={
+                  canAsk
+                    ? () =>
+                        router.push({
+                          pathname: isConductor ? '/conductor/refund' : '/driver/refund',
+                          params: { id: p.id, ticket: p.ticket_code, fare: p.fare, who: p.passenger_name ?? '', at: p.created_at, stop: p.stop_name ?? '' },
+                        })
+                    : undefined
+                }
+              />
+            );
+          })}
         </List>
       )}
+      {!!payments.data?.payments.length && <Muted center>{t('Passenger paid by mistake? Tap the payment to ask the office for a refund.')}</Muted>}
     </Screen>
       {latest && (
         <Pressable style={styles.alert} onPress={feed.dismiss} accessibilityRole="alert">

@@ -117,6 +117,7 @@ export default function AdminHome() {
         <ListRow icon="people-circle-outline" title="Stage queues" subtitle="What the marshals see: queues and cars" onPress={() => router.push('/marshal')} />
         <ListRow icon="chatbox-ellipses-outline" title="Problem reports" subtitle="From passengers and crew" onPress={() => router.push('/admin/reports')} />
         <ListRow icon="arrow-up-circle-outline" title="Passenger withdrawals" subtitle="Wallet money sent back to M-Pesa" onPress={() => router.push('/admin/withdrawals')} />
+        <ListRow icon="return-down-back-outline" title="Refunds asked by crew" subtitle="Passengers who paid by mistake" onPress={() => router.push('/admin/refund-requests')} />
         <ListRow icon="checkmark-done-outline" title="Money check" subtitle="Do wallets, M-Pesa and payouts add up?" onPress={() => router.push('/admin/reconciliation')} />
         <ListRow icon="document-text-outline" title="M-Pesa statement check" subtitle="Match the Paybill statement with FarePay" onPress={() => router.push('/admin/statement')} />
         <ListRow icon="list-outline" title="Audit log" subtitle="Who changed what, and when" onPress={() => router.push('/admin/audit')} />

@@ -183,6 +183,31 @@ export interface Withdrawal {
   handled_by_name: string | null;
 }
 
+/** A "paid by mistake" request from a conductor or driver. */
+export interface RefundRequest {
+  id: number;
+  trip_id: number;
+  reason: string;
+  status: 'waiting' | 'refunded' | 'declined';
+  office_note: string | null;
+  created_at: string;
+  decided_at: string | null;
+  requested_by_name: string;
+  requested_by_role: 'conductor' | 'driver';
+  decided_by_name: string | null;
+  ticket_code: string;
+  fare: number;
+  free_ride: boolean;
+  stop_name: string | null;
+  paid_at: string;
+  trip_status: 'paid' | 'refunded';
+  passenger_name: string;
+  passenger_phone: string;
+  no_app: boolean;
+  plate: string;
+  route_name: string;
+}
+
 export interface FareChange {
   id: number;
   stop_id: number;

@@ -22,6 +22,7 @@ export function officePath(link: string | null): string | null {
     'money-check': '/money-check',
     payouts: '/payouts',
     withdrawals: '/withdrawals',
+    'refund-requests': '/refund-requests',
     reports: '/reports',
     queues: '/trips',
     parcels: '/parcels',

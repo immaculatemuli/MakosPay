@@ -212,7 +212,37 @@ export interface ConductorDay {
   cash: CashDeclared | null;
   /** Today only (null on other days, or before the car's first trip today). */
   trip: CrewTrip | null;
-  payments: Trip[];
+  payments: CrewPayment[];
+}
+
+/** A payment on the crew's car, with the latest "paid by mistake" request about it (null: none). */
+export interface CrewPayment extends Trip {
+  refund_request: { status: 'waiting' | 'refunded' | 'declined'; office_note: string | null } | null;
+}
+
+/** A "paid by mistake" request from a conductor or driver, for the office. */
+export interface RefundRequest {
+  id: number;
+  trip_id: number;
+  reason: string;
+  status: 'waiting' | 'refunded' | 'declined';
+  office_note: string | null;
+  created_at: string;
+  decided_at: string | null;
+  requested_by_name: string;
+  requested_by_role: 'conductor' | 'driver';
+  decided_by_name: string | null;
+  ticket_code: string;
+  fare: number;
+  free_ride: boolean;
+  stop_name: string | null;
+  paid_at: string;
+  trip_status: 'paid' | 'refunded';
+  passenger_name: string;
+  passenger_phone: string;
+  no_app: boolean;
+  plate: string;
+  route_name: string;
 }
 
 export interface VehicleTotal {
