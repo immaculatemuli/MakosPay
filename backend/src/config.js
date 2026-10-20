@@ -1,6 +1,11 @@
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const env = process.env;
+
+// A secret that goes inside a web address (the M-Pesa and USSD callbacks) may only hold letters, digits, - and _.
+// One with other characters (e.g. Render's generated secrets: base64, with + / =) is used as a hex hash of itself.
+const urlSafe = (secret) => (/^[A-Za-z0-9_-]+$/.test(secret) ? secret : createHash('sha256').update(secret).digest('hex'));
 
 const num = (value, fallback) => (value === undefined || value === '' ? fallback : Number(value));
 
@@ -81,7 +86,7 @@ export const config = {
   // USSD through Africa's Talking: its callback address carries this secret (/ussd/<secret>). The M-Pesa prompt is
   // sent this long after the USSD session ends (a phone can't show it while a USSD screen is open).
   ussd: {
-    callbackSecret: env.USSD_SECRET ?? 'dev-ussd-secret',
+    callbackSecret: urlSafe(env.USSD_SECRET ?? 'dev-ussd-secret'),
     promptDelayMs: Number(env.USSD_PROMPT_DELAY_MS ?? 2500),
   },
   sms: {
@@ -112,7 +117,7 @@ export const config = {
     transactionType: env.MPESA_TRANSACTION_TYPE ?? 'CustomerPayBillOnline',
     partyB: env.MPESA_PARTY_B || env.MPESA_SHORTCODE || '174379',
     callbackBaseUrl: env.MPESA_CALLBACK_BASE_URL ?? 'https://example.com',
-    callbackSecret: env.MPESA_CALLBACK_SECRET ?? 'dev-callback-secret',
+    callbackSecret: urlSafe(env.MPESA_CALLBACK_SECRET ?? 'dev-callback-secret'),
     b2cShortcode: env.MPESA_B2C_SHORTCODE ?? '',
     b2cInitiatorName: env.MPESA_B2C_INITIATOR_NAME ?? '',
     b2cSecurityCredential: env.MPESA_B2C_SECURITY_CREDENTIAL ?? '',
