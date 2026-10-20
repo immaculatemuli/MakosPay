@@ -9,7 +9,7 @@ import { cashFor, declareCash, MAX_CASH } from '../services/cash.js';
 import { claimVehicle } from '../services/crewCars.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
 import { askRefund, requestsForTrips } from '../services/refundRequests.js';
-import { boardByCode, boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
+import { boardByCode, setCarFull, boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
 import { TRIP_SELECT } from '../services/trips.js';
@@ -171,6 +171,14 @@ router.post('/loading/start', async (req, res) => {
 // The car has left: no more bookings on it.
 router.post('/loading/depart', async (req, res) => {
   res.json(await departLoad(await myVehicle(req.user)));
+});
+
+// The car is full (e.g. cash passengers filled it): no more passengers from the queue; or not full any more.
+router.post('/loading/full', async (req, res) => {
+  const { full } = parse(z.object({ full: z.boolean() }), req.body);
+  const vehicle = await myVehicle(req.user);
+  await setCarFull(vehicle.id, full);
+  res.json(await crewLoad(vehicle));
 });
 
 // A booked passenger got on.

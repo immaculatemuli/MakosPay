@@ -428,7 +428,7 @@ export async function crewLoad(vehicle) {
   const road = await onRoad(vehicle.id);
   const taken = load ? await seatsTaken(load.id) : 0;
   return {
-    loading: load ? { id: load.id, started_at: load.started_at, seats: load.seats, seats_booked: taken, seats_left: Math.max(0, load.seats - taken) } : null,
+    loading: load ? { id: load.id, started_at: load.started_at, seats: load.seats, seats_booked: taken, seats_left: Math.max(0, load.seats - taken), full: Boolean(load.full_at) } : null,
     vehicle_seats: vehicle.seats,
     bookings: load ? await crewBookings(load.id) : [],
     on_road: road

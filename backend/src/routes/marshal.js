@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { db } from '../database.js';
 import { notFound } from '../errors.js';
 import { HttpError } from '../errors.js';
-import { assignPickup, boardByCode, boardSeat, cancelSeat, carArrived, carLeft, marshalQueues, marshalVehicles } from '../services/seats.js';
+import { assignPickup, boardByCode, setCarFull, boardSeat, cancelSeat, carArrived, carLeft, marshalQueues, marshalVehicles } from '../services/seats.js';
 import { parseQr } from '../util.js';
 import { id, parse } from '../validate.js';
 
@@ -35,6 +35,13 @@ router.post('/cars/arrived', async (req, res) => {
 // The car left the stage: passengers put on it who didn't board go back to the front of the queue.
 router.post('/cars/:vehicleId/left', async (req, res) => {
   await carLeft(parse(id, req.params.vehicleId));
+  res.json(await marshalQueues());
+});
+
+// The loading car is full (e.g. cash passengers filled it), or not full any more.
+router.post('/cars/:vehicleId/full', async (req, res) => {
+  const { full } = parse(z.object({ full: z.boolean() }), req.body);
+  await setCarFull(parse(id, req.params.vehicleId), full);
   res.json(await marshalQueues());
 });
 

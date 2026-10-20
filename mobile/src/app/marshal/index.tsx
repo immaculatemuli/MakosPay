@@ -161,6 +161,14 @@ export default function StageQueue() {
                   ) : null}
                 </View>
               ))}
+              {car.full && <Muted>{t('Marked full: nobody else from the queue is sent to it.')}</Muted>}
+              <Button
+                title={car.full ? t('Not full: take passengers from the queue') : t('The car is full')}
+                variant="secondary"
+                icon={car.full ? 'people-outline' : 'hand-left-outline'}
+                loading={busy === `full-${car.vehicle_id}`}
+                onPress={() => void act(`full-${car.vehicle_id}`, `/marshal/cars/${car.vehicle_id}/full`, { full: !car.full })}
+              />
               <Button title={t('The car has left')} variant="secondary" icon="arrow-forward-circle-outline" loading={busy === `left-${car.vehicle_id}`} onPress={() => left(car)} />
             </Card>
           ))}
