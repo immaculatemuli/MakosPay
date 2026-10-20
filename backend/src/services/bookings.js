@@ -315,6 +315,8 @@ async function loadSummary(l) {
      WHERE b.load_id = ? AND t.status = 'paid'`,
     l.id,
   );
+  // Seat bookings from the stage queue put on this car (paid; held until boarding, then a fare for its owner).
+  const seatMoney = await db.get("SELECT COUNT(*) AS bookings, COALESCE(SUM(amount), 0) AS amount FROM seat_bookings WHERE load_id = ? AND status IN ('assigned', 'boarded')", l.id);
   return {
     id: l.id,
     plate: l.plate,
@@ -323,8 +325,8 @@ async function loadSummary(l) {
     state: tripState(l),
     seats: l.seats,
     seats_booked: await seatsTaken(l.id),
-    paid_bookings: money.bookings,
-    booking_money: money.amount,
+    paid_bookings: money.bookings + seatMoney.bookings,
+    booking_money: money.amount + seatMoney.amount,
     stops_reached: stops.filter((s) => s.reached_at).length,
     stops_total: stops.length,
     started_by_name: l.started_by_name,
@@ -386,9 +388,35 @@ export async function officeTrip(loadId) {
         booked_at: b.created_at,
         boarded_at: b.boarded_at,
         trip_id: b.paid_trip_id,
-      })),
+      }))
+      .concat(await seatBookingsOn(loadId)),
     parcels,
   };
+}
+
+/** Seat bookings from the stage queue that were put on this car, as the office trip page lists them. */
+async function seatBookingsOn(loadId) {
+  const rows = await db.all(
+    `SELECT sb.*, s.name AS stop_name, u.name AS passenger_name, u.phone AS passenger_phone FROM seat_bookings sb
+     JOIN route_stops s ON s.id = sb.stop_id JOIN users u ON u.id = sb.passenger_id
+     WHERE sb.load_id = ? AND sb.status IN ('assigned', 'boarded', 'cancelled') ORDER BY sb.id`,
+    loadId,
+  );
+  const STATUS = { assigned: 'confirmed', boarded: 'boarded', cancelled: 'cancelled' };
+  return rows.map((b) => ({
+    id: b.id,
+    code: b.code,
+    status: STATUS[b.status],
+    seats: b.seats,
+    amount: b.amount,
+    paid_with: b.free_ride ? 'free' : b.pay_with,
+    stop_name: b.stop_name,
+    passenger_name: b.passenger_name,
+    passenger_phone: b.passenger_phone,
+    booked_at: b.created_at,
+    boarded_at: b.boarded_at,
+    trip_id: b.trip_id,
+  }));
 }
 
 // ---------- Crew (the conductor's app) ----------

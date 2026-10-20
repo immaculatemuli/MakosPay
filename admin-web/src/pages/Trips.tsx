@@ -152,7 +152,7 @@ export function TripPage() {
             </thead>
             <tbody>
               {t.bookings.map((b) => (
-                <tr key={b.id}>
+                <tr key={b.code}>
                   <td>{b.code}</td>
                   <td>
                     {b.passenger_name}
@@ -161,7 +161,7 @@ export function TripPage() {
                   <td>{b.stop_name}</td>
                   <td className="num">{b.seats}</td>
                   <td className="num">{kes(b.amount)}</td>
-                  <td>{b.paid_with === 'wallet' ? 'FarePay wallet' : 'M-Pesa'}</td>
+                  <td>{b.paid_with === 'free' ? 'Free ride (SACCO pays)' : b.paid_with === 'wallet' ? 'FarePay wallet' : 'M-Pesa'}</td>
                   <td>
                     <Badge tone={BOOKING[b.status].tone}>{BOOKING[b.status].label}</Badge>
                     {b.boarded_at && <div className="muted">boarded {time(b.boarded_at)}</div>}

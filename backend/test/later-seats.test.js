@@ -187,6 +187,18 @@ test("the driver gets a road pickup by SMS too", async () => {
   assert.ok((await notes(s.driver)).some((n) => n.kind === 'seat.pickup'), 'and in the app');
 });
 
+test('the office trip page counts seat bookings put on the car, and lists them', async () => {
+  const day = (await api('GET', '/admin/trips', { token: s.admin })).body;
+  const trip = day.trips.find((t) => t.plate === 'KDA 111A');
+  assert.ok(trip.paid_bookings >= 2 && trip.booking_money >= 800, JSON.stringify(trip));
+  const detail = (await api('GET', `/admin/trips/${trip.id}`, { token: s.admin })).body;
+  const mine = detail.bookings.find((b) => b.id === s.b2now);
+  assert.equal(mine.status, 'confirmed');
+  assert.equal(mine.paid_with, 'wallet');
+  assert.equal(mine.passenger_name, 'Pam Two');
+});
+
+
 test("the night's refunds leave tomorrow's bookings alone", async () => {
   const r = await book(s.p2, { ready_at: tomorrowAt('07:00') });
   const refunded = await refundUnboarded();
