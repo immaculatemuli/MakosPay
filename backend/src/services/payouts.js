@@ -157,8 +157,24 @@ async function textOwner(payout, reference) {
   const fares = cars.reduce((n, c) => n + c.fares, 0);
   const message =
     `${config.saccoName}: ${kesText(payout.amount)} sent to ${where} (${reference}). ` +
-    (cars.length ? `${fares} fare${fares === 1 ? '' : 's'} from ${cars.length} car${cars.length === 1 ? '' : 's'}: ${shown.join(', ')}.` : 'Refund adjustments only.');
+    (cars.length ? `${fares} fare${fares === 1 ? '' : 's'} from ${cars.length} car${cars.length === 1 ? '' : 's'}: ${shown.join(', ')}.` : 'Refund adjustments only.') +
+    (await cashLine(payout));
   await queueSms(payout.owner_phone, 'payout.owner', message);
+}
+
+/** " Cash declared by crew 19 Oct: KDA 123A 3,200." for the owner's cars on the payout's day ('' if none). */
+async function cashLine(payout) {
+  const day = new Date(Date.parse(payout.created_at) + 3 * 3600_000).toISOString().slice(0, 10); // Kenyan date
+  const cash = await db.all(
+    `SELECT v.plate, c.amount FROM cash_declarations c JOIN vehicles v ON v.id = c.vehicle_id
+     WHERE c.day = ? AND v.owner_phone = ? ORDER BY c.amount DESC`,
+    day,
+    payout.owner_phone,
+  );
+  if (!cash.length) return '';
+  const shown = cash.slice(0, 6).map((c) => `${c.plate} ${c.amount.toLocaleString('en-KE')}`);
+  if (cash.length > 6) shown.push(`+${cash.length - 6} more`);
+  return ` Cash declared by crew: ${shown.join(', ')}.`;
 }
 
 /** The money did not reach the owner: the fares go back to "owed" and will be in the next payout. */

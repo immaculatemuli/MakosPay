@@ -8,6 +8,7 @@ import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
 import { completePayout, createPayout, failPayout, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
 import { audit, listAudit } from '../services/audit.js';
+import { cashAndFares } from '../services/cash.js';
 import { checkStatement } from '../services/statement.js';
 import { completeWithdrawal, failWithdrawal, WITHDRAWAL_SELECT } from '../services/withdrawals.js';
 import { dashboard } from '../services/dashboard.js';
@@ -524,6 +525,13 @@ router.get('/exports/:kind', async (req, res) => {
 router.get('/search', async (req, res) => {
   const { q } = parse(z.object({ q: z.string().max(60).default('') }), req.query);
   res.json(await searchEverything(q));
+});
+
+// A car's last 14 days: FarePay fares (verified) beside the cash its crew declared.
+router.get('/vehicles/:id/cash', async (req, res) => {
+  const vehicle = await getVehicle(parse(id, req.params.id));
+  if (!vehicle) throw notFound('Vehicle');
+  res.json(await cashAndFares(vehicle.id));
 });
 
 router.get('/vehicles/:id', async (req, res) => {
