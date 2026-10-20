@@ -47,11 +47,11 @@ export function CrewBookings() {
   if (load.loading && !load.data) return <Loading />;
   const d = load.data;
 
-  const act = async (key: string, path: string) => {
+  const act = async (key: string, path: string, body?: unknown) => {
     setBusy(key);
     setError(null);
     try {
-      load.setData(await api<CrewLoad>(path, { method: 'POST' }));
+      load.setData(await api<CrewLoad>(path, { method: 'POST', body }));
       // Left the stage or finished: what this trip has collected.
       if (key === 'depart' || key === 'finish') {
         const today = await api<ConductorDay>('/crew/payments').catch(() => null);
@@ -167,12 +167,21 @@ export function CrewBookings() {
           <Card>
             <Text style={{ color: colors.muted }}>{t('Loading since {time}', { time: time(d.loading.started_at) })}</Text>
             <Text style={{ fontSize: 30, fontWeight: '800', color: colors.text }}>
-              {t('{booked} of {seats} seats booked', { booked: d.loading.seats_booked, seats: d.loading.seats })}
+              {t('{booked} of {seats} seats taken', { booked: d.loading.seats_booked, seats: d.loading.seats })}
             </Text>
+            <Muted>{t('Booked seats and FarePay fares paid while loading. Cash passengers are not counted: when the car is full, say so.')}</Muted>
             <Text style={{ color: d.loading.seats_left ? colors.primary : colors.danger, fontWeight: '700' }}>
               {d.loading.seats_left ? t('{n} left', { n: d.loading.seats_left }) : t('Full')}
             </Text>
             <View style={{ height: 8 }} />
+            {d.loading.full && <Muted>{t('Marked full: nobody else from the queue is sent to it.')}</Muted>}
+            <Button
+              title={d.loading.full ? t('Not full: take passengers from the queue') : t('The car is full')}
+              variant="secondary"
+              icon={d.loading.full ? 'people-outline' : 'hand-left-outline'}
+              loading={busy === 'full'}
+              onPress={() => void act('full', '/crew/loading/full', { full: !d.loading?.full })}
+            />
             <Button title={t('The car has left')} variant="secondary" icon="bus-outline" onPress={depart} loading={busy === 'depart'} />
           </Card>
           <SectionTitle>{t('Booked passengers')}</SectionTitle>

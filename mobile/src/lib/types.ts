@@ -105,7 +105,8 @@ export interface CrewParcels {
 
 /** The car loading at the stage (null when not taking bookings), and its last trip still on the road (or null). */
 export interface CrewLoad {
-  loading: { id: number; started_at: string; seats: number; seats_booked: number; seats_left: number } | null;
+  /** seats_booked: seats taken (bookings and FarePay fares paid on the car while loading); full: marked full by hand. */
+  loading: { id: number; started_at: string; seats: number; seats_booked: number; seats_left: number; full: boolean } | null;
   vehicle_seats: number;
   bookings: CrewBooking[];
   on_road: {
@@ -616,6 +617,8 @@ export interface QueueCar {
   state: 'loading' | 'on_the_road';
   seats: number;
   seats_left: number;
+  /** Marked full by the marshal or crew (e.g. cash passengers filled it): takes nobody from the queue. */
+  full: boolean;
   started_at: string;
   departed_at: string | null;
   stops_reached: number[];

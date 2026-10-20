@@ -561,8 +561,27 @@ const tellMarshals = async (message) => {
 
 // ---------- Cars and the queue ----------
 
-/** Seats on a car (load) already taken: by bookings made on that car the old way, and seat bookings put on it. */
+/**
+ * Seats on a car (load) already taken: seat bookings put on it, bookings made on it the old way, and passengers who
+ * walked up and paid FarePay on it while it was loading (one seat each). A car marked full has none left, e.g. when
+ * passengers paying cash filled it.
+ */
 export async function seatsTaken(loadId) {
+  const load = await db.get('SELECT vehicle_id, seats, started_at, departed_at, full_at FROM loads WHERE id = ?', loadId);
+  if (load?.full_at) return load.seats;
+  const walkIns = load
+    ? await db.get(
+        `SELECT COUNT(*) AS n FROM trips t
+         WHERE t.vehicle_id = ? AND t.status = 'paid' AND t.created_at >= ? AND (CAST(? AS TEXT) IS NULL OR t.created_at < ?)
+           AND t.idempotency_key NOT LIKE 'seat-%'
+           AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.trip_id = t.id)
+           AND NOT EXISTS (SELECT 1 FROM mpesa_payments p JOIN bookings b ON b.mpesa_payment_id = p.id WHERE p.trip_id = t.id)`,
+        load.vehicle_id,
+        load.started_at,
+        load.departed_at ?? null,
+        load.departed_at ?? null,
+      )
+    : { n: 0 };
   const seat = await db.get("SELECT COALESCE(SUM(seats), 0) AS n FROM seat_bookings WHERE load_id = ? AND status IN ('assigned', 'boarded')", loadId);
   const old = await db.get(
     `SELECT COALESCE(SUM(b.seats), 0) AS n FROM bookings b
@@ -570,7 +589,18 @@ export async function seatsTaken(loadId) {
      WHERE b.load_id = ? AND (p.status IN ('initiating', 'pending') OR t.status = 'paid')`,
     loadId,
   );
-  return seat.n + old.n;
+  return Number(seat.n) + Number(old.n) + Number(walkIns.n);
+}
+
+/**
+ * The marshal or crew say the loading car is full (no more passengers from the queue), or not full any more (it takes
+ * the next in the queue again).
+ */
+export async function setCarFull(vehicleId, full) {
+  const load = await db.get("SELECT id, route_id FROM loads WHERE vehicle_id = ? AND status = 'loading'", vehicleId);
+  if (!load) throw new HttpError(409, 'NOT_LOADING', 'This car is not loading at the stage.');
+  await db.run(`UPDATE loads SET full_at = ${full ? NOW : 'NULL'} WHERE id = ?`, load.id);
+  if (!full) await fillRoute(load.route_id);
 }
 
 /**
@@ -934,6 +964,7 @@ export async function marshalQueues() {
         state: l.status === 'loading' ? 'loading' : 'on_the_road',
         seats: l.seats,
         seats_left: Math.max(0, l.seats - (await seatsTaken(l.id))),
+        full: Boolean(l.full_at),
         started_at: l.started_at,
         departed_at: l.departed_at,
         stops_reached: reached.map((x) => x.stop_id),
