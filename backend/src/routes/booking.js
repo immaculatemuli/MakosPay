@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { limitBy, limiter, noAppPromptsByIp, noAppPromptsByPhone } from '../ratelimit.js';
 import { bookingStatusByToken, cancelBooking, MAX_SEATS_PER_BOOKING, routesForBooking, startBooking } from '../services/bookings.js';
+import { mapTiles } from '../services/maps.js';
 import { trackParcel } from '../services/parcels.js';
 import { passengerFor } from '../services/noapp.js';
 import { bookSeats, cancelSeat, MAX_SEATS, passengerHere, seatIdFromToken, seatRoutes, seatToken, seatView } from '../services/seats.js';
@@ -12,6 +13,12 @@ const trackingByIp = limiter({ windowMs: 10 * 60_000, max: 60, message: (m) => `
 import { id, kes, parse, phone } from '../validate.js';
 
 const router = Router();
+
+// Which map tiles the app and the website show (Google's when the SACCO has a key). Public: the key is restricted
+// to map tiles and to FarePay's address in Google's console.
+router.get('/map', async (_req, res) => {
+  res.json(await mapTiles());
+});
 
 router.get('/routes', async (_req, res) => {
   res.json(await routesForBooking());

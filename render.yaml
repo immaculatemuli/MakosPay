@@ -39,6 +39,9 @@ services:
       # forgotten passwords.
       - key: SMS_PROVIDER
         value: "off"
+      # Google's map for "your car is coming": a key allowed only the Map Tiles API. Empty: OpenStreetMap's map.
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
       - key: PAYMENT_PROVIDER
         value: daraja
       - key: MPESA_MODE
