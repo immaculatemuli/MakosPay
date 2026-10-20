@@ -54,6 +54,8 @@ process.env.MPESA_SHORTCODE = SHORTCODE;
 process.env.MPESA_PASSKEY = PASSKEY;
 process.env.MPESA_CALLBACK_SECRET = 'cbsecret';
 process.env.MPESA_QUERY_INTERVAL_MS = '0';
+process.env.SEAT_BOOKING_CUTOFF = '23:59';
+process.env.SEAT_BOOKING_OPENS = '00:00';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
@@ -94,6 +96,7 @@ before(async () => {
     body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 70 }, { name: 'Thika', cash_fare: 100, app_fare: 90 }] },
   })).body;
   s.juja = route.stops[0];
+  s.routeId = route.id;
   const vehicle = (await api('POST', '/admin/vehicles', {
     token: admin,
     body: { plate: 'KDA 123A', owner_name: 'Mary Owner', owner_phone: '0744555666', route_id: route.id },
@@ -226,4 +229,19 @@ test('a prompt M-Pesa never answers expires without crediting anything', async (
   await reconcilePendingPayments({ expireAfterMs: 0 });
   assert.equal(await status(start.body.payment.id), 'failed');
   assert.equal(await balance(), 100);
+});
+
+test('a seat booking whose prompt M-Pesa never answers is released when the payment expires', async () => {
+  fake.defaultAnswers = ['unknown'];
+  const booked = await api('POST', '/book-api/seats', {
+    body: { route_id: s.routeId, stop_id: s.juja.id, seats: 2, expected_fare: 70, phone: '0733444555', idempotency_key: randomUUID() },
+  });
+  assert.equal(booked.body.status, 'paying');
+  await reconcilePendingPayments({ expireAfterMs: 0 });
+  // Nobody opened the booking again: the background check alone must free it and tell the passenger.
+  const row = await db.get("SELECT b.status, u.id AS user_id FROM seat_bookings b JOIN users u ON u.id = b.passenger_id WHERE b.code = ?", booked.body.code);
+  assert.equal(row.status, 'failed');
+  const told = await db.get("SELECT title, body FROM notifications WHERE user_id = ? AND kind = 'seat.failed'", row.user_id);
+  assert.match(told.body, /No answer from M-Pesa\. No money was taken/);
+  fake.defaultAnswers = ['processing', 'paid'];
 });

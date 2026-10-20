@@ -272,7 +272,10 @@ export async function reconcilePendingPayments({ expireAfterMs = config.mpesa.pe
         EXPIRED,
         current.id,
       );
-      if (expired.changes) await notifyTopupFailed(current, 'No answer from M-Pesa');
+      if (!expired.changes) continue;
+      // A seat booking waiting for this payment fails with it (its passenger is told there), like a "failed" answer.
+      if (current.purpose === 'seat') await seatPaymentFailed(current, 'No answer from M-Pesa');
+      else await notifyTopupFailed(current, 'No answer from M-Pesa');
     }
   }
   await reconcileParcelPayments({ expireAfterMs });
