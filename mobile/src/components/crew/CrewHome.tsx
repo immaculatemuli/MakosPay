@@ -1,13 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
 import { Badge, Button, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Muted, Notice, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { kes, nairobiDate, prettyDate, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
-import { ROLE_LABEL, type ConductorDay, type ConductorVehicle } from '@/lib/types';
+import { ROLE_LABEL, type ConductorDay, type ConductorVehicle, type CrewLoad } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 import { useKeepAwakeWhile } from '@/lib/keepAwake';
 import { CashCard } from './CashCard';
@@ -38,11 +38,21 @@ export function CrewHome() {
   const feed = usePaymentFeed(payments.data, day === 0 && payments.data?.date === date, payments.reload);
   // The feed only rings while the app is open: the screen stays on while today's payments are showing.
   useKeepAwakeWhile(day === 0, 'crew-payments');
+  // What the car is doing now (loading at the stage, or on the road) leads the screen.
+  const load = useApi<CrewLoad>('/crew/loading');
+  const reloadLoad = load.reload;
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setInterval(() => void reloadLoad(), 15_000);
+      return () => clearInterval(timer);
+    }, [reloadLoad]),
+  );
 
   if (vehicle.loading && !vehicle.data) return <Loading />;
 
   // Crew choose their car by scanning its sticker (they switch cars and cover for each other).
   const scanCarHref = isConductor ? '/conductor/scan-car' : '/driver/scan-car';
+  const bookingsHref = isConductor ? '/conductor/bookings' : '/driver/bookings';
 
   if (!vehicle.data) {
     return (
@@ -79,6 +89,30 @@ export function CrewHome() {
           </View>
         </View>
       </Hero>
+
+      {day === 0 && load.data?.loading && (
+        <Pressable style={({ pressed }) => [styles.nowCard, pressed && { opacity: 0.8 }]} onPress={() => router.push(bookingsHref)}>
+          <Text style={styles.nowLabel}>{t('Loading at the stage')}</Text>
+          <Text style={styles.nowBig}>
+            {t('{booked} of {seats} seats taken', { booked: load.data.loading.seats_booked, seats: load.data.loading.seats })}
+          </Text>
+          <Text style={styles.nowLabel}>
+            {load.data.loading.full || !load.data.loading.seats_left ? t('Full') : t('{n} left', { n: load.data.loading.seats_left })} · {t('Tap for booked passengers')}
+          </Text>
+        </Pressable>
+      )}
+      {day === 0 && !load.data?.loading && load.data?.on_road && (
+        <Pressable style={({ pressed }) => [styles.nowCard, pressed && { opacity: 0.8 }]} onPress={() => router.push(bookingsHref)}>
+          <Text style={styles.nowLabel}>{t('On the road since {time}', { time: time(load.data.on_road.departed_at) })}</Text>
+          <Text style={styles.nowBig}>
+            {(() => {
+              const next = load.data.on_road.stops.find((st) => !st.reached_at);
+              return next ? t('Next stop: {stop}', { stop: next.name }) : t('All stops reached');
+            })()}
+          </Text>
+          <Text style={styles.nowLabel}>{t('Tap to tick stops and see pickups')}</Text>
+        </Pressable>
+      )}
 
       {day === 0 && trip && (
         <View style={styles.tripCard}>
@@ -215,6 +249,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  nowCard: { backgroundColor: colors.primary, borderRadius: 14, padding: 16, marginBottom: 10 },
+  nowLabel: { color: '#fff', fontSize: 13, fontWeight: '600', opacity: 0.9 },
+  nowBig: { color: '#fff', fontSize: 24, fontWeight: '800', marginVertical: 2 },
   tripCard: {
     backgroundColor: colors.card,
     borderRadius: 14,

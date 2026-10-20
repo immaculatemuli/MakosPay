@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
 import { FreeRideCard } from '@/components/FreeRideCard';
+import { OpenBookingCard } from '@/components/OpenBookingCard';
 import { WhereGoing } from '@/components/WhereGoing';
 import { Badge, colors, Empty, ErrorBox, List, ListRow, Loading, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -12,7 +13,7 @@ import { dateTime, kes, monthName } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { saveTickets } from '@/lib/savedTickets';
 import { openTicket } from '@/lib/ticket';
-import type { Paged, PassengerSummary, Trip } from '@/lib/types';
+import type { Paged, PassengerSummary, SeatBooking, Trip } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
 /** Passenger home: balance, Add money / Pay fare, trips and spending, where they're going, recent payments. */
@@ -21,6 +22,18 @@ export default function PassengerHome() {
   const { t } = useT();
   const summary = useApi<PassengerSummary>('/passenger/summary');
   const recent = useApi<Paged<Trip>>('/passenger/trips?limit=3');
+  // A booking happening now (paying, in the queue, a car coming) leads the screen; a car on its way first.
+  const seats = useApi<SeatBooking[]>('/passenger/seats');
+  const open = (seats.data ?? []).filter((b) => ['paying', 'queued', 'assigned'].includes(b.status)).sort((a, b) => Number(b.status === 'assigned') - Number(a.status === 'assigned'));
+  const reloadSeats = seats.reload;
+  const hasOpen = open.length > 0;
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasOpen) return;
+      const timer = setInterval(() => void reloadSeats(), 15_000);
+      return () => clearInterval(timer);
+    }, [hasOpen, reloadSeats]),
+  );
   const [pickKey, setPickKey] = useState(0);
   const chosen = useChosenStop(pickKey);
   // The latest tickets are kept on the phone, to open without internet.
@@ -33,6 +46,7 @@ export default function PassengerHome() {
   const refresh = () => {
     summary.refresh();
     recent.refresh();
+    seats.refresh();
   };
   const joined = s ? new Date(s.since_joining.joined_at) : null;
 
@@ -53,6 +67,9 @@ export default function PassengerHome() {
         </View>
       </Hero>
       {summary.error && <ErrorBox message={summary.error} onRetry={summary.reload} />}
+      {open.map((b) => (
+        <OpenBookingCard key={b.id} booking={b} />
+      ))}
 
       {s && (
         <View style={styles.stats}>
