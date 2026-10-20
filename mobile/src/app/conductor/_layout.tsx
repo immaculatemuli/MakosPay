@@ -17,6 +17,7 @@ export default function ConductorLayout() {
       <Stack.Screen name="change-route" options={{ title: t('Change route') }} />
       <Stack.Screen name="report" options={{ title: t('Report a problem') }} />
       <Stack.Screen name="reports" options={{ title: t('My reports') }} />
+      <Stack.Screen name="scan-car" options={{ title: t('Scan the car') }} />
       <Stack.Screen name="account" options={{ title: t('My account') }} />
     </Stack>
   );

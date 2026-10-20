@@ -3,6 +3,8 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Vibration } from 'react-native';
 import { api } from '@/lib/api';
+import { currentLanguage } from '@/lib/i18n';
+import { announcePayments, setSpeaking, speakingOn } from '@/lib/speakPayments';
 import type { ConductorDay, Trip } from '@/lib/types';
 
 const CHECK_EVERY_MS = 3000;
@@ -15,7 +17,8 @@ const PAID_SOUND = require('../../../assets/sounds/paid.wav');
 /**
  * The conductor's live payment feed. While today's payments are on screen, asks the server every few seconds
  * whether anything changed (a cheap check), and loads the list only when it did. Each new payment rings, vibrates
- * and shows as a big alert, so the conductor knows who paid without looking at the phone all the time.
+ * and shows as a big alert, so the conductor knows who paid without looking at the phone all the time. It is also
+ * said out loud (unless switched off), for a driver alone on the car who can't look at the screen.
  */
 export function usePaymentFeed(day: ConductorDay | null, isToday: boolean, reload: () => Promise<void>) {
   const player = useAudioPlayer(PAID_SOUND);
@@ -23,10 +26,23 @@ export function usePaymentFeed(day: ConductorDay | null, isToday: boolean, reloa
   // The newest payment already seen (null until the list first loads: those payments don't ring).
   const seenId = useRef<number | null>(null);
   const [fresh, setFresh] = useState<Trip[]>([]);
+  const [speak, setSpeak] = useState(true);
+  const speakRef = useRef(true);
 
   useEffect(() => {
     void setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    void speakingOn().then((on) => {
+      speakRef.current = on;
+      setSpeak(on);
+    });
   }, []);
+
+  const toggleSpeak = () => {
+    const on = !speakRef.current;
+    speakRef.current = on;
+    setSpeak(on);
+    void setSpeaking(on);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -73,6 +89,9 @@ export function usePaymentFeed(day: ConductorDay | null, isToday: boolean, reloa
     } catch {
       // No sound (e.g. the phone is busy with a call): the vibration and the alert still show.
     }
+    // After the chime: who paid, out loud.
+    // (Not cancelled if the list reloads meanwhile: these payments must still be heard.)
+    if (speakRef.current) setTimeout(() => void announcePayments(added, currentLanguage()), 700);
   }, [day, isToday, player]);
 
   useEffect(() => {
@@ -81,5 +100,5 @@ export function usePaymentFeed(day: ConductorDay | null, isToday: boolean, reloa
     return () => clearTimeout(timer);
   }, [fresh]);
 
-  return { fresh, dismiss: () => setFresh([]) };
+  return { fresh, dismiss: () => setFresh([]), speak, toggleSpeak };
 }

@@ -6,6 +6,7 @@ import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, startLoading } from '../services/bookings.js';
 import { cashFor, declareCash, MAX_CASH } from '../services/cash.js';
+import { claimVehicle } from '../services/crewCars.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
 import { boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
@@ -23,7 +24,7 @@ const CREW_COLUMN = { conductor: 'conductor_id', driver: 'driver_id' };
 async function myVehicle(user) {
   const column = CREW_COLUMN[user.role];
   const vehicle = column && (await db.get(`SELECT * FROM vehicles WHERE ${column} = ? AND is_active = TRUE`, user.id));
-  if (!vehicle) throw new HttpError(404, 'NO_VEHICLE', 'You are not on a vehicle yet. Ask the SACCO office to add you to one.');
+  if (!vehicle) throw new HttpError(404, 'NO_VEHICLE', 'You are not on a car yet. Scan the FarePay QR sticker inside your car, or ask the SACCO office.');
   return vehicle;
 }
 
@@ -230,6 +231,13 @@ router.put('/cash', async (req, res) => {
   const body = parse(z.object({ day: z.string().date().default(nairobiToday), amount: z.number().int().min(0).max(MAX_CASH) }), req.body);
   const vehicle = await myVehicle(req.user);
   res.json(await declareCash(vehicle.id, req.user.id, body));
+});
+
+// "I'm working on this car": the crew member scans its sticker and takes their place on it (recorded for the office).
+router.post('/vehicle/claim', async (req, res) => {
+  const { qr } = parse(z.object({ qr: z.string().trim().min(1).max(500) }), req.body);
+  req.skipAudit = true; // claimVehicle records the move itself, with the plates
+  res.json(await claimVehicle(req.user, qr));
 });
 
 // The vehicle is plying a different route today: passengers who scan after this pay that route's fares. Conductor only.
