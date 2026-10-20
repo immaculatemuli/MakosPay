@@ -278,7 +278,15 @@ function line(b) {
   return `Wait at ${b.pickup.name}. We'll tell you which car is coming for you.`;
 }
 
-// The car coming for the passenger on an OpenStreetMap map (Leaflet, served from this site), moved in place.
+// The car coming for the passenger on a map (Leaflet, served from this site), moved in place. The tiles are
+// Google's when the SACCO has a key, else OpenStreetMap's: the server says which.
+let tiles = { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OpenStreetMap', max_zoom: 19 };
+fetch('/book-api/map')
+  .then((res) => (res.ok ? res.json() : null))
+  .then((t) => {
+    if (t?.url) tiles = t;
+  })
+  .catch(() => {});
 let map = null;
 let marker = null;
 function renderMap(b) {
@@ -289,7 +297,7 @@ function renderMap(b) {
   $('b-map-time').textContent = `Position at ${hm(where.at)}`;
   if (!map) {
     map = L.map('b-map').setView([where.lat, where.lng], 15);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', referrerPolicy: 'origin' }).addTo(map);
+    L.tileLayer(tiles.url, { maxZoom: tiles.max_zoom, attribution: tiles.attribution, referrerPolicy: 'origin' }).addTo(map);
     const label = el('div', 'car-pin', b.car.plate);
     marker = L.marker([where.lat, where.lng], { icon: L.divIcon({ className: '', html: label, iconSize: null }) }).addTo(map);
   } else {
