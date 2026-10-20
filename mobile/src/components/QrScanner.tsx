@@ -10,7 +10,9 @@ import { useT } from '@/lib/i18n';
 // same code is read several times in a row. Anything else - part of a code, a code at the edge of the camera,
 // a neighbouring matatu's sticker, or a read the camera can't place on screen - is ignored.
 // Stickers are either the app's own code or a link to the pay page (which any phone camera can open).
-const FAREPAY_CODE = /^(farepay:\/\/pay|https:\/\/[^/?#\s]+\/pay)\?v=[A-Za-z0-9_-]{6,}$/;
+export const CAR_STICKER = /^(farepay:\/\/pay|https:\/\/[^/?#\s]+\/pay)\?v=[A-Za-z0-9_-]{6,}$/;
+// The QR on a passenger's seat booking screen.
+export const SEAT_BOOKING = /^FAREPAY-SEAT:[A-Z0-9]{4,8}$/;
 const READS_NEEDED = 3;
 const READ_WINDOW_MS = 1500;
 const MIN_SIZE = 0.4; // the code must fill at least this share of the square
@@ -55,7 +57,7 @@ function placementProblem(corners: Point[], frame: LayoutRectangle | null): Hint
  * The camera with the FarePay square: calls onCode once with a sticker's text when the whole code is inside the square,
  * big enough and read several times. Scanning works again when the screen comes back into view.
  */
-export function QrScanner({ onCode }: { onCode: (data: string) => void }) {
+export function QrScanner({ onCode, accept = CAR_STICKER, aimHint }: { onCode: (data: string) => void; accept?: RegExp; aimHint?: string }) {
   const { t } = useT();
   const [permission, requestPermission] = useCameraPermissions();
   const [hint, setHint] = useState<Hint>('aim');
@@ -91,7 +93,7 @@ export function QrScanner({ onCode }: { onCode: (data: string) => void }) {
   const onScanned = (result: BarcodeScanningResult) => {
     if (handled.current) return;
     const data = (result.data ?? '').trim();
-    if (!FAREPAY_CODE.test(data)) {
+    if (!accept.test(data)) {
       streak.current.count = 0;
       return show('other');
     }
@@ -135,7 +137,7 @@ export function QrScanner({ onCode }: { onCode: (data: string) => void }) {
             frame.current = e.nativeEvent.layout;
           }}
         />
-        <Text style={styles.hint}>{t(HINTS[hint])}</Text>
+        <Text style={styles.hint}>{hint === 'aim' && aimHint ? aimHint : t(HINTS[hint])}</Text>
       </View>
     </View>
   );

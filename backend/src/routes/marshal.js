@@ -4,7 +4,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { notFound } from '../errors.js';
-import { assignPickup, boardSeat, cancelSeat, carArrived, carLeft, marshalQueues, marshalVehicles } from '../services/seats.js';
+import { HttpError } from '../errors.js';
+import { assignPickup, boardByCode, boardSeat, cancelSeat, carArrived, carLeft, marshalQueues, marshalVehicles } from '../services/seats.js';
+import { parseQr } from '../util.js';
 import { id, parse } from '../validate.js';
 
 const router = Router();
@@ -20,9 +22,13 @@ router.get('/vehicles', async (req, res) => {
 });
 
 // A car reached the stage: it starts loading (on route_id if given) and takes the first passengers in the queue.
+// The car is chosen from the list (vehicle_id) or by scanning the sticker inside it (qr).
 router.post('/cars/arrived', async (req, res) => {
-  const body = parse(z.object({ vehicle_id: id, route_id: id.optional() }), req.body);
-  await carArrived(body.vehicle_id, body.route_id ?? null, req.user.id);
+  const body = parse(z.object({ vehicle_id: id.optional(), qr: z.string().trim().min(1).max(500).optional(), route_id: id.optional() }), req.body);
+  let vehicleId = body.vehicle_id;
+  if (!vehicleId && body.qr) vehicleId = (await db.get('SELECT id FROM vehicles WHERE qr_token = ?', parseQr(body.qr)))?.id;
+  if (!vehicleId) throw new HttpError(404, 'INVALID_QR', body.qr ? 'This is not the sticker of a FarePay car.' : 'Choose the car that arrived.');
+  await carArrived(vehicleId, body.route_id ?? null, req.user.id);
   res.json(await marshalQueues());
 });
 
@@ -37,6 +43,12 @@ router.post('/seats/:id/assign', async (req, res) => {
   const body = parse(z.object({ load_id: id }), req.body);
   await assignPickup(parse(id, req.params.id), body.load_id);
   res.json(await marshalQueues());
+});
+
+// Boarding by scanning the passenger's booking QR (or typing its code): any car.
+router.post('/seats/board-code', async (req, res) => {
+  const { code } = parse(z.object({ code: z.string().trim().min(4).max(40) }), req.body);
+  res.json(await boardByCode(code));
 });
 
 router.post('/seats/:id/board', async (req, res) => {

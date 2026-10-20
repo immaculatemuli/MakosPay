@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { Badge, Button, Card, colors, Empty, ErrorBox, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
@@ -10,6 +11,7 @@ import { useKeepAwakeWhile } from '@/lib/keepAwake';
 import { useShareCarLocation } from '@/lib/shareLocation';
 import { SeatPickups } from './SeatPickups';
 import { useApi } from '@/lib/useApi';
+import { useAuth } from '@/lib/auth';
 
 const STATUS: Record<CrewBooking['status'], { text: string; tone: 'success' | 'warning' | 'neutral' }> = {
   confirmed: { text: 'Paid', tone: 'success' },
@@ -24,6 +26,7 @@ const STATUS: Record<CrewBooking['status'], { text: string; tone: 'success' | 'w
  */
 export function CrewBookings() {
   const { t } = useT();
+  const { user } = useAuth();
   const load = useApi<CrewLoad>('/crew/loading');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +113,8 @@ export function CrewBookings() {
       {(load.error || error) && <ErrorBox message={(error ?? load.error)!} onRetry={error ? undefined : load.reload} />}
       {sharing === 'sharing' && <Muted>{t('Sharing the car’s position with booked passengers while on this trip.')}</Muted>}
       {sharing === 'denied' && <Muted>{t('Location is off: booked passengers can’t see the car on the map. Allow location for FarePay in your phone settings.')}</Muted>}
+      {/* Booked passengers show the QR on their booking: scanning it ticks them on board. */}
+      {loadingNow && <Button title={t('Scan passengers on board')} icon="scan-outline" onPress={() => router.push(user?.role === 'driver' ? '/driver/board' : '/conductor/board')} />}
       <SeatPickups />
 
       {d?.on_road && (
