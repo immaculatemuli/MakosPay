@@ -32,6 +32,7 @@ import { importRows, IMPORT_KINDS, TEMPLATES } from '../services/importer.js';
 import { createOwner, findOrCreateOwner, getOwner, linkVehicle, listOwners, ownerDetail, updateOwner } from '../services/owners.js';
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
 import { getPhoto, officeReply, officeReports, replySchema, sendPhoto, updateReport } from '../services/reports.js';
+import { approveRefund, declineRefund, listRefundRequests } from '../services/refundRequests.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
 import { createUser, deleteCrewMember, resetPassword } from '../services/users.js';
 import { nairobiDayRange, nairobiToday, newQrToken } from '../util.js';
@@ -107,6 +108,21 @@ router.get('/payments', async (req, res) => {
 router.post('/payments/:id/refund', async (req, res) => {
   const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
   res.json(await refundTrip(parse(id, req.params.id), reason));
+});
+
+// "Paid by mistake" requests from conductors and drivers: ?status=waiting (default) or all.
+router.get('/refund-requests', async (req, res) => {
+  const { status } = parse(z.object({ status: z.enum(['waiting', 'all']).default('waiting') }), req.query);
+  res.json({ requests: await listRefundRequests({ status }) });
+});
+
+router.post('/refund-requests/:id/approve', async (req, res) => {
+  res.json(await approveRefund(parse(id, req.params.id), req.user.id));
+});
+
+router.post('/refund-requests/:id/decline', async (req, res) => {
+  const { note } = parse(z.object({ note: z.string().trim().min(3).max(200) }), req.body);
+  res.json(await declineRefund(parse(id, req.params.id), req.user.id, note));
 });
 
 // ---------- Problem reports ----------

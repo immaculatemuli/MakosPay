@@ -8,6 +8,7 @@ import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, s
 import { cashFor, declareCash, MAX_CASH } from '../services/cash.js';
 import { claimVehicle } from '../services/crewCars.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
+import { askRefund, requestsForTrips } from '../services/refundRequests.js';
 import { boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
@@ -84,14 +85,24 @@ router.get('/payments', async (req, res) => {
   const vehicle = await myVehicle(req.user);
   const [from, to] = nairobiDayRange(date);
   const trips = await db.all(`${TRIP_SELECT} WHERE t.vehicle_id = ? AND t.created_at >= ? AND t.created_at < ? ORDER BY t.id DESC`, vehicle.id, from, to);
+  const requests = await requestsForTrips(trips.map((t) => t.id));
   res.json({
     date,
     summary: await daySummary(vehicle.id, date),
     trip: date === nairobiToday() ? await tripSummary(vehicle.id) : null,
     // The cash the crew said they collected that day (null: not entered yet).
     cash: await cashFor(vehicle.id, date),
-    payments: trips.map(forCrew),
+    // refund_request: the latest "paid by mistake" request for the payment ({ status, office_note }), or null.
+    payments: trips.map((t) => ({ ...forCrew(t), refund_request: requests.get(t.id) ?? null })),
   });
+});
+
+// "Paid by mistake": ask the office to refund a payment made on this car. Only the office moves the money.
+router.post('/payments/:id/refund-request', async (req, res) => {
+  const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
+  const vehicle = await myVehicle(req.user);
+  const request = await askRefund({ user: req.user, vehicleId: vehicle.id, tripId: parse(id, req.params.id), reason });
+  res.status(201).json({ id: request.id, status: request.status });
 });
 
 // A quick look the conductor's phone takes every few seconds: the newest payment on the car today and how many were

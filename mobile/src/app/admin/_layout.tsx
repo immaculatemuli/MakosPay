@@ -28,6 +28,7 @@ export default function AdminLayout() {
       <Stack.Screen name="owner-form" options={{ title: 'Owner' }} />
       <Stack.Screen name="set-password" options={{ title: 'Set new password' }} />
       <Stack.Screen name="refund" options={{ title: 'Refund fare' }} />
+      <Stack.Screen name="refund-requests" options={{ title: 'Refunds asked by crew' }} />
       <Stack.Screen name="staff" options={{ title: 'Office staff' }} />
       <Stack.Screen name="staff-form" options={{ title: 'New office account' }} />
       <Stack.Screen name="platform" options={{ title: 'Platform' }} />

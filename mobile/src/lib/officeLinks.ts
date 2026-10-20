@@ -14,6 +14,8 @@ export function officeHref(link: string | null): Href | null {
       return '/admin/payouts';
     case 'withdrawals':
       return '/admin/withdrawals';
+    case 'refund-requests':
+      return '/admin/refund-requests';
     case 'reports':
       return '/admin/reports';
     case 'queues':
