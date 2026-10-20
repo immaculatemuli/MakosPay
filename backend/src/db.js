@@ -696,6 +696,20 @@ for (const column of ['ready_at', 'reminded_at', 'marshals_told_at']) {
 if (!hasColumn('withdrawals', 'send_attempts')) db.exec('ALTER TABLE withdrawals ADD COLUMN send_attempts INTEGER NOT NULL DEFAULT 0');
 if (!hasColumn('withdrawals', 'next_try_at')) db.exec('ALTER TABLE withdrawals ADD COLUMN next_try_at TEXT');
 
+// Cash the crew declare per car and day (the same as migrations/018_cash_declarations.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS cash_declarations (
+  id          INTEGER PRIMARY KEY,
+  vehicle_id  INTEGER NOT NULL REFERENCES vehicles(id),
+  day         TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  amount      INTEGER NOT NULL CHECK (amount >= 0),
+  declared_by INTEGER NOT NULL REFERENCES users(id),
+  created_at  TEXT NOT NULL DEFAULT (${NOW}),
+  updated_at  TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE (vehicle_id, day)
+);
+`);
+
 // Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
 db.exec(`
 CREATE TABLE IF NOT EXISTS vehicle_locations (

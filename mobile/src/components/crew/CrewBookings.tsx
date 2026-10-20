@@ -51,11 +51,14 @@ export function CrewBookings() {
       load.setData(await api<CrewLoad>(path, { method: 'POST' }));
       // Left the stage or finished: what this trip has collected.
       if (key === 'depart' || key === 'finish') {
-        const trip = (await api<ConductorDay>('/crew/payments').catch(() => null))?.trip;
+        const today = await api<ConductorDay>('/crew/payments').catch(() => null);
+        const trip = today?.trip;
         if (trip) {
+          // Finished and no cash entered yet today: a reminder to enter it on the home screen.
+          const cashNote = key === 'finish' && today && !today.cash ? `\n\n${t('Remember to enter today’s cash on the home screen.')}` : '';
           Alert.alert(
             key === 'finish' ? t('Trip finished') : t('Left the stage'),
-            `${key === 'finish' ? t('This trip') : t('So far on this trip')}: ${t('{n} paid', { n: trip.payments })} · ${kes(trip.total)}`,
+            `${key === 'finish' ? t('This trip') : t('So far on this trip')}: ${t('{n} paid', { n: trip.payments })} · ${kes(trip.total)}${cashNote}`,
           );
         }
       }

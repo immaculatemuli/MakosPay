@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, startLoading } from '../services/bookings.js';
+import { cashFor, declareCash, MAX_CASH } from '../services/cash.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
 import { boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
@@ -86,6 +87,8 @@ router.get('/payments', async (req, res) => {
     date,
     summary: await daySummary(vehicle.id, date),
     trip: date === nairobiToday() ? await tripSummary(vehicle.id) : null,
+    // The cash the crew said they collected that day (null: not entered yet).
+    cash: await cashFor(vehicle.id, date),
     payments: trips.map(forCrew),
   });
 });
@@ -220,6 +223,13 @@ router.post('/parcels/:id/collect', async (req, res) => {
   const { code } = parse(z.object({ code: z.string().trim().regex(/^\d{6}$/, 'The 6-digit collection code') }), req.body);
   await collectParcel(parse(id, req.params.id), code, req.user.id, { vehicleId: vehicle.id });
   res.json(await crewParcels(vehicle));
+});
+
+// The cash collected on the car (today, or yesterday if forgotten), entered once and corrected if needed.
+router.put('/cash', async (req, res) => {
+  const body = parse(z.object({ day: z.string().date().default(nairobiToday), amount: z.number().int().min(0).max(MAX_CASH) }), req.body);
+  const vehicle = await myVehicle(req.user);
+  res.json(await declareCash(vehicle.id, req.user.id, body));
 });
 
 // The vehicle is plying a different route today: passengers who scan after this pay that route's fares. Conductor only.

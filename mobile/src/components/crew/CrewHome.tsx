@@ -10,6 +10,7 @@ import { useT } from '@/lib/i18n';
 import { ROLE_LABEL, type ConductorDay, type ConductorVehicle } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 import { useKeepAwakeWhile } from '@/lib/keepAwake';
+import { CashCard } from './CashCard';
 import { usePaymentFeed } from './usePaymentFeed';
 
 const DAYS = [
@@ -87,6 +88,10 @@ export function CrewHome() {
           </Text>
           <Text style={styles.tripSub}>{trip.route_name}</Text>
         </View>
+      )}
+
+      {day >= -1 && payments.data?.date === date && (
+        <CashCard day={date} isToday={day === 0} cash={payments.data.cash} farepayTotal={payments.data.summary.total} onSaved={() => void payments.reload()} />
       )}
 
       <Pressable

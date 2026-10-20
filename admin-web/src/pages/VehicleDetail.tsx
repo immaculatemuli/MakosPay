@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { displayPhone } from '../format';
-import type { Vehicle, VehicleQr } from '../types';
+import { displayPhone, kes, prettyDate } from '../format';
+import type { Vehicle, VehicleCashDay, VehicleQr } from '../types';
 import { Banner, Dialog, Failed, Loading, PageHead, StickerUssd } from '../ui';
 import { useApi } from '../useApi';
 
@@ -11,6 +11,7 @@ export function VehicleDetail() {
   const { id } = useParams();
   const vehicle = useApi<Vehicle>(`/admin/vehicles/${id}`);
   const qr = useApi<VehicleQr>(`/admin/vehicles/${id}/qr`);
+  const cash = useApi<VehicleCashDay[]>(`/admin/vehicles/${id}/cash`);
   const [confirm, setConfirm] = useState<'qr' | 'off' | 'on' | null>(null);
   const [replaced, setReplaced] = useState(false);
   const v = vehicle.data;
@@ -78,6 +79,36 @@ export function VehicleDetail() {
           </p>
         </div>
       </div>
+
+      <h2>Money, last 14 days</h2>
+      <p className="muted">FarePay fares are verified payments. Cash is only what the crew entered in the app: FarePay does not check it.</p>
+      {cash.error && <Failed message={cash.error} onRetry={cash.reload} />}
+      {cash.data && (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>FarePay fares</th>
+                <th>Cash declared</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cash.data.map((d) => (
+                <tr key={d.day}>
+                  <td>{prettyDate(d.day, true)}</td>
+                  <td>
+                    {kes(d.farepay_total)} <span className="muted">({d.farepay_payments})</span>
+                  </td>
+                  <td>{d.cash === null ? <span className="muted">Not entered</span> : <>{kes(d.cash)} <span className="muted">by {d.cash_by}</span></>}</td>
+                  <td>{kes(d.farepay_total + (d.cash ?? 0))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {confirm && (
         <Dialog

@@ -53,6 +53,8 @@ export const config = {
   // Seat bookings are for today only: none are taken from SEAT_BOOKING_CUTOFF until SEAT_BOOKING_OPENS (Kenyan
   // time), and any paid booking not yet on a car at the cutoff is refunded.
   seatBookingCutoff: env.SEAT_BOOKING_CUTOFF ?? '22:00',
+  // Crew who haven't entered the day's cash by then are reminded (Kenyan time).
+  cashReminderAt: env.CASH_REMINDER_AT ?? '20:00',
   seatBookingOpens: env.SEAT_BOOKING_OPENS ?? '04:00',
   // Loyalty: every FREE_RIDE_EVERY-th paid ride is free (0 = off), counting paid rides in the last FREE_RIDE_WINDOW_DAYS.
   freeRideEvery: num(env.FREE_RIDE_EVERY, 50),
@@ -142,7 +144,7 @@ if (!['daraja', 'intasend'].includes(config.paymentProvider)) throw new Error('P
 if (!['sandbox', 'live'].includes(config.intasend.mode)) throw new Error('INTASEND_MODE must be sandbox or live');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.payoutDailyAt)) throw new Error('PAYOUT_DAILY_AT must be HH:MM, e.g. 21:00');
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.moneyCheckDailyAt)) throw new Error('MONEY_CHECK_DAILY_AT must be HH:MM, e.g. 23:00');
-for (const key of ['seatBookingCutoff', 'seatBookingOpens']) {
+for (const key of ['seatBookingCutoff', 'seatBookingOpens', 'cashReminderAt']) {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config[key])) throw new Error(`${key} must be HH:MM, e.g. 22:00`);
 }
 if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.backupDailyAt)) throw new Error('BACKUP_DAILY_AT must be HH:MM, e.g. 03:00');

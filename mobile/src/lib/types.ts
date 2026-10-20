@@ -198,9 +198,18 @@ export interface CrewTrip {
   total: number;
 }
 
+/** The cash the crew said they collected on the car that day (only declared, never checked). */
+export interface CashDeclared {
+  day: string;
+  amount: number;
+  updated_at: string;
+  declared_by_name: string;
+}
+
 export interface ConductorDay {
   date: string;
   summary: { payments: number; total: number };
+  cash: CashDeclared | null;
   /** Today only (null on other days, or before the car's first trip today). */
   trip: CrewTrip | null;
   payments: Trip[];

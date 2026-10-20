@@ -5,6 +5,7 @@ import { isConfigured, isMock, providerLabel } from './services/mpesa.js';
 import { reconcilePendingPayments } from './services/payments.js';
 import { reconcileProcessingPayouts, startDailyPayouts } from './services/payouts.js';
 import { startNightlyBackup } from './services/backup.js';
+import { startCashReminders } from './services/cash.js';
 import { startNightlyMoneyCheck } from './services/reconciliation.js';
 import { runSeatTimers, startNightlySeatRefunds } from './services/seats.js';
 import { reconcileProcessingWithdrawals, retryUnsentWithdrawals } from './services/withdrawals.js';
@@ -59,6 +60,8 @@ createApp().listen(config.port, () => {
   // Every night the books are checked; the office is alerted only if something doesn't add up.
   startNightlyMoneyCheck();
   startNightlySeatRefunds();
+  // Crew who haven't entered the day's cash are reminded in the evening.
+  startCashReminders();
   console.log(`  Money check runs every night at ${config.moneyCheckDailyAt} (Kenyan time)`);
   startNightlyBackup();
   console.log(`  Database backed up every night at ${config.backupDailyAt} into ${config.backupDir}`);

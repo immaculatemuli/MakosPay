@@ -25,6 +25,15 @@ export interface Route {
   stops: Stop[];
 }
 
+/** One day of a car's money: FarePay fares (verified) and the cash its crew declared (null: not entered). */
+export interface VehicleCashDay {
+  day: string;
+  farepay_payments: number;
+  farepay_total: number;
+  cash: number | null;
+  cash_by: string | null;
+}
+
 export interface Vehicle {
   id: number;
   /** Short number on the sticker, typed by passengers who pay by USSD. */
