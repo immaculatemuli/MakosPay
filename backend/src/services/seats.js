@@ -530,6 +530,16 @@ export async function runSeatTimers() {
   return { reminded: toRemind.length, joined: nowDue.length };
 }
 
+/** When runSeatTimers next has something to do (ms; null: nothing booked for later), so a quiet server can wait. */
+export async function nextSeatTimerAt() {
+  const row = await db.get(
+    `SELECT MIN(CASE WHEN reminded_at IS NULL THEN queued_at END) AS remind, MIN(CASE WHEN marshals_told_at IS NULL THEN queued_at END) AS join_at
+     FROM seat_bookings WHERE status = 'queued' AND ready_at IS NOT NULL`,
+  );
+  const times = [row?.remind && Date.parse(row.remind) - REMIND_BEFORE_MIN * 60_000, row?.join_at && Date.parse(row.join_at)].filter(Boolean);
+  return times.length ? Math.min(...times) : null;
+}
+
 const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
 
 /** Tells a passenger: in the app (and by push), and by SMS for passengers who booked without the app. */

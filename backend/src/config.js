@@ -30,6 +30,8 @@ export const config = {
   // A copy of the database is saved every night (Kenyan time) into backupDir; the newest backupKeep are kept.
   backupDir: env.BACKUP_DIR ?? './data/backups',
   backupDailyAt: env.BACKUP_DAILY_AT ?? '03:00',
+  // Background jobs keep running this long after FarePay was last used; then they wait, so the database can sleep.
+  quietAfterMs: num(env.QUIET_AFTER_MINUTES, 15) * 60_000,
   backupKeep: num(env.BACKUP_KEEP, 14),
   // How many proxies sit in front of the server (e.g. 1 for Caddy), so limits see the phone's real address.
   trustProxy: /^\d+$/.test(env.TRUST_PROXY ?? '') ? Number(env.TRUST_PROXY) : env.TRUST_PROXY || false,

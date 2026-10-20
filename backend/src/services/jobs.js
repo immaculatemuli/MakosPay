@@ -15,14 +15,19 @@ export function claimDailyRun(name, today = nairobiToday()) {
 export function runDaily(name, at, fn) {
   const [hh, mm] = at.split(':').map(Number);
   let running = false;
+  // The day this job was claimed (run here) or found done: no more database checks until the next day, so a quiet
+  // database can sleep after the job's time.
+  let doneFor = null;
   setInterval(async () => {
     const now = new Date(Date.now() + 3 * 60 * 60 * 1000); // Kenya is UTC+3
     const due = now.getUTCHours() * 60 + now.getUTCMinutes() >= hh * 60 + mm;
-    if (running || !due) return;
+    const today = nairobiToday();
+    if (running || !due || doneFor === today) return;
     running = true;
     try {
-      const today = nairobiToday();
-      if (await claimDailyRun(name, today)) await fn(today);
+      const claimed = await claimDailyRun(name, today);
+      doneFor = today;
+      if (claimed) await fn(today);
     } catch (err) {
       console.error(`[${name}] failed:`, err.message);
     } finally {

@@ -143,6 +143,12 @@ export async function retryUnsentWithdrawals() {
   return due.length;
 }
 
+/** When the next retry is due (ms; null: none waiting), so a quiet server can wait for it. */
+export async function nextWithdrawalRetryAt() {
+  const row = await db.get("SELECT MIN(next_try_at) AS at FROM withdrawals WHERE status = 'processing' AND next_try_at IS NOT NULL");
+  return row?.at ? Date.parse(row.at) : null;
+}
+
 const displayPhone = (phone) => (phone.startsWith('254') ? `0${phone.slice(3)}` : phone);
 
 /** The money reached the passenger (M-Pesa confirmed, or the office sent it and recorded the code). */
