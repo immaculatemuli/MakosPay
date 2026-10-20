@@ -116,8 +116,9 @@ export function OfficeSearch() {
     <div className="office-search">
       <input
         type="search"
-        placeholder="Search plate, name, phone, ticket…"
-        aria-label="Search"
+        placeholder="Search…"
+        title="Search a plate, name, phone number or ticket code"
+        aria-label="Search a plate, name, phone number or ticket code"
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && results[0] && open(results[0])}
