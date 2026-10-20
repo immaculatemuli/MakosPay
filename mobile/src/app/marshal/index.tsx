@@ -123,14 +123,24 @@ export default function StageQueue() {
 
       {route && (
         <>
+          {/* A car arrived: scan its sticker (quickest), or find it by plate. */}
           <Button
-            title={t('A car has arrived at {place}', { place: route.origin })}
-            icon="bus-outline"
+            title={t('A car has arrived: scan its sticker')}
+            icon="qr-code-outline"
+            onPress={() => router.push({ pathname: '/marshal/scan-car', params: { route: String(route.id), origin: route.origin } })}
+          />
+          <Button
+            title={t('Find it by number plate')}
+            variant="secondary"
+            icon="search"
             onPress={() => router.push({ pathname: '/marshal/arrived', params: { route: String(route.id), origin: route.origin } })}
           />
 
           <SectionTitle>{t('Loading at {place}', { place: route.origin })}</SectionTitle>
           {loading.length === 0 && <Muted>{t('No car is loading. When one arrives, tap the button above.')}</Muted>}
+          {loading.some((car) => car.bookings.some((b) => b.status === 'assigned' && !b.pickup_name)) && (
+            <Button title={t('Scan passengers on board')} icon="scan-outline" onPress={() => router.push('/marshal/board')} />
+          )}
           {loading.map((car) => (
             <Card key={car.load_id}>
               <View style={styles.carHead}>

@@ -9,7 +9,7 @@ import { cashFor, declareCash, MAX_CASH } from '../services/cash.js';
 import { claimVehicle } from '../services/crewCars.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
 import { askRefund, requestsForTrips } from '../services/refundRequests.js';
-import { boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
+import { boardByCode, boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { getRoute, listRoutes } from '../services/routes.js';
 import { TRIP_SELECT } from '../services/trips.js';
@@ -181,6 +181,12 @@ router.post('/bookings/:id/board', async (req, res) => {
 // Seat bookings put on this car: who to pick where (at the stage or on the road), and ticking them on.
 router.get('/seats', async (req, res) => {
   res.json(await crewSeats((await myVehicle(req.user)).id));
+});
+
+// Boarding by scanning the passenger's booking QR (or typing its code): only passengers put on this car.
+router.post('/seats/board-code', async (req, res) => {
+  const { code } = parse(z.object({ code: z.string().trim().min(4).max(40) }), req.body);
+  res.json(await boardByCode(code, { vehicleId: (await myVehicle(req.user)).id }));
 });
 
 router.post('/seats/:id/board', async (req, res) => {

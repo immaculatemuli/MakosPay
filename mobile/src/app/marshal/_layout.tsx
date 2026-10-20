@@ -18,6 +18,8 @@ export default function MarshalLayout() {
         options={{ title: t('Stage queue'), headerRight: () => (user.role === 'marshal' ? <HeaderActions accountHref="/marshal/account" /> : null) }}
       />
       <Stack.Screen name="arrived" options={{ title: t('A car has arrived') }} />
+      <Stack.Screen name="scan-car" options={{ title: t('Scan the car') }} />
+      <Stack.Screen name="board" options={{ title: t('Scan passengers on board') }} />
       <Stack.Screen name="notifications" options={{ title: t('Notifications') }} />
       <Stack.Screen name="account" options={{ title: t('My account') }} />
     </Stack>

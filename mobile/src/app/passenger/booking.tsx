@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Text, View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { CarMap } from '@/components/CarMap';
 import { Button, Card, colors, ErrorBox, KeyValue, Loading, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
@@ -102,7 +103,14 @@ export default function BookingScreen() {
           <Text style={{ fontWeight: '800', fontSize: 18, color: good ? colors.primaryDark : b.status === 'paying' ? colors.warning : colors.danger }}>
             {t(TITLE[b.status])}
           </Text>
+          {/* Shown at boarding: the marshal or conductor scans it (or reads the code below). */}
+          {(b.status === 'queued' || b.status === 'assigned') && (
+            <View style={{ backgroundColor: '#fff', padding: 12, borderRadius: 12, marginVertical: 8 }}>
+              <QRCode value={`FAREPAY-SEAT:${b.code}`} size={200} />
+            </View>
+          )}
           <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: 6, color: colors.text, marginVertical: 4 }}>{b.code}</Text>
+          {(b.status === 'queued' || b.status === 'assigned') && <Muted center>{t('Show this when you board: they scan it.')}</Muted>}
           {b.car && <Text style={{ fontSize: 26, fontWeight: '800', color: colors.text }}>{b.car.plate}</Text>}
           {b.car?.description && <Muted>{b.car.description}</Muted>}
         </View>

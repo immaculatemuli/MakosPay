@@ -745,6 +745,31 @@ export async function boardSeat(bookingId, { vehicleId = null } = {}) {
   return seatView(bookingId);
 }
 
+/**
+ * Boarding by scanning the QR on the passenger's booking screen (or typing its code): the marshal (any car) or the
+ * crew (their own car only). Says who it is, so whoever scans can check them. Scanning twice is harmless.
+ */
+export async function boardByCode(rawCode, { vehicleId = null } = {}) {
+  const code = String(rawCode ?? '').trim().toUpperCase().replace(/^FAREPAY-SEAT:/, '');
+  const row = await db.get('SELECT id, status FROM seat_bookings WHERE code = ?', code);
+  if (!row) throw new HttpError(404, 'BOOKING_NOT_FOUND', 'No seat booking with this code.');
+  const before = await getRow(row.id);
+  if (before.status === 'queued') throw new HttpError(409, 'NOT_ON_A_CAR', `${before.passenger_name} (${before.code}) is still waiting in the queue: no car has been given to them yet.`);
+  if (vehicleId !== null && before.vehicle_id !== vehicleId) {
+    throw new HttpError(409, 'OTHER_CAR', before.plate ? `${before.passenger_name} (${before.code}) is booked on ${before.plate}, not this car.` : 'This booking is not on this car.');
+  }
+  if (before.status !== 'assigned' && before.status !== 'boarded') throw new HttpError(409, 'NOT_ON_A_CAR', `Booking ${before.code} is ${before.status}: it can't board.`);
+  await boardSeat(row.id, { vehicleId });
+  return {
+    code: before.code,
+    passenger_name: before.passenger_name,
+    seats: before.seats,
+    stop_name: before.stop_name,
+    plate: before.plate,
+    already_boarded: before.status === 'boarded',
+  };
+}
+
 /** The passenger is at the pickup point: their car's crew (or, before a car is given, the marshals) are told. */
 export async function passengerHere(bookingId) {
   const b = await getRow(bookingId);
