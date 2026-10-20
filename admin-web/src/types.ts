@@ -372,7 +372,7 @@ export interface TripDetail extends TripSummary {
     status: 'paying' | 'confirmed' | 'boarded' | 'departed' | 'cancelled' | 'paid_late';
     seats: number;
     amount: number;
-    paid_with: 'wallet' | 'mpesa';
+    paid_with: 'wallet' | 'mpesa' | 'free';
     stop_name: string;
     passenger_name: string;
     passenger_phone: string;
