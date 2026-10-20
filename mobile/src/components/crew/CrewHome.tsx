@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
-import { Badge, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Notice, Screen, SectionTitle } from '@/components/ui';
+import { Badge, Button, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Notice, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { kes, nairobiDate, prettyDate, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
@@ -41,11 +41,15 @@ export function CrewHome() {
 
   if (vehicle.loading && !vehicle.data) return <Loading />;
 
+  // Crew choose their car by scanning its sticker (they switch cars and cover for each other).
+  const scanCarHref = isConductor ? '/conductor/scan-car' : '/driver/scan-car';
+
   if (!vehicle.data) {
     return (
       <Screen refreshing={vehicle.refreshing} onRefresh={vehicle.refresh}>
         <Hero name={user?.name} subtitle={roleLabel} />
         <Notice>{vehicle.error ?? t('You are not on a vehicle yet.')}</Notice>
+        <Button title={t('Scan the QR sticker in your car')} icon="qr-code-outline" onPress={() => router.push(scanCarHref)} />
       </Screen>
     );
   }
@@ -115,6 +119,15 @@ export function CrewHome() {
         {isConductor && <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />}
       </Pressable>
       {!v.route && <Notice>{t('Passengers can’t pay until the vehicle has a route.')}</Notice>}
+      <List>
+        <ListRow
+          icon={feed.speak ? 'volume-high-outline' : 'volume-mute-outline'}
+          title={feed.speak ? t('Payments are read aloud') : t('Payments are not read aloud')}
+          subtitle={feed.speak ? t('Tap to turn off') : t('Tap to turn on: useful when driving alone')}
+          onPress={feed.toggleSpeak}
+        />
+        <ListRow icon="swap-horizontal-outline" title={t('Working on another car today?')} subtitle={t('Scan the QR sticker inside it')} onPress={() => router.push(scanCarHref)} />
+      </List>
 
       <SectionTitle>{t('Payments')}</SectionTitle>
       <Chips options={DAYS.map((d) => ({ ...d, label: t(d.label) }))} value={day} onChange={setDay} />
