@@ -506,8 +506,8 @@ export const SW: Record<string, string> = {
   'Trip finished': 'Safari imekwisha',
   'Booked passengers on this trip': 'Abiria waliohifadhi viti kwenye safari hii',
   'Not taking bookings': 'Halipokei abiria wanaohifadhi viti',
-  'When the car is at the stage, start loading: passengers can then book and pay for seats on it on the website.':
-    'Gari likiwa stejini, anza kujaza abiria: abiria wataweza kuhifadhi na kulipia viti ndani yake kwenye tovuti.',
+  'When the car is at the stage, start loading: passengers booked in the queue are put on it, and others can book and pay for its seats in the app or on the website.':
+    'Gari likiwa stejini, anza kujaza abiria: abiria waliohifadhi kwenye foleni wanawekwa ndani yake, na wengine wanaweza kuhifadhi na kulipia viti vyake kwenye programu au tovuti.',
   'Start loading ({n} seats)': 'Anza kujaza abiria (viti {n})',
   'At the stage': 'Stejini',
   'Loading since {time}': 'Linajaza abiria tangu saa {time}',

@@ -7,7 +7,11 @@ import { Button, colors, ErrorBox, Field, Notice } from './ui';
 /**
  * "Server address" on the sign-in screen. While FarePay's server runs on a laptop behind a free tunnel,
  * its address changes when the tunnel restarts: paste the new one here instead of reinstalling the app.
+ * Passengers don't see it in a real build (an https:// server): only in test builds (http://, a laptop on the
+ * Wi-Fi), or once the address was changed (so it can be changed back).
  */
+const shown = () => DEFAULT_API_URL.startsWith('http://') || getApiUrl() !== DEFAULT_API_URL;
+
 export function ServerSetting() {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -32,6 +36,7 @@ export function ServerSetting() {
     }
   };
 
+  if (!open && !shown()) return null;
   if (!open) {
     return (
       <Pressable onPress={() => setOpen(true)} style={{ padding: 8, marginTop: 8 }}>
