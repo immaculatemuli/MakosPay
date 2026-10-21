@@ -44,6 +44,6 @@ test('the short link /app opens the page to download the app', async () => {
     assert.equal(res.status, 200, path);
     const html = await res.text();
     assert.match(html, /Get the FarePay app/);
-    assert.match(html, /href="https:\/\/expo\.dev\/artifacts\/eas\/[\w-]+\.apk"/, 'a direct APK link');
+    assert.match(html, /href="https:\/\/github\.com\/[\w-]+\/[\w-]+\/releases\/latest\/download\/FarePay\.apk"/, 'the newest release\'s APK');
   }
 });
