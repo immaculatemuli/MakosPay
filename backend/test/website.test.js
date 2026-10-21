@@ -37,3 +37,13 @@ test('the website never hides the API or the other pages', async () => {
   assert.equal((await fetch(`${base}/pay`)).status, 200, 'the pay page');
   assert.equal((await fetch(`${base}/../backend/.env`)).status, 404, 'nothing outside the website folder');
 });
+
+test('the short link /app opens the page to download the app', async () => {
+  for (const path of ['/app', '/app.html']) {
+    const res = await fetch(`${base}${path}`);
+    assert.equal(res.status, 200, path);
+    const html = await res.text();
+    assert.match(html, /Get the FarePay app/);
+    assert.match(html, /href="https:\/\/expo\.dev\/artifacts\/eas\/[\w-]+\.apk"/, 'a direct APK link');
+  }
+});

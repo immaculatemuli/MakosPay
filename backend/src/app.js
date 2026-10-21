@@ -60,7 +60,8 @@ function serveWebsite(app) {
       res.set('Cache-Control', 'public, max-age=300');
       next();
     },
-    express.static(dir, { index: 'index.html', redirect: false }),
+    // extensions: /app opens app.html (the short link people are sent to download the app).
+    express.static(dir, { index: 'index.html', redirect: false, extensions: ['html'] }),
   );
 }
 
