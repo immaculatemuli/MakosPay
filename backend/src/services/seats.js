@@ -776,7 +776,7 @@ export async function boardSeat(bookingId, { vehicleId = null } = {}) {
     if (b.status !== 'assigned') throw new HttpError(409, 'NOT_ON_A_CAR', 'Only a booking put on this car can board.');
     const vehicle = await getVehicle(b.vehicle_id);
     const stop = await db.get('SELECT * FROM route_stops WHERE id = ?', b.stop_id);
-    await postWalletEntry(b.passenger_id, { type: 'booking_release', amount: b.amount, reference: b.code, description: `Seat booking ${b.code}: boarded ${b.plate}` });
+    await postWalletEntry(b.passenger_id, { type: 'booking_release', amount: b.amount, reference: b.code, description: `Seat booking ${b.code}: the held money pays your fare on ${b.plate}` });
     const tripId = await recordTrip({ passengerId: b.passenger_id, vehicle, stop, fare: b.amount, idempotencyKey: `seat-${b.id}`, freeRide: Boolean(b.free_ride) });
     await db.run(`UPDATE seat_bookings SET status = 'boarded', boarded_at = ${NOW}, trip_id = ? WHERE id = ?`, tripId, b.id);
     if (!b.free_ride) await afterPaidRide(b.passenger_id);

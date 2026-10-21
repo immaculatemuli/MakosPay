@@ -12,6 +12,7 @@ import { arriveAtStop } from './parcels.js';
 import { getPayment, refreshPayment, requireMpesa, sendPrompt } from './payments.js';
 import { applyDueFareChanges, getRoute, listRoutes, requireActiveStop } from './routes.js';
 import { fillRoute, onDeparted, onTripFinished, seatsTaken } from './seats.js';
+import { runDaily } from './jobs.js';
 import { recordTrip, refundTrip } from './trips.js';
 
 export const MAX_SEATS_PER_BOOKING = 10;
@@ -529,6 +530,30 @@ export async function finishTrip(vehicle) {
   if (!done?.changes) throw new HttpError(409, 'NOT_ON_ROAD', 'There is no trip on the road to finish.');
   await onTripFinished(road);
   return crewLoad(vehicle);
+}
+
+/**
+ * At night: trips the crew never marked finished, and cars left "loading" at the stage, are closed, so every car
+ * starts the morning fresh (not "on the road since 21:13" from yesterday). A car still loading is counted as left
+ * then (nobody else can get on it). Returns how many were closed.
+ */
+export async function closeStaleTrips() {
+  const stale = await db.all("SELECT * FROM loads WHERE status = 'loading' OR (status = 'departed' AND finished_at IS NULL)");
+  for (const l of stale) {
+    await db.run(
+      `UPDATE loads SET status = 'departed', departed_at = COALESCE(departed_at, ${NOW}), finished_at = ${NOW} WHERE id = ? AND finished_at IS NULL`,
+      l.id,
+    );
+    await onTripFinished(l);
+  }
+  return stale.length;
+}
+
+export function startNightlyTripClose() {
+  runDaily('close_trips', config.closeTripsAt, async () => {
+    const n = await closeStaleTrips();
+    if (n) console.log(`[trips] ${n} trip(s) left open closed for the night`);
+  });
 }
 
 /** Whether a car is taking bookings (its route can't change meanwhile). */

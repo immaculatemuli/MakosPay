@@ -32,6 +32,8 @@ export const config = {
   backupDailyAt: env.BACKUP_DAILY_AT ?? '03:00',
   // Background jobs keep running this long after FarePay was last used; then they wait, so the database can sleep.
   quietAfterMs: num(env.QUIET_AFTER_MINUTES, 15) * 60_000,
+  // Kenyan time when trips the crew never finished (and cars left loading) are closed for the night.
+  closeTripsAt: env.CLOSE_TRIPS_AT ?? '03:00',
   backupKeep: num(env.BACKUP_KEEP, 14),
   // How many proxies sit in front of the server (e.g. 1 for Caddy), so limits see the phone's real address.
   trustProxy: /^\d+$/.test(env.TRUST_PROXY ?? '') ? Number(env.TRUST_PROXY) : env.TRUST_PROXY || false,
