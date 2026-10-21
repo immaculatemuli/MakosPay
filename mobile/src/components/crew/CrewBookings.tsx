@@ -156,7 +156,7 @@ export function CrewBookings() {
       {d && !d.loading && (
         <Card>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>{t('Not taking bookings')}</Text>
-          <Muted>{t('When the car is at the stage, start loading: passengers can then book and pay for seats on it on the website.')}</Muted>
+          <Muted>{t('When the car is at the stage, start loading: passengers booked in the queue are put on it, and others can book and pay for its seats in the app or on the website.')}</Muted>
           <View style={{ height: 8 }} />
           <Button title={t('Start loading ({n} seats)', { n: d.vehicle_seats })} icon="people-outline" onPress={start} loading={busy === 'start'} />
         </Card>
