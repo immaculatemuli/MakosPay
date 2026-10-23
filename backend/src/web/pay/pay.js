@@ -5,7 +5,7 @@
 const $ = (id) => document.getElementById(id);
 const qr = new URLSearchParams(location.search).get('v');
 
-// Remembered on this phone only, so the next fare is: pick the stop (often already picked), tap Pay.
+// Remembered on this phone only (the M-Pesa number), so the next fare is just: scan, enter PIN.
 const remember = {
   get(key) {
     try {
@@ -40,9 +40,8 @@ async function call(method, path, body) {
 }
 
 let page = null; // the vehicle and route, from FarePay
-let chosenStop = null;
 let pollTimer = null;
-// What is being paid, shown while waiting for the PIN: { plate, stop, phone }.
+// What is being paid, shown while waiting for the PIN: { plate, phone }.
 let current = null;
 
 const spaced = (phone) => phone.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 $2 $3');
@@ -53,52 +52,27 @@ const normalPhone = (text) => {
   return m ? `0${m[1]}` : null;
 };
 
+// One fare for the whole car: the fare to the route's last stop. The passenger doesn't pick a stop.
+const carFare = () => page.route.stops.at(-1);
+
 function updatePayButton() {
-  const stop = page?.route.stops.find((s) => s.id === chosenStop);
+  const stop = page && carFare();
   const button = $('pay');
   button.disabled = !stop || !normalPhone($('phone').value);
-  button.textContent = stop ? `Pay ${kes(stop.fare)} with M-Pesa` : 'Choose your stop';
-}
-
-function chooseStop(id) {
-  chosenStop = id;
-  for (const el of $('stops').children) el.setAttribute('aria-checked', String(Number(el.dataset.id) === id));
-  updatePayButton();
+  button.textContent = stop ? `Pay ${kes(stop.fare)} with M-Pesa` : 'Pay with M-Pesa';
 }
 
 function renderChoose({ quick = false } = {}) {
   $('sacco').textContent = page.sacco_name;
   $('plate').textContent = page.vehicle.plate;
   $('route').textContent = `${page.route.name}${page.vehicle.description ? ` · ${page.vehicle.description}` : ''}`;
-  const stops = $('stops');
-  stops.replaceChildren();
-  for (const stop of page.route.stops) {
-    const el = document.createElement('button');
-    el.type = 'button';
-    el.className = 'stop';
-    el.setAttribute('role', 'radio');
-    el.dataset.id = String(stop.id);
-    const name = document.createElement('span');
-    name.textContent = stop.name;
-    const fare = document.createElement('span');
-    fare.className = 'fare';
-    fare.textContent = kes(stop.fare);
-    el.append(name, fare);
-    el.addEventListener('click', () => chooseStop(stop.id));
-    stops.append(el);
-  }
-  // The stop this phone paid to last time on this route, or the only stop.
-  const last = remember.get(`stop.${page.route.id}`);
-  const preselect = page.route.stops.find((s) => s.id === last) ?? (page.route.stops.length === 1 ? page.route.stops[0] : null);
-  chosenStop = null;
-  if (preselect) chooseStop(preselect.id);
+  $('fare').textContent = kes(carFare().fare);
   if (!$('phone').value) $('phone').value = remember.get('phone') ?? '';
   $('choose-error').hidden = true;
   updatePayButton();
-  // This phone has paid before and the stop is known (the only stop, or the one it paid to last time on this
-  // route): straight to the M-Pesa PIN prompt. Entering the PIN is the passenger's confirmation.
+  // This phone has paid before: straight to the M-Pesa PIN prompt. Entering the PIN is the passenger's confirmation.
   const phone = normalPhone($('phone').value);
-  if (quick && preselect && phone) return pay();
+  if (quick && phone) return pay();
   show('choose');
 }
 
@@ -112,19 +86,18 @@ function newKey() {
 }
 
 async function pay() {
-  const stop = page.route.stops.find((s) => s.id === chosenStop);
+  const stop = carFare();
   const phone = normalPhone($('phone').value);
   if (!stop || !phone) return;
   const button = $('pay');
   button.disabled = true;
   button.textContent = 'Sending the M-Pesa prompt…';
   $('choose-error').hidden = true;
-  current = { plate: page.vehicle.plate, stop: stop.name, phone };
+  current = { plate: page.vehicle.plate, phone };
   showWaiting(stop.fare, 'Sending the M-Pesa PIN prompt to your phone…');
   try {
     const result = await call('POST', '/pay-api/pay', { qr, stop_id: stop.id, expected_fare: stop.fare, phone, idempotency_key: newKey() });
     remember.set('phone', phone);
-    remember.set(`stop.${page.route.id}`, stop.id);
     // A free ride (loyalty) is paid at once, with nothing to follow.
     if (result.status_token) remember.set('last', { token: result.status_token, qr, at: Date.now() });
     follow(result.status_token, result);
@@ -138,10 +111,10 @@ async function pay() {
   }
 }
 
-/** "Enter your PIN to pay KES 70 · KDA 123A to Juja · prompt sent to 0733 444 555". */
+/** "Enter your PIN to pay KES 70 · KDA 123A · prompt sent to 0733 444 555". */
 function showWaiting(amount, note) {
   $('waiting-amount').textContent = kes(amount);
-  $('waiting-what').textContent = current ? `${current.plate} · to ${current.stop}\nPrompt sent to ${spaced(current.phone)}` : '';
+  $('waiting-what').textContent = current ? `${current.plate}\nPrompt sent to ${spaced(current.phone)}` : '';
   $('waiting-what').hidden = !current;
   $('waiting-note').textContent = note;
   $('give-up').hidden = true;
@@ -151,7 +124,7 @@ function showWaiting(amount, note) {
 function showTicket(ticket) {
   $('t-code').textContent = ticket.code;
   $('t-plate').textContent = ticket.plate;
-  $('t-trip').textContent = `${ticket.route_name} to ${ticket.stop_name} · ${ticket.free_ride ? 'FREE RIDE: thank you for riding with us!' : kes(ticket.fare)}${ticket.status === 'refunded' ? ' · REFUNDED' : ''}`;
+  $('t-trip').textContent = `${ticket.route_name} · ${ticket.free_ride ? 'FREE RIDE: thank you for riding with us!' : kes(ticket.fare)}${ticket.status === 'refunded' ? ' · REFUNDED' : ''}`;
   $('t-time').textContent = new Date(ticket.paid_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi', dateStyle: 'medium', timeStyle: 'short' });
   show('paid');
 }

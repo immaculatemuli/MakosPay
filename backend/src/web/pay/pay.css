@@ -39,13 +39,9 @@ h2 { font-size: 17px; margin: 18px 0 10px; }
 .center { text-align: center; }
 .vehicle { text-align: center; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
 .plate { font-size: 30px; font-weight: 800; letter-spacing: 0.04em; }
-.stops { display: grid; gap: 8px; }
-.stop { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: 12px; background: var(--card); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.stop[aria-checked='true'] { border-color: var(--brand); background: var(--brand-soft); }
-.stop .fare { font-weight: 700; white-space: nowrap; margin-left: 12px; }
 label { display: block; font-weight: 600; margin: 18px 0 6px; }
 input { width: 100%; padding: 14px 16px; font: inherit; font-size: 18px; border: 2px solid var(--border); border-radius: 12px; background: var(--card); color: var(--text); }
-input:focus, .stop:focus-visible, button:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+input:focus, button:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
 button { display: block; width: 100%; margin-top: 18px; padding: 16px; font: inherit; font-size: 18px; font-weight: 700; color: var(--on-brand); background: var(--brand); border: 0; border-radius: 12px; cursor: pointer; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.secondary { background: transparent; color: var(--brand); border: 2px solid var(--brand); }
