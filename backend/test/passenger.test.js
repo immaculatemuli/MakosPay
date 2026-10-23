@@ -2,13 +2,14 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -57,7 +58,7 @@ before(async () => {
     body: { plate: 'KDA 123A', description: 'White Nissan', owner_name: 'Mary Owner', owner_phone: '0744555666', conductor_id: conductor.id, route_id: s.route.id },
   })).body;
   s.qr = `farepay://pay?v=${s.vehicle.qr_token}`;
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722222222', password: 'pass123' } })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722222222', password: 'pass123' })).body.token;
 });
 after(() => server.close());
 
@@ -119,8 +120,8 @@ test('paying to a stop that is not on the vehicle route is refused', async () =>
 });
 
 test('paying from the wallet takes the drop-off fare and gives a ticket', async () => {
-  const userId = db.prepare("SELECT id FROM users WHERE phone = '254722222222'").get().id;
-  tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 500, description: 'Test credit' }));
+  const userId = (await db.get("SELECT id FROM users WHERE phone = '254722222222'")).id;
+  await tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 500, description: 'Test credit' }));
 
   const key = randomUUID();
   const r = await pay(key);
@@ -139,7 +140,7 @@ test('paying from the wallet takes the drop-off fare and gives a ticket', async 
 });
 
 test('the owner of the vehicle at the time is recorded on the trip', async () => {
-  const trip = db.prepare('SELECT owner_name, owner_phone FROM trips WHERE ticket_code = ?').get(s.ticket);
+  const trip = (await db.get('SELECT owner_name, owner_phone FROM trips WHERE ticket_code = ?', s.ticket));
   assert.deepEqual({ ...trip }, { owner_name: 'Mary Owner', owner_phone: '254744555666' });
 });
 

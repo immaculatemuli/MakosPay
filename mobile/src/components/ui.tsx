@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ComponentProps, ReactNode } from 'react';
+import { ComponentProps, ReactNode, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,11 +12,13 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { useT } from '@/lib/i18n';
 
 export const colors = {
-  primary: '#0A7A3D',
-  primaryDark: '#075C2E',
-  primarySoft: '#E7F5EC',
+  // Makos Sacco magenta (white text on it is easy to read).
+  primary: '#D4268F',
+  primaryDark: '#A8166E',
+  primarySoft: '#FCE7F3',
   text: '#111827',
   muted: '#6B7280',
   border: '#E5E7EB',
@@ -107,23 +109,47 @@ export function Button({
   );
 }
 
-export function Field({ label, hint, style, ...props }: TextInputProps & { label: string; hint?: string }) {
+/** A labelled text box. A password box (secureTextEntry) gets an eye button to show or hide what was typed. */
+export function Field({ label, hint, style, secureTextEntry, ...props }: TextInputProps & { label: string; hint?: string }) {
+  const { t } = useT();
+  const [shown, setShown] = useState(false);
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput placeholderTextColor="#9CA3AF" style={[styles.input, style]} {...props} />
+      <View>
+        <TextInput
+          placeholderTextColor="#9CA3AF"
+          style={[styles.input, secureTextEntry && { paddingRight: 48 }, style]}
+          secureTextEntry={secureTextEntry && !shown}
+          autoCapitalize={secureTextEntry ? 'none' : props.autoCapitalize}
+          autoCorrect={secureTextEntry ? false : props.autoCorrect}
+          {...props}
+        />
+        {secureTextEntry && (
+          <Pressable
+            onPress={() => setShown((s) => !s)}
+            hitSlop={8}
+            style={styles.eye}
+            accessibilityRole="button"
+            accessibilityLabel={shown ? t('Hide password') : t('Show password')}
+          >
+            <Ionicons name={shown ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.muted} />
+          </Pressable>
+        )}
+      </View>
       {hint && <Text style={styles.hint}>{hint}</Text>}
     </View>
   );
 }
 
 export function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useT();
   return (
     <View style={styles.errorBox}>
       <Text style={styles.errorText}>{message}</Text>
       {onRetry && (
         <Pressable onPress={onRetry} hitSlop={8}>
-          <Text style={styles.retry}>Try again</Text>
+          <Text style={styles.retry}>{t('Try again')}</Text>
         </Pressable>
       )}
     </View>
@@ -287,6 +313,7 @@ export const styles = StyleSheet.create({
   field: { marginBottom: 14 },
   label: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 6 },
   hint: { fontSize: 12, color: colors.muted, marginTop: 4 },
+  eye: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 46, alignItems: 'center', justifyContent: 'center' },
   input: {
     backgroundColor: colors.card,
     borderWidth: 1,

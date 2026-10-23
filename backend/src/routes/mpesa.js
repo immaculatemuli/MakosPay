@@ -9,10 +9,11 @@ import { safeEqual } from '../util.js';
 
 const router = Router();
 
-const accept = (handler) => (req, res) => {
+// The payment is fully recorded before Safaricom is told "Accepted".
+const accept = (handler) => async (req, res) => {
   if (!safeEqual(req.params.secret, config.mpesa.callbackSecret)) return res.status(404).end();
   try {
-    handler(req.body);
+    await handler(req.body);
   } catch (err) {
     console.error('[mpesa] callback processing failed', err, JSON.stringify(req.body));
   }
@@ -21,13 +22,13 @@ const accept = (handler) => (req, res) => {
 
 router.post('/callback/:secret/stk', accept(handleStkCallback)); // passenger payments
 // B2C sends money to a phone: an owner payout or a passenger's wallet withdrawal (told apart by its id).
-const b2cResult = (body) => {
-  if (body?.Result?.OriginatorConversationID && handleWithdrawalResult(body.Result)) return;
-  handleB2cResult(body);
+const b2cResult = async (body) => {
+  if (body?.Result?.OriginatorConversationID && (await handleWithdrawalResult(body.Result))) return;
+  await handleB2cResult(body);
 };
-const b2cTimeout = (body) => {
-  handleWithdrawalTimeout(body?.Result?.OriginatorConversationID ?? body?.OriginatorConversationID);
-  handleB2cTimeout(body);
+const b2cTimeout = async (body) => {
+  await handleWithdrawalTimeout(body?.Result?.OriginatorConversationID ?? body?.OriginatorConversationID);
+  await handleB2cTimeout(body);
 };
 router.post('/callback/:secret/b2c/result', accept(b2cResult));
 router.post('/callback/:secret/b2c/timeout', accept(b2cTimeout));

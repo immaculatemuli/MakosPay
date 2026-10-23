@@ -4,7 +4,7 @@
 // sends it by hand and records the M-Pesa code, just like owner payouts.
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
-import { db, insertId, NOW, tx } from '../db.js';
+import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { nairobiDayRange, nairobiToday } from '../util.js';
 import { audit } from './audit.js';
@@ -17,35 +17,49 @@ export const WITHDRAWAL_SELECT = `
   SELECT w.*, u.name AS passenger_name, h.name AS handled_by_name
   FROM withdrawals w JOIN users u ON u.id = w.user_id LEFT JOIN users h ON h.id = w.handled_by`;
 
-export const getWithdrawal = (id) => db.prepare(`${WITHDRAWAL_SELECT} WHERE w.id = ?`).get(id);
+export const getWithdrawal = (id) => db.get(`${WITHDRAWAL_SELECT} WHERE w.id = ?`, id);
 export const walletReference = (withdrawalId) => `W${withdrawalId}`;
 
-export function requestWithdrawal(user, amount) {
+export async function requestWithdrawal(user, amount) {
   if (amount < config.minWithdrawal) throw new HttpError(400, 'AMOUNT_TOO_SMALL', `The smallest withdrawal is ${kesText(config.minWithdrawal)}.`);
-  const withdrawal = tx(() => {
-    if (db.prepare(`SELECT 1 FROM withdrawals WHERE user_id = ? AND status IN ('processing', 'manual')`).get(user.id)) {
+  const withdrawal = await tx(async () => {
+    if (await db.get(`SELECT 1 FROM withdrawals WHERE user_id = ? AND status IN ('processing', 'manual')`, user.id)) {
       throw new HttpError(409, 'WITHDRAWAL_IN_PROGRESS', 'Your last withdrawal is still being sent. Please wait for it to finish.');
     }
     const [from, to] = nairobiDayRange(nairobiToday());
-    const today = db.prepare('SELECT COUNT(*) AS n FROM withdrawals WHERE user_id = ? AND created_at >= ? AND created_at < ?').get(user.id, from, to).n;
+    const today = (await db.get('SELECT COUNT(*) AS n FROM withdrawals WHERE user_id = ? AND created_at >= ? AND created_at < ?', user.id, from, to)).n;
     if (today >= config.maxWithdrawalsPerDay) {
       throw new HttpError(429, 'TOO_MANY_WITHDRAWALS', `You can withdraw ${config.maxWithdrawalsPerDay} times a day. Please try again tomorrow.`);
     }
-    const auto = mpesa.isConfigured.b2c;
-    const id = insertId(
-      db
-        .prepare('INSERT INTO withdrawals (user_id, phone, amount, status, conversation_id) VALUES (?, ?, ?, ?, ?)')
-        .run(user.id, user.phone, amount, auto ? 'processing' : 'manual', randomUUID()),
-    );
-    // Throws "not enough money" (and undoes everything) if the wallet is short.
-    postWalletEntry(user.id, { type: 'withdrawal', amount: -amount, reference: walletReference(id), description: 'Withdrawal to M-Pesa' });
-    return getWithdrawal(id);
+    return createWithdrawal(user, amount, 'Withdrawal to M-Pesa');
   });
+  return dispatchWithdrawal(withdrawal);
+}
 
+/**
+ * Takes `amount` from the passenger's wallet to send to their own M-Pesa number (no limits: also used for refunds
+ * the system makes, e.g. a cancelled seat booking). Must run inside tx(); then call dispatchWithdrawal.
+ */
+export async function createWithdrawal(user, amount, description) {
+  const id = await db.insert(
+    'INSERT INTO withdrawals (user_id, phone, amount, status, conversation_id) VALUES (?, ?, ?, ?, ?)',
+    user.id,
+    user.phone,
+    amount,
+    mpesa.isConfigured.b2c ? 'processing' : 'manual',
+    randomUUID(),
+  );
+  // Throws "not enough money" (and undoes everything) if the wallet is short.
+  await postWalletEntry(user.id, { type: 'withdrawal', amount: -amount, reference: walletReference(id), description });
+  return getWithdrawal(id);
+}
+
+/** Sends a created withdrawal by M-Pesa, or (no automatic payouts set up) asks the office to send it by hand. */
+export async function dispatchWithdrawal(withdrawal) {
   if (withdrawal.status === 'manual') {
-    notifyOffice({
+    await notifyOffice({
       kind: 'withdrawal.manual',
-      title: `Send ${kesText(amount)} to passenger ${withdrawal.passenger_name}`,
+      title: `Send ${kesText(withdrawal.amount)} to passenger ${withdrawal.passenger_name}`,
       body: `Wallet withdrawal to ${displayPhone(withdrawal.phone)}. Send it by M-Pesa, then record the M-Pesa code.`,
       target: 'withdrawals',
     });
@@ -64,15 +78,17 @@ async function sendByMpesa(withdrawal) {
       remarks: 'FarePay wallet withdrawal',
       occasion: 'Wallet withdrawal',
     });
-    db.prepare('UPDATE withdrawals SET provider_reference = ? WHERE id = ?').run(providerReference, withdrawal.id);
-    if (mpesa.isMock) handleWithdrawalResult(mpesa.mockB2cResult({ originatorConversationId: withdrawal.conversation_id }).Result);
+    await db.run('UPDATE withdrawals SET provider_reference = ? WHERE id = ?', providerReference, withdrawal.id);
+    if (mpesa.isMock) await handleWithdrawalResult(mpesa.mockB2cResult({ originatorConversationId: withdrawal.conversation_id }).Result);
   } catch (err) {
     if (err.rejected) {
-      failWithdrawal(withdrawal.id, `M-Pesa refused the payment: ${err.message}`);
+      await failWithdrawal(withdrawal.id, `M-Pesa refused the payment: ${err.message}`);
+    } else if (err.notSent) {
+      await notSentYet(withdrawal, err);
     } else {
       // Network problem: M-Pesa may still have sent it, so the wallet is not refilled automatically.
-      db.prepare('UPDATE withdrawals SET result_desc = ? WHERE id = ?').run(`Result unknown (${err.message}). Check the M-Pesa statement.`, withdrawal.id);
-      notifyOffice({
+      await db.run('UPDATE withdrawals SET result_desc = ? WHERE id = ?', `Result unknown (${err.message}). Check the M-Pesa statement.`, withdrawal.id);
+      await notifyOffice({
         kind: 'withdrawal.unknown',
         title: `Check a withdrawal of ${kesText(withdrawal.amount)}`,
         body: `M-Pesa did not answer for ${withdrawal.passenger_name}'s withdrawal. Check the M-Pesa statement, then mark it sent or failed.`,
@@ -83,18 +99,68 @@ async function sendByMpesa(withdrawal) {
   return getWithdrawal(withdrawal.id);
 }
 
+// Minutes to wait before each new try when M-Pesa could not be reached (about 17 hours in all); then the office.
+const RETRY_MINUTES = [2, 5, 10, 15, 30, 60, 60, 120, 240, 480];
+
+/**
+ * M-Pesa could not be reached at all (no connection), so nothing was sent: it is tried again automatically, later and
+ * later. After the last try the office is asked to send it by hand. The money stays out of the wallet meanwhile.
+ */
+async function notSentYet(withdrawal, err) {
+  const attempts = withdrawal.send_attempts + 1;
+  const reason = err.cause?.code ?? err.message;
+  const wait = RETRY_MINUTES[attempts - 1];
+  if (wait === undefined) {
+    await db.run(
+      "UPDATE withdrawals SET status = 'manual', send_attempts = ?, next_try_at = NULL, result_desc = ? WHERE id = ? AND status = 'processing'",
+      attempts,
+      `Could not reach M-Pesa after ${attempts} tries (${reason}). Nothing was sent: send it by hand.`,
+      withdrawal.id,
+    );
+    await dispatchWithdrawal(await getWithdrawal(withdrawal.id));
+    return;
+  }
+  const next = new Date(Date.now() + wait * 60_000).toISOString();
+  await db.run(
+    "UPDATE withdrawals SET send_attempts = ?, next_try_at = ?, result_desc = ? WHERE id = ? AND status = 'processing'",
+    attempts,
+    next,
+    `Could not reach M-Pesa (${reason}). Nothing was sent; trying again automatically.`,
+    withdrawal.id,
+  );
+}
+
+/** Every minute: withdrawals that could not reach M-Pesa and whose next try is due are sent again. */
+export async function retryUnsentWithdrawals() {
+  const due = await db.all(
+    `SELECT id FROM withdrawals WHERE status = 'processing' AND next_try_at IS NOT NULL AND next_try_at <= ${NOW} AND provider_reference IS NULL ORDER BY id`,
+  );
+  for (const { id } of due) {
+    // Taken by this run only (never two sends of one withdrawal at once).
+    const { changes } = await db.run('UPDATE withdrawals SET next_try_at = NULL WHERE id = ? AND next_try_at IS NOT NULL', id);
+    if (changes) await sendByMpesa(await getWithdrawal(id));
+  }
+  return due.length;
+}
+
+/** When the next retry is due (ms; null: none waiting), so a quiet server can wait for it. */
+export async function nextWithdrawalRetryAt() {
+  const row = await db.get("SELECT MIN(next_try_at) AS at FROM withdrawals WHERE status = 'processing' AND next_try_at IS NOT NULL");
+  return row?.at ? Date.parse(row.at) : null;
+}
+
 const displayPhone = (phone) => (phone.startsWith('254') ? `0${phone.slice(3)}` : phone);
 
 /** The money reached the passenger (M-Pesa confirmed, or the office sent it and recorded the code). */
-export function completeWithdrawal(withdrawalId, reference, officeUserId = null) {
-  const withdrawal = tx(() => {
-    const w = getWithdrawal(withdrawalId);
+export async function completeWithdrawal(withdrawalId, reference, officeUserId = null) {
+  const withdrawal = await tx(async () => {
+    const w = await getWithdrawal(withdrawalId);
     if (!w) throw notFound('Withdrawal');
     if (!OPEN.includes(w.status)) throw new HttpError(409, 'WITHDRAWAL_FINISHED', `This withdrawal is already ${w.status}`);
-    db.prepare(`UPDATE withdrawals SET status = 'completed', reference = ?, handled_by = ?, completed_at = ${NOW} WHERE id = ?`).run(reference, officeUserId, withdrawalId);
+    await db.run(`UPDATE withdrawals SET status = 'completed', reference = ?, handled_by = ?, completed_at = ${NOW} WHERE id = ?`, reference, officeUserId, withdrawalId);
     return getWithdrawal(withdrawalId);
   });
-  notify([withdrawal.user_id], {
+  await notify([withdrawal.user_id], {
     kind: 'withdrawal.completed',
     title: `${kesText(withdrawal.amount)} sent to your M-Pesa`,
     body: `Sent to ${displayPhone(withdrawal.phone)}. M-Pesa code ${reference}.`,
@@ -104,16 +170,16 @@ export function completeWithdrawal(withdrawalId, reference, officeUserId = null)
 }
 
 /** The money could not be sent: it goes back into the passenger's wallet. */
-export function failWithdrawal(withdrawalId, reason, officeUserId = null) {
-  const withdrawal = tx(() => {
-    const w = getWithdrawal(withdrawalId);
+export async function failWithdrawal(withdrawalId, reason, officeUserId = null) {
+  const withdrawal = await tx(async () => {
+    const w = await getWithdrawal(withdrawalId);
     if (!w) throw notFound('Withdrawal');
     if (!OPEN.includes(w.status)) throw new HttpError(409, 'WITHDRAWAL_FINISHED', `This withdrawal is already ${w.status}`);
-    db.prepare(`UPDATE withdrawals SET status = 'failed', result_desc = ?, handled_by = ?, completed_at = ${NOW} WHERE id = ?`).run(reason, officeUserId, withdrawalId);
-    postWalletEntry(w.user_id, { type: 'withdrawal_reversal', amount: w.amount, reference: walletReference(w.id), description: `Withdrawal not sent: ${reason}` });
+    await db.run(`UPDATE withdrawals SET status = 'failed', result_desc = ?, handled_by = ?, completed_at = ${NOW} WHERE id = ?`, reason, officeUserId, withdrawalId);
+    await postWalletEntry(w.user_id, { type: 'withdrawal_reversal', amount: w.amount, reference: walletReference(w.id), description: `Withdrawal not sent: ${reason}` });
     return getWithdrawal(withdrawalId);
   });
-  notify([withdrawal.user_id], {
+  await notify([withdrawal.user_id], {
     kind: 'withdrawal.failed',
     title: `Withdrawal of ${kesText(withdrawal.amount)} not sent`,
     body: `${reason}. The money is back in your wallet.`,
@@ -124,29 +190,34 @@ export function failWithdrawal(withdrawalId, reason, officeUserId = null) {
 
 /**
  * M-Pesa's answer for a withdrawal (a B2C result whose id isn't an owner payout). Returns false if the id
- * isn't a withdrawal. Safe to receive more than once.
+ * isn't a withdrawal. Safe to receive more than once, even at the same moment.
  */
-export function handleWithdrawalResult(result) {
-  const w = db.prepare('SELECT * FROM withdrawals WHERE conversation_id = ?').get(result.OriginatorConversationID);
+export async function handleWithdrawalResult(result) {
+  const w = await db.get('SELECT * FROM withdrawals WHERE conversation_id = ?', result.OriginatorConversationID);
   if (!w) return false;
   if (w.status !== 'processing') return true;
   const ok = Number(result.ResultCode) === 0;
-  if (ok) completeWithdrawal(w.id, String(result.TransactionID));
-  else failWithdrawal(w.id, String(result.ResultDesc ?? 'M-Pesa payment failed'));
-  audit(null, ok ? 'withdrawal.confirmed' : 'withdrawal.failed', 'withdrawals', w.id, { amount: w.amount, result: result.ResultDesc ?? null });
+  try {
+    if (ok) await completeWithdrawal(w.id, String(result.TransactionID));
+    else await failWithdrawal(w.id, String(result.ResultDesc ?? 'M-Pesa payment failed'));
+  } catch (err) {
+    if (err.code === 'WITHDRAWAL_FINISHED') return true; // a copy of this result finished it a moment ago
+    throw err;
+  }
+  await audit(null, ok ? 'withdrawal.confirmed' : 'withdrawal.failed', 'withdrawals', w.id, { amount: w.amount, result: result.ResultDesc ?? null });
   return true;
 }
 
-export function handleWithdrawalTimeout(conversationId) {
-  db.prepare("UPDATE withdrawals SET result_desc = 'M-Pesa timed out. Check the M-Pesa statement.' WHERE conversation_id = ? AND status = 'processing'").run(conversationId);
+export async function handleWithdrawalTimeout(conversationId) {
+  await db.run("UPDATE withdrawals SET result_desc = 'M-Pesa timed out. Check the M-Pesa statement.' WHERE conversation_id = ? AND status = 'processing'", conversationId);
 }
 
 /** Asks the provider about withdrawals still processing (IntaSend reports this way; Daraja uses callbacks). */
 export async function reconcileProcessingWithdrawals() {
-  for (const w of db.prepare("SELECT * FROM withdrawals WHERE status = 'processing' AND provider_reference IS NOT NULL").all()) {
+  for (const w of await db.all("SELECT * FROM withdrawals WHERE status = 'processing' AND provider_reference IS NOT NULL")) {
     try {
       const result = await mpesa.b2cStatus(w.provider_reference);
-      if (result) handleWithdrawalResult({ ...result, OriginatorConversationID: w.conversation_id });
+      if (result) await handleWithdrawalResult({ ...result, OriginatorConversationID: w.conversation_id });
     } catch (err) {
       console.error(`[withdrawals] status check for withdrawal #${w.id} failed:`, err.message);
     }

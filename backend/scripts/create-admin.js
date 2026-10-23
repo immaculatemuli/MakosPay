@@ -3,6 +3,7 @@
 //   yarn create-admin --platform --name "Jane Doe" --phone 0712345678 --password "a-strong-password"
 import { parseArgs } from 'node:util';
 import { config } from '../src/config.js';
+import { closeDatabase, isPostgres } from '../src/database.js';
 import { createUser } from '../src/services/users.js';
 import { normalizePhone } from '../src/util.js';
 
@@ -17,11 +18,14 @@ if (!values.name || !phone || !values.password || values.password.length < 6) {
 }
 
 const role = values.platform ? 'platform_admin' : 'admin';
+const where = isPostgres ? 'the PostgreSQL database (DATABASE_URL)' : config.dbPath;
 try {
   const user = await createUser({ name: values.name, phone, password: values.password, role });
   const kind = values.platform ? 'Platform admin' : 'SACCO office';
-  console.log(`${kind} account created in ${config.dbPath}: ${user.name} (${user.phone}). Sign in to the app with this phone and password.`);
+  console.log(`${kind} account created in ${where}: ${user.name} (${user.phone}). Sign in to the app with this phone and password.`);
 } catch (err) {
   console.error(err.message);
-  process.exit(1);
+  process.exitCode = 1;
+} finally {
+  await closeDatabase();
 }

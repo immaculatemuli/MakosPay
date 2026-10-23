@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 const fake = { b2c: [], reject: false };
 const daraja = createServer(async (req, res) => {
@@ -22,6 +23,7 @@ const daraja = createServer(async (req, res) => {
 await new Promise((resolve) => daraja.listen(0, resolve));
 
 process.env.DB_PATH = ':memory:';
+process.env.PAYOUTS_NEED_DRIVER = 'false'; // these tests pay owners without the driver's "Send to owner"
 process.env.JWT_SECRET = 'test';
 process.env.MPESA_MODE = 'sandbox';
 process.env.MPESA_BASE_URL = `http://127.0.0.1:${daraja.address().port}`;
@@ -35,7 +37,7 @@ process.env.MPESA_B2C_SECURITY_CREDENTIAL = 'cred';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -80,9 +82,9 @@ before(async () => {
   s.kdb = await add('KDB 456B', 'Mary Owner', '0744555666');
   s.kdc = await add('KDC 789C', 'John Owner', '0755666777');
 
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' } })).body.token;
-  const pid = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' })).body.token;
+  const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
   await pay(s.kda, s.juja); // 70 Mary
   await pay(s.kda, s.thika); // 90 Mary
   await pay(s.kdb, s.juja); // 70 Mary

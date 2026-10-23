@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -9,7 +10,7 @@ process.env.MPESA_MODE = 'mock';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 const { applyDueFareChanges } = await import('../src/services/routes.js');
 
@@ -38,9 +39,9 @@ before(async () => {
   s.route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 60 }] } })).body;
   s.stop = s.route.stops[0];
   s.vehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: s.route.id } })).body;
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0722333444', password: 'pass123' } })).body.token;
-  s.pid = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(s.pid, { type: 'test_credit', amount: 1000 }));
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
+  s.pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(s.pid, { type: 'test_credit', amount: 1000 }));
 });
 after(() => server.close());
 
@@ -118,9 +119,9 @@ test('the audit log records office actions with who did them, without passwords'
   void c;
 });
 
-test('the audit log cannot be changed or deleted, even directly in the database', () => {
-  assert.throws(() => db.prepare("UPDATE audit_log SET action = 'nothing'").run(), /cannot be changed/);
-  assert.throws(() => db.prepare('DELETE FROM audit_log').run(), /cannot be deleted/);
+test('the audit log cannot be changed or deleted, even directly in the database', async () => {
+  await assert.rejects(db.run("UPDATE audit_log SET action = 'nothing'"), /cannot be changed/);
+  await assert.rejects(db.run('DELETE FROM audit_log'), /cannot be (changed or )?deleted/);
 });
 
 test('reconciliation: everything adds up, and a tampered balance is caught', async () => {
@@ -129,13 +130,13 @@ test('reconciliation: everything adds up, and a tampered balance is caught', asy
   assert.equal(ok.totals.real_money, false, 'mock money is labelled as not real');
   assert.equal(ok.totals.test_credit, 1000);
 
-  db.prepare('UPDATE wallets SET balance = balance + 500 WHERE user_id = ?').run(s.pid);
+  (await db.run('UPDATE wallets SET balance = balance + 500 WHERE user_id = ?', s.pid));
   const bad = (await api('GET', '/admin/reconciliation', { token: s.admin })).body;
   assert.equal(bad.all_ok, false);
   const check = bad.checks.find((c) => c.name.startsWith('Every wallet balance'));
   assert.equal(check.ok, false);
   assert.match(check.detail, /Pat/);
-  db.prepare('UPDATE wallets SET balance = balance - 500 WHERE user_id = ?').run(s.pid);
+  (await db.run('UPDATE wallets SET balance = balance - 500 WHERE user_id = ?', s.pid));
 });
 
 test('passengers and crew cannot see the audit log or reconciliation', async () => {

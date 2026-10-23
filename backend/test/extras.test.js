@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 const fake = { b2c: [], b2b: [] };
 const daraja = createServer(async (req, res) => {
@@ -26,6 +27,7 @@ const daraja = createServer(async (req, res) => {
 await new Promise((resolve) => daraja.listen(0, resolve));
 
 process.env.DB_PATH = ':memory:';
+process.env.PAYOUTS_NEED_DRIVER = 'false'; // these tests pay owners without the driver's "Send to owner"
 process.env.JWT_SECRET = 'test';
 process.env.MPESA_MODE = 'sandbox';
 process.env.MPESA_BASE_URL = `http://127.0.0.1:${daraja.address().port}`;
@@ -39,7 +41,7 @@ process.env.MPESA_B2C_SECURITY_CREDENTIAL = 'cred';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -73,9 +75,9 @@ before(async () => {
   s.stop = route.stops[0];
   s.routeId = route.id;
   s.mpesaVehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 111A', owner_name: 'Mary', owner_phone: '0744555666', route_id: route.id } })).body;
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0722333444', password: 'pass123' } })).body.token;
-  s.passengerId = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(s.passengerId, { type: 'test_credit', amount: 1000 }));
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
+  s.passengerId = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(s.passengerId, { type: 'test_credit', amount: 1000 }));
 });
 after(() => {
   server.close();
@@ -193,17 +195,17 @@ test('a passenger can delete their account once the wallet is empty', async () =
   assert.equal(blocked.status, 409);
   assert.equal(blocked.body.error.code, 'WALLET_NOT_EMPTY');
 
-  db.prepare('UPDATE wallets SET balance = 0 WHERE user_id = ?').run(s.passengerId);
+  (await db.run('UPDATE wallets SET balance = 0 WHERE user_id = ?', s.passengerId));
   assert.equal((await api('POST', '/auth/delete-account', { token: s.passenger, body: { password: 'wrong' } })).status, 400);
   const ok = await api('POST', '/auth/delete-account', { token: s.passenger, body: { password: 'pass123' } });
   assert.equal(ok.status, 200);
 
   assert.equal((await api('POST', '/auth/login', { body: { phone: '0722333444', password: 'pass123' } })).status, 401);
   assert.equal((await api('GET', '/auth/me', { token: s.passenger })).status, 401, 'signed out everywhere');
-  const row = db.prepare('SELECT name, phone FROM users WHERE id = ?').get(s.passengerId);
+  const row = (await db.get('SELECT name, phone FROM users WHERE id = ?', s.passengerId));
   assert.deepEqual({ ...row }, { name: 'Deleted passenger', phone: `deleted-${s.passengerId}` });
-  assert.ok(db.prepare('SELECT COUNT(*) AS n FROM trips WHERE passenger_id = ?').get(s.passengerId).n > 0, 'payment records kept');
+  assert.ok((await db.get('SELECT COUNT(*) AS n FROM trips WHERE passenger_id = ?', s.passengerId)).n > 0, 'payment records kept');
 
   // The number can be used again for a new account.
-  assert.equal((await api('POST', '/auth/register', { body: { name: 'New Pat', phone: '0722333444', password: 'pass123' } })).status, 201);
+  assert.equal((await signUp(api, { name: 'New Pat', phone: '0722333444', password: 'pass123' })).status, 201);
 });

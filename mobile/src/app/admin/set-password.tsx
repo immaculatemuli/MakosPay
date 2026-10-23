@@ -31,8 +31,8 @@ export default function SetPassword() {
         <KeyValue label="Name" value={name} />
         <KeyValue label="Phone" value={displayPhone(phone ?? null)} />
       </Card>
-      <Muted>Only do this after checking it's really them, for example by calling the number above.</Muted>
-      <Field label="New password" value={password} onChangeText={setPassword} autoCapitalize="none" autoCorrect={false} hint="At least 6 characters" />
+      <Muted>Only do this after checking it’s really them, for example by calling the number above.</Muted>
+      <Field label="New password" secureTextEntry value={password} onChangeText={setPassword} hint="At least 6 characters" />
       {error && <ErrorBox message={error} />}
       <Button title="Set new password" icon="key-outline" onPress={save} loading={busy} disabled={password.length < 6} />
     </Screen>

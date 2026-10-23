@@ -36,7 +36,11 @@ export default function CrewForm() {
       <Field label="Password" secureTextEntry value={password} onChangeText={setPassword} hint="At least 6 characters. They can change it after signing in." />
       {error && <ErrorBox message={error} />}
       <Button title={`Create ${words.one}`} onPress={save} loading={busy} disabled={name.trim().length < 2 || !phone.trim() || password.length < 6} />
-      <Muted center>To put them on a vehicle, open the vehicle and choose them as its {words.one}.</Muted>
+      <Muted center>
+        {words.onVehicle
+          ? `To put them on a vehicle, open the vehicle and choose them as its ${words.one}.`
+          : 'They sign in to the FarePay app and see the queues of booked passengers at the stage.'}
+      </Muted>
     </Screen>
   );
 }

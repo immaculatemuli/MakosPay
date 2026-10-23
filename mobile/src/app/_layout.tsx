@@ -1,11 +1,23 @@
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Loading } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { LanguageProvider } from '@/lib/i18n';
+import { onNotificationTap } from '@/lib/push';
+import { isOffice } from '@/lib/types';
 
 function RootNavigator() {
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
+
+  // Tapping a push notification opens the bell (the notifications list) of whoever is signed in.
+  const section = user ? (isOffice(user.role) ? 'admin' : user.role) : null;
+  useEffect(() => {
+    if (!section) return;
+    return onNotificationTap(() => router.push(`/${section}/notifications` as never));
+  }, [section]);
+
   if (loading) return <Loading />;
   // Each role's section (passenger/, conductor/, admin/) checks the signed-in role in its own layout.
   return <Stack screenOptions={{ headerShown: false }} />;
@@ -14,10 +26,12 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <RootNavigator />
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </AuthProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Book a seat · FarePay · Makos Sacco</title>
+  <meta name="description" content="Book and pay for your Makos Sacco seat from anywhere: at the stage, or to be picked on the road.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/site.css">
+  <script src="/site.js" defer></script>
+  <script src="/vendor/leaflet/leaflet.js" defer></script>
+  <script src="/book.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <a class="logo" href="/"><b>FarePay</b><small>Makos Sacco</small></a>
+      <nav class="links" aria-label="Main">
+        <a href="/">Home</a>
+        <a href="/book.html" aria-current="page">Book a seat</a>
+        <a href="/parcels.html">Track a parcel</a>
+        <a href="/app">Get the app</a>
+      </nav>
+      <a class="cta" href="/office/">Office sign-in</a>
+    </div>
+  </header>
+
+  <main class="wrap booking">
+    <h1>Book a seat</h1>
+    <p class="lead">Book and pay for your seat from anywhere, for now or for later today or tomorrow. Wait at the stage, or at a stop on the road to be picked. We tell you which car is yours as soon as it is there, and you show your booking code when you get on.</p>
+
+    <div id="mine" class="mine" hidden>
+      <h2>Your bookings on this phone</h2>
+      <div id="mine-list" class="mine-list"></div>
+    </div>
+
+    <div class="panel" id="loading"><p class="muted">Loading routes…</p></div>
+    <div class="panel" id="problem" hidden><p id="problem-text"></p><button type="button" id="problem-retry" class="secondary">Try again</button></div>
+    <div class="panel" id="closed" hidden><p id="closed-text"></p></div>
+
+    <!-- 1. Route -->
+    <div class="panel" id="routes" hidden>
+      <h2>1. Your route</h2>
+      <div id="route-list" class="route-list" role="radiogroup" aria-label="Route"></div>
+    </div>
+
+    <!-- 2. Pickup, drop-off, seats, number -->
+    <div class="panel" id="details" hidden>
+      <h2>2. Your trip</h2>
+      <div class="field">
+        <span class="field-label">Where should we pick you?</span>
+        <div id="pickups" class="choices" role="radiogroup" aria-label="Pickup point"></div>
+      </div>
+      <div class="field">
+        <span class="field-label">Where are you getting off?</span>
+        <div id="stops" class="choices" role="radiogroup" aria-label="Drop-off stop"></div>
+      </div>
+      <div class="field">
+        <span class="field-label">Seats</span>
+        <div class="stepper">
+          <button type="button" id="seats-minus" aria-label="One seat fewer">−</button>
+          <output id="seats" aria-live="polite">1</output>
+          <button type="button" id="seats-plus" aria-label="One seat more">+</button>
+        </div>
+      </div>
+      <label class="field">
+        <span class="field-label">When will you be ready?</span>
+        <select id="when"></select>
+      </label>
+      <div class="field" id="time-field" hidden>
+        <label class="field-label" for="time">From what time?</label>
+        <select id="time"></select>
+        <p class="muted small">You join the queue at that time, ahead of anyone who chose a later time. We remind you by SMS 30 minutes before, and you can cancel free until then.</p>
+      </div>
+      <label class="field">
+        <span class="field-label">Your M-Pesa number</span>
+        <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" maxlength="16">
+      </label>
+      <p class="error" id="book-error" hidden></p>
+      <button type="button" id="book" disabled>Choose your drop-off</button>
+      <p class="muted small">You get the M-Pesa PIN prompt on this number. The fare is the same wherever you are picked. If no car takes you that day, the money goes back to this M-Pesa number.</p>
+    </div>
+
+    <!-- Paying -->
+    <div class="panel center" id="paying" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <h2>Check your phone</h2>
+      <p>Enter your M-Pesa PIN to pay <strong id="paying-amount"></strong>.</p>
+      <p class="muted" id="paying-what"></p>
+    </div>
+
+    <!-- The booking -->
+    <div class="panel" id="booking" hidden>
+      <div class="ticket">
+        <div class="ticket-status" id="b-status"></div>
+        <div class="ticket-code" id="b-code"></div>
+        <div class="ticket-plate" id="b-plate"></div>
+        <div id="b-trip"></div>
+        <div class="muted" id="b-paid"></div>
+      </div>
+      <p class="car-line" id="b-line"></p>
+      <p class="center muted" id="b-eta" hidden></p>
+      <div id="b-map" class="car-map" hidden></div>
+      <p class="center muted small" id="b-map-time" hidden></p>
+      <p class="center" id="b-call" hidden></p>
+      <p class="error" id="b-error" hidden></p>
+      <button type="button" id="here" hidden>I'm at the pickup point</button>
+      <button type="button" id="cancel" class="secondary" hidden>Cancel booking (refund to M-Pesa)</button>
+      <button type="button" id="again" class="secondary">Book another seat</button>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>© <span data-year>2026</span> FarePay for Makos Sacco.</span>
+      <span><a href="/privacy.html">Privacy policy</a> · <a href="/office/">Office sign-in</a></span>
+    </div>
+  </footer>
+</body>
+</html>

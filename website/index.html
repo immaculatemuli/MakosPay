@@ -3,126 +3,83 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FarePay – Pay your matatu fare with your phone</title>
-  <meta name="description" content="FarePay lets matatu passengers in Kenya pay their fare by scanning a QR code, with M-Pesa or the FarePay wallet. Vehicle owners receive their fares to M-Pesa every day.">
-  <style>
-    :root {
-      --green: #0A7A3D;
-      --green-dark: #075C2E;
-      --green-soft: #E7F5EC;
-      --text: #111827;
-      --muted: #4B5563;
-      --line: #E5E7EB;
-      --bg: #F7F8FA;
-      --white: #FFFFFF;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: var(--text);
-      background: var(--bg);
-      line-height: 1.55;
-    }
-    a { color: var(--green); }
-    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
-
-    header { background: var(--white); border-bottom: 1px solid var(--line); }
-    .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-    .logo { font-size: 24px; font-weight: 800; color: var(--green); text-decoration: none; letter-spacing: -0.5px; }
-    .nav a.cta { background: var(--green); color: #fff; text-decoration: none; padding: 9px 16px; border-radius: 10px; font-weight: 600; font-size: 15px; }
-
-    .hero { background: linear-gradient(160deg, var(--green) 0%, var(--green-dark) 100%); color: #fff; padding: 64px 0 72px; }
-    .hero h1 { font-size: clamp(32px, 6vw, 52px); line-height: 1.1; margin: 0 0 16px; letter-spacing: -1px; max-width: 720px; }
-    .hero p { font-size: 19px; max-width: 620px; margin: 0 0 28px; color: #D1FAE5; }
-    .badges { display: flex; flex-wrap: wrap; gap: 10px; }
-    .badge { background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.25); padding: 8px 14px; border-radius: 999px; font-size: 15px; font-weight: 600; }
-
-    section { padding: 60px 0; }
-    h2 { font-size: clamp(26px, 4vw, 34px); margin: 0 0 8px; letter-spacing: -0.5px; }
-    .lead { color: var(--muted); font-size: 18px; margin: 0 0 32px; max-width: 640px; }
-
-    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; counter-reset: step; }
-    .step { background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
-    .step::before {
-      counter-increment: step; content: counter(step);
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 34px; height: 34px; border-radius: 10px; background: var(--green-soft); color: var(--green);
-      font-weight: 800; margin-bottom: 12px;
-    }
-    .step h3 { margin: 0 0 6px; font-size: 18px; }
-    .step p { margin: 0; color: var(--muted); }
-
-    .who { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-    .card { background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
-    .card h3 { margin: 0 0 10px; font-size: 20px; color: var(--green-dark); }
-    .card ul { margin: 0; padding-left: 20px; color: var(--muted); }
-    .card li { margin-bottom: 6px; }
-
-    .white { background: var(--white); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
-    .flow div { border-left: 4px solid var(--green); padding: 6px 0 6px 14px; }
-    .flow strong { display: block; font-size: 17px; }
-    .flow span { color: var(--muted); }
-
-    .contact { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-    .contact .card a { font-size: 19px; font-weight: 700; text-decoration: none; word-break: break-word; }
-    .contact .label { color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 6px; }
-
-    footer { padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
-    footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
-
-    @media (max-width: 520px) {
-      .hero { padding: 44px 0 52px; }
-      section { padding: 44px 0; }
-      .nav a.cta { padding: 8px 12px; font-size: 14px; }
-    }
-  </style>
+  <meta name="color-scheme" content="light dark">
+  <title>FarePay · Makos Sacco</title>
+  <meta name="description" content="Pay your Makos Sacco fare by M-Pesa: scan the QR sticker in the vehicle with your phone camera, no app needed. Book a seat on the next car, and track parcels.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/site.css">
+  <script src="/site.js" defer></script>
 </head>
 <body>
   <header>
     <div class="wrap nav">
-      <a class="logo" href="#">FarePay</a>
-      <a class="cta" href="#contact">Contact us</a>
+      <a class="logo" href="/"><b>FarePay</b><small>Makos Sacco</small></a>
+      <nav class="links" aria-label="Main">
+        <a href="#how">How it works</a>
+        <a href="/book.html">Book a seat</a>
+        <a href="/parcels.html">Track a parcel</a>
+        <a href="/app">Get the app</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <a class="cta" href="/office/">Office sign-in</a>
     </div>
   </header>
 
   <div class="hero">
     <div class="wrap">
-      <h1>Pay your matatu fare with your phone.</h1>
-      <p>FarePay lets passengers pay their fare by scanning a QR code inside the vehicle, with M-Pesa or the FarePay wallet. No cash, no looking for change, and app users pay less than the cash fare.</p>
+      <h1>Pay your Makos fare with your phone.</h1>
+      <p>Scan the QR sticker inside the vehicle with your phone camera and pay with M-Pesa. No app needed, no cash, no looking for change.</p>
       <div class="badges">
         <span class="badge">Scan &amp; pay</span>
         <span class="badge">M-Pesa</span>
-        <span class="badge">Cheaper than cash</span>
-        <span class="badge">Owners paid daily</span>
+        <span class="badge">No app needed</span>
+        <span class="badge">Ticket on your phone</span>
       </div>
     </div>
   </div>
 
-  <section>
+  <section id="how">
     <div class="wrap">
       <h2>How it works</h2>
       <p class="lead">Paying a fare takes a few seconds.</p>
-      <div class="steps">
-        <div class="step"><h3>Choose your stop</h3><p>Pick your route and where you are getting off. Each stop has its own fare.</p></div>
-        <div class="step"><h3>Scan the QR code</h3><p>Every vehicle has a FarePay QR sticker. Scan it to see the number plate, route and fare.</p></div>
-        <div class="step"><h3>Pay</h3><p>Pay from your FarePay wallet, or enter your M-Pesa PIN when prompted.</p></div>
-        <div class="step"><h3>Show your ticket</h3><p>You get a ticket code straight away, and the conductor sees your payment on their phone.</p></div>
+      <div class="grid steps">
+        <div class="card"><h3>Scan the sticker</h3><p>Every Makos vehicle has a FarePay QR sticker. Scan it with your phone camera, or with the FarePay app.</p></div>
+        <div class="card"><h3>Choose your stop</h3><p>Pick where you are getting off. Each stop has its own fare, shown before you pay.</p></div>
+        <div class="card"><h3>Enter your M-Pesa PIN</h3><p>M-Pesa asks for your PIN, showing the amount and the vehicle's number plate. Next time, scanning goes straight to the PIN.</p></div>
+        <div class="card"><h3>Show your ticket</h3><p>Your ticket code appears on your phone, and the conductor sees your payment straight away.</p></div>
       </div>
     </div>
   </section>
 
-  <section class="white">
+  <section class="alt" id="booking">
+    <div class="wrap">
+      <h2>Book a seat and send parcels</h2>
+      <p class="lead">Book your seat before you get to the stage.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>Book a seat</h3>
+          <p>Book and pay for your seat on the next Makos car loading at your stage. Show your booking code to the conductor when you get on.</p>
+          <p><a class="cta inline-cta" href="/book.html">Book a seat</a></p>
+        </div>
+        <div class="card" id="parcels">
+          <h3>Send and track parcels</h3>
+          <p>Drop your parcel at a Makos office and pay by M-Pesa. Follow it online with its tracking code, and the receiver collects it with a code when it arrives.</p>
+          <p><a class="cta inline-cta" href="/parcels.html">Track a parcel</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
     <div class="wrap">
       <h2>Built for everyone on the route</h2>
-      <p class="lead">FarePay serves passengers, conductors, SACCOs and vehicle owners.</p>
-      <div class="who">
+      <p class="lead">FarePay serves passengers, conductors, the SACCO office and vehicle owners.</p>
+      <div class="grid">
         <div class="card">
           <h3>Passengers</h3>
           <ul>
-            <li>Pay less than the cash fare on every trip</li>
-            <li>Top up the wallet with M-Pesa, or pay with M-Pesa directly</li>
+            <li>Pay by M-Pesa with or without the app</li>
+            <li>Top up a FarePay wallet and pay each fare with one tap</li>
             <li>See every payment and ticket in one place</li>
           </ul>
         </div>
@@ -135,45 +92,45 @@
           </ul>
         </div>
         <div class="card">
-          <h3>SACCOs &amp; vehicle owners</h3>
+          <h3>The office &amp; owners</h3>
           <ul>
-            <li>Set routes, stops and fares for every vehicle</li>
-            <li>See all payments, per vehicle and per day</li>
-            <li>Each owner receives the day's fares to their M-Pesa once a day</li>
+            <li>Routes, stops, fares, vehicles and crew in one dashboard</li>
+            <li>Every payment, per vehicle and per day, checked every night</li>
+            <li>Each owner is sent the day's fares by M-Pesa every evening</li>
           </ul>
         </div>
       </div>
     </div>
   </section>
 
-  <section>
+  <section class="alt">
     <div class="wrap">
       <h2>How the money moves</h2>
       <p class="lead">Every fare is recorded, from the passenger's payment to the owner's payout.</p>
       <div class="flow">
-        <div><strong>1. Passenger pays</strong><span>By M-Pesa or from their FarePay wallet.</span></div>
+        <div><strong>1. Passenger pays</strong><span>By M-Pesa, or from their FarePay wallet.</span></div>
         <div><strong>2. Fare is recorded</strong><span>Against the vehicle, route and stop, with a ticket code.</span></div>
-        <div><strong>3. Owner is paid</strong><span>Once a day, all of the vehicle's fares are sent to the owner's M-Pesa.</span></div>
+        <div><strong>3. Owner is paid</strong><span>Every evening, the vehicle's fares are sent to the owner by M-Pesa.</span></div>
       </div>
     </div>
   </section>
 
-  <section class="white" id="contact">
+  <section id="contact">
     <div class="wrap">
       <h2>Contact us</h2>
-      <p class="lead">For SACCOs, vehicle owners and partners who would like to use FarePay.</p>
-      <div class="contact">
+      <p class="lead">For passengers, vehicle owners and partners.</p>
+      <div class="grid contact">
         <div class="card">
           <div class="label">Phone</div>
-          <a href="tel:+254742546982">0742 546 982</a>
+          <a class="big" href="tel:+254742546982">0742 546 982</a>
         </div>
         <div class="card">
           <div class="label">Email</div>
-          <a href="mailto:immaculatemuli25@gmail.com">immaculatemuli25@gmail.com</a>
+          <a class="big" href="mailto:immaculatemuli25@gmail.com">immaculatemuli25@gmail.com</a>
         </div>
         <div class="card">
           <div class="label">Location</div>
-          <span style="font-size:19px;font-weight:700;">Kenya</span>
+          <span class="big">Kenya</span>
         </div>
       </div>
     </div>
@@ -181,10 +138,9 @@
 
   <footer>
     <div class="wrap">
-      <span>© <span id="year">2026</span> FarePay. All rights reserved.</span>
-      <span><a href="privacy.html">Privacy policy</a> · Matatu fare payments for Kenya</span>
+      <span>© <span data-year>2026</span> FarePay for Makos Sacco.</span>
+      <span><a href="/privacy.html">Privacy policy</a> · <a href="/office/">Office sign-in</a></span>
     </div>
   </footer>
-  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
 </body>
 </html>

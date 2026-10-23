@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LanguageSwitch } from './LanguageSwitch';
 import { colors } from './ui';
 
 /** Full-screen layout for sign-in and registration (no navigation header). */
@@ -14,6 +15,7 @@ export function AuthForm({ subtitle, children }: { subtitle: string; children: R
             <Text style={{ color: colors.muted, marginTop: 6, fontSize: 15 }}>{subtitle}</Text>
           </View>
           {children}
+          <LanguageSwitch />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
