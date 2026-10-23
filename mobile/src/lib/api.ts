@@ -1,39 +1,11 @@
-import Constants from 'expo-constants';
-import * as SecureStore from 'expo-secure-store';
-
-const SERVER_KEY = 'farepay.serverUrl';
-
 /**
- * Where the FarePay backend lives, by default:
- * - EXPO_PUBLIC_API_URL (set when building the installable app, or in mobile/.env), e.g. https://api.example.com
- * - Otherwise, during development, the computer running `expo start` (same machine as the backend), port 4000.
- * The person using the app can override it on the sign-in screen (e.g. when the tunnel address changes).
+ * Where the FarePay backend lives: EXPO_PUBLIC_API_URL and nothing else (no address saved on the phone, no guess).
+ * Set per build profile in eas.json for the installable app, or in mobile/.env for `expo start`,
+ * e.g. EXPO_PUBLIC_API_URL=http://192.168.1.20:4000 to use a backend on the laptop.
  */
-function defaultBaseUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_URL;
-  if (fromEnv) return fromEnv.replace(/\/+$/, '');
-  const devHost = Constants.expoConfig?.hostUri?.split(':')[0];
-  return `http://${devHost ?? 'localhost'}:4000`;
-}
-
-export const DEFAULT_API_URL = defaultBaseUrl();
-let apiUrl = DEFAULT_API_URL;
+const apiUrl = (process.env.EXPO_PUBLIC_API_URL ?? '').trim().replace(/\/+$/, '');
 
 export const getApiUrl = () => apiUrl;
-
-/** Loads the server address saved on this phone, if any. Call once at start-up. */
-export async function loadApiUrl() {
-  const saved = await SecureStore.getItemAsync(SERVER_KEY).catch(() => null);
-  if (saved) apiUrl = saved;
-}
-
-/** Saves a server address on this phone (empty = go back to the default). */
-export async function setApiUrl(url: string) {
-  const clean = url.trim().replace(/\/+$/, '');
-  apiUrl = clean || DEFAULT_API_URL;
-  if (clean) await SecureStore.setItemAsync(SERVER_KEY, clean);
-  else await SecureStore.deleteItemAsync(SERVER_KEY);
-}
 
 export class ApiError extends Error {
   constructor(
@@ -108,7 +80,7 @@ export async function api<T>(path: string, options: { method?: Method; body?: un
       signal: controller.signal,
     });
   } catch {
-    throw new ApiError(0, 'NETWORK', `Can't reach the FarePay server (${apiUrl}). Check your internet connection, or the server address on the sign-in screen.`);
+    throw new ApiError(0, 'NETWORK', `Can't reach the FarePay server (${apiUrl}). Check your internet connection.`);
   } finally {
     clearTimeout(timeout);
   }
@@ -119,7 +91,7 @@ export async function api<T>(path: string, options: { method?: Method; body?: un
     // No FarePay error in the answer: something in between replied instead (e.g. the tunnel is down or its address
     // changed, which gives Cloudflare's 530 page). Treat it like the server being unreachable.
     if (!data?.error && res.status >= 500) {
-      throw new ApiError(0, 'NETWORK', `Can't reach the FarePay server (${apiUrl}). The server address may have changed: check "Server address" on the sign-in screen.`);
+      throw new ApiError(0, 'NETWORK', `Can't reach the FarePay server (${apiUrl}). Please try again in a minute.`);
     }
     if (res.status === 401 && authToken) onUnauthorized();
     const err = data?.error;

@@ -2,9 +2,8 @@ import { Link, Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { AuthForm } from '@/components/AuthForm';
-import { ServerSetting } from '@/components/ServerSetting';
 import { Button, colors, ErrorBox, Field } from '@/components/ui';
-import { errorMessage } from '@/lib/api';
+import { errorMessage, getApiUrl } from '@/lib/api';
 import { lastPhoneNumber, useAuth } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { loadSavedTickets } from '@/lib/savedTickets';
@@ -61,7 +60,10 @@ export default function SignIn() {
           </Text>
         </Link>
       )}
-      <ServerSetting />
+      {/* Debug: which server this build talks to (from EXPO_PUBLIC_API_URL). */}
+      <Text selectable style={{ textAlign: 'center', marginTop: 12, color: colors.muted, fontSize: 11 }}>
+        API: {getApiUrl() || '(EXPO_PUBLIC_API_URL not set)'}
+      </Text>
     </AuthForm>
   );
 }

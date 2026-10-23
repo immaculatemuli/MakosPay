@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, configureAuth, loadApiUrl } from './api';
+import { api, configureAuth } from './api';
 import { registerForPush, unregisterPush } from './push';
 import { forgetSavedTickets, setTicketOwner } from './savedTickets';
 import type { User } from './types';
@@ -8,6 +8,8 @@ import type { User } from './types';
 // Older versions kept the sign-in on the phone; it is deleted at start-up. Passengers and the office sign in each
 // time the app starts. Crew and marshals (who open the app many times a day) stay signed in for one shift.
 const OLD_SESSION_KEY = 'farepay.session';
+// Older versions let the server address be changed on the sign-in screen and kept it; it is deleted at start-up too.
+const OLD_SERVER_KEY = 'farepay.serverUrl';
 const SHIFT_KEY = 'farepay.shift';
 const SHIFT_HOURS = 12;
 const SHIFT_ROLES: User['role'][] = ['conductor', 'driver', 'marshal'];
@@ -82,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     configureAuth(null, () => void signOut());
     (async () => {
       try {
-        await loadApiUrl(); // the server address saved on this phone, if any
+        await SecureStore.deleteItemAsync(OLD_SERVER_KEY).catch(() => {});
         await SecureStore.deleteItemAsync(OLD_SESSION_KEY).catch(() => {});
         // A crew member still on their shift goes straight in (the shift's end is kept, not extended).
         const shift = await savedShift();
