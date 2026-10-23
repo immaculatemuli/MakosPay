@@ -13,6 +13,12 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://makos-farepay.onrender.com"
       }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://makos-farepay.onrender.com"
+      }
     }
   }
 }
