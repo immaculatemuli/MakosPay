@@ -6,7 +6,7 @@ import { config } from '../config.js';
 import { db, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
-import { completePayout, createPayout, failPayout, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
+import { completePayout, createPayout, failPayout, faresWaitingForDrivers, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
 import { audit, listAudit } from '../services/audit.js';
 import { cashAndFares } from '../services/cash.js';
 import { checkStatement } from '../services/statement.js';
@@ -168,7 +168,13 @@ router.patch('/reports/:id', async (req, res) => {
 // ---------- Owner payouts ----------
 
 router.get('/payouts/owed', async (_req, res) => {
-  res.json({ owners: await owedByOwner(), automatic: mpesa.isConfigured.b2c, daily_at: config.payoutDailyAt });
+  res.json({
+    owners: await owedByOwner(),
+    automatic: mpesa.isConfigured.b2c,
+    daily_at: config.payoutDailyAt,
+    // Fares the cars' drivers have not yet sent to the owners (only paid out once they do).
+    waiting_for_drivers: config.payoutsNeedDriver ? await faresWaitingForDrivers() : null,
+  });
 });
 
 router.get('/payouts', async (_req, res) => {

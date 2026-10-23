@@ -70,6 +70,9 @@ export const config = {
   freeRideWindowDays: num(env.FREE_RIDE_WINDOW_DAYS, 90),
   // Text each owner what they were paid, and from which cars, when a payout reaches them (OWNER_PAYOUT_SMS=0 turns it off).
   ownerPayoutSms: env.OWNER_PAYOUT_SMS !== '0',
+  // Owners are paid only the fares their car's driver has released ("Send to owner" in the driver's app, never the
+  // conductor). PAYOUTS_NEED_DRIVER=false: every fare is paid out by the daily run or the office's "Pay now".
+  payoutsNeedDriver: env.PAYOUTS_NEED_DRIVER !== 'false',
   // Seat bookings one passenger can have waiting at once.
   maxOpenSeatBookings: num(env.MAX_OPEN_SEAT_BOOKINGS, 3),
 

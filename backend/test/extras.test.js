@@ -27,6 +27,7 @@ const daraja = createServer(async (req, res) => {
 await new Promise((resolve) => daraja.listen(0, resolve));
 
 process.env.DB_PATH = ':memory:';
+process.env.PAYOUTS_NEED_DRIVER = 'false'; // these tests pay owners without the driver's "Send to owner"
 process.env.JWT_SECRET = 'test';
 process.env.MPESA_MODE = 'sandbox';
 process.env.MPESA_BASE_URL = `http://127.0.0.1:${daraja.address().port}`;

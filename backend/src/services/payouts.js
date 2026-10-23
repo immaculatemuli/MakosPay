@@ -14,6 +14,9 @@ import { queueSms } from './sms.js';
 
 export const getPayout = (id) => db.get('SELECT * FROM payouts WHERE id = ?', id);
 
+// Only fares the car's driver has released are paid out (when PAYOUTS_NEED_DRIVER is on).
+const released = (column = 'released_at') => (config.payoutsNeedDriver ? ` AND ${column} IS NOT NULL` : '');
+
 /** Where an owner wants to be paid: their owner record (else, for older data, their most recently added vehicle). */
 export async function ownerDestination(ownerPhone) {
   const o = await db.get('SELECT payout_method, bank_name, bank_paybill, bank_account FROM owners WHERE phone = ?', ownerPhone);
@@ -35,7 +38,7 @@ export async function ownerDestination(ownerPhone) {
 /** One owner's unpaid fares minus refunds taken back from earlier payouts. */
 async function owedTo(ownerPhone) {
   const fares = await db.get(
-    "SELECT MAX(owner_name) AS owner_name, COALESCE(SUM(fare), 0) AS fares, COUNT(*) AS trip_count FROM trips WHERE owner_phone = ? AND status = 'paid' AND payout_id IS NULL",
+    `SELECT MAX(owner_name) AS owner_name, COALESCE(SUM(fare), 0) AS fares, COUNT(*) AS trip_count FROM trips WHERE owner_phone = ? AND status = 'paid' AND payout_id IS NULL${released()}`,
     ownerPhone,
   );
   const deducted = (await db.get('SELECT COALESCE(SUM(amount), 0) AS n FROM owner_deductions WHERE owner_phone = ? AND payout_id IS NULL', ownerPhone)).n;
@@ -47,7 +50,7 @@ export async function owedByOwner() {
   const owners = await db.all(
     `SELECT t.owner_phone, ${sql.distinctList('v.plate')} AS plates
      FROM trips t JOIN vehicles v ON v.id = t.vehicle_id
-     WHERE t.status = 'paid' AND t.payout_id IS NULL GROUP BY t.owner_phone`,
+     WHERE t.status = 'paid' AND t.payout_id IS NULL${released('t.released_at')} GROUP BY t.owner_phone`,
   );
   const result = [];
   for (const o of owners) {
@@ -84,7 +87,7 @@ export async function createPayout(ownerPhone, adminId, { manual = false } = {})
       dest.bank_account,
       ownerPhone,
     );
-    await db.run("UPDATE trips SET payout_id = ? WHERE owner_phone = ? AND status = 'paid' AND payout_id IS NULL", id, ownerPhone);
+    await db.run(`UPDATE trips SET payout_id = ? WHERE owner_phone = ? AND status = 'paid' AND payout_id IS NULL${released()}`, id, ownerPhone);
     await db.run('UPDATE owner_deductions SET payout_id = ? WHERE owner_phone = ? AND payout_id IS NULL', id, ownerPhone);
     return getPayout(id);
   });
@@ -239,6 +242,48 @@ export async function reconcileProcessingPayouts() {
       console.error(`[payouts] status check for payout #${payout.id} failed:`, err.message);
     }
   }
+}
+
+// Paid fares on a car that its driver has not yet sent to the owner.
+const HELD = "FROM trips WHERE vehicle_id = ? AND status = 'paid' AND payout_id IS NULL AND released_at IS NULL";
+
+/** The FarePay fares on a car waiting for its driver to send them to the owner. */
+export const carFaresWaiting = (vehicleId) => db.get(`SELECT COUNT(*) AS fares, COALESCE(SUM(fare), 0) AS total ${HELD}`, vehicleId);
+
+/** Fares on every car still waiting for their drivers (for the office), e.g. { cars: 3, fares: 40, total: 4000 }. */
+export const faresWaitingForDrivers = () =>
+  db.get("SELECT COUNT(DISTINCT vehicle_id) AS cars, COUNT(*) AS fares, COALESCE(SUM(fare), 0) AS total FROM trips WHERE status = 'paid' AND payout_id IS NULL AND released_at IS NULL");
+
+/**
+ * "Send to owner": the car's driver (never the conductor) releases the FarePay fares paid on their car, and the
+ * owner is paid at once. Returns what was released and the payout(s) made.
+ */
+export async function releaseCarFares(vehicleId, driverId) {
+  const done = await tx(async () => {
+    const waiting = await carFaresWaiting(vehicleId);
+    if (waiting.fares === 0) throw new HttpError(409, 'NOTHING_TO_SEND', 'There are no new FarePay fares to send to the owner.');
+    const owners = await db.all(`SELECT DISTINCT owner_phone ${HELD}`, vehicleId);
+    await db.run(`UPDATE trips SET released_at = ${NOW}, released_by = ? WHERE vehicle_id = ? AND status = 'paid' AND payout_id IS NULL AND released_at IS NULL`, driverId, vehicleId);
+    return { ...waiting, owners: owners.map((o) => o.owner_phone) };
+  });
+  const payouts = [];
+  for (const ownerPhone of done.owners) {
+    try {
+      payouts.push(await createPayout(ownerPhone, driverId));
+    } catch (err) {
+      // Refunds still to take back cover the fares: nothing to send now, the fares stay released for later.
+      if (err.code !== 'NOTHING_TO_PAY') throw err;
+    }
+  }
+  for (const p of payouts.filter((x) => x.status === 'manual')) {
+    await notifyOffice({
+      kind: 'payout.manual',
+      title: `Send ${kesText(p.amount)} to owner ${p.owner_name}`,
+      body: 'The driver sent the car\'s fares to the owner. Send the money by M-Pesa, then record the M-Pesa code.',
+      target: `payout:${p.id}`,
+    });
+  }
+  return { fares: done.fares, total: done.total, payouts: payouts.map((p) => ({ id: p.id, amount: p.amount, status: p.status })) };
 }
 
 /** Pays every owner who is owed something. Used by the daily run and by "Pay everyone now". */
