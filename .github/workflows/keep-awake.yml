@@ -1,0 +1,13 @@
+# Keeps the free Render server from falling asleep (it sleeps after 15 minutes without visitors, and the app then
+# can't reach it while it wakes). GitHub opens /health every 10 minutes; /health doesn't touch the database.
+name: Keep the server awake
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: curl -fsS --retry 5 --retry-delay 15 --retry-all-errors --max-time 90 https://makos-farepay.onrender.com/health
