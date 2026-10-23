@@ -7,7 +7,7 @@ import { Badge, Banner, Dialog, Failed, Loading, PageHead, Stat } from '../ui';
 import { useApi } from '../useApi';
 import { PAYOUT_STATUS, payoutDestination, sendByHandSteps } from '../words';
 
-type Owed = { owners: OwnerOwed[]; automatic: boolean; daily_at: string };
+type Owed = { owners: OwnerOwed[]; automatic: boolean; daily_at: string; waiting_for_drivers: { cars: number; fares: number; total: number } | null };
 type Pending = { kind: 'auto' | 'manual'; owner: OwnerOwed } | { kind: 'all' };
 
 /** What each owner is owed now, paying them (by M-Pesa, or the office sends it itself), and every payout made. */
@@ -49,6 +49,13 @@ export function Payouts() {
                   : `Automatic M-Pesa payouts aren't set up: at ${o.daily_at} each day, payouts are prepared for you to send yourself.`
               }
             />
+            {o.waiting_for_drivers && (
+              <Stat
+                label="Waiting for drivers"
+                value={kes(o.waiting_for_drivers.total)}
+                note={`${o.waiting_for_drivers.fares} fares on ${o.waiting_for_drivers.cars} car(s). Owners are paid these once the car's driver taps "Send to owner" in the app.`}
+              />
+            )}
           </div>
           {!o.automatic && <Banner>Send each payout's amount from the SACCO's M-Pesa, then open the payout and enter the M-Pesa code.</Banner>}
 

@@ -11,6 +11,7 @@ import { ROLE_LABEL, type ConductorDay, type ConductorVehicle, type CrewLoad } f
 import { useApi } from '@/lib/useApi';
 import { useKeepAwakeWhile } from '@/lib/keepAwake';
 import { CashCard } from './CashCard';
+import { OwnerMoneyCard } from './OwnerMoneyCard';
 import { usePaymentFeed } from './usePaymentFeed';
 
 const DAYS = [
@@ -127,6 +128,9 @@ export function CrewHome() {
           <Text style={styles.tripSub}>{trip.route_name}</Text>
         </View>
       )}
+
+      {/* Only the driver sends the owner's money; it refetches whenever a new payment changes today's total. */}
+      {!isConductor && day === 0 && <OwnerMoneyCard key={summary?.total ?? 0} />}
 
       {day >= -1 && payments.data?.date === date && (
         <CashCard day={date} isToday={day === 0} cash={payments.data.cash} farepayTotal={payments.data.summary.total} onSaved={() => void payments.reload()} />

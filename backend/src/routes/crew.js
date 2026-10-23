@@ -1,12 +1,15 @@
 // Vehicle crew (conductor or driver): their vehicle, every payment made on it, checking tickets and reporting problems.
-// Only the conductor can change the vehicle's route. Crew can never change fares, wallets or payouts.
+// Only the conductor can change the vehicle's route; only the driver can send the car's fares to the owner.
+// Crew can never change fares, wallets or where the owner is paid.
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { boardBooking, crewLoad, departLoad, finishTrip, isLoading, reachStop, startLoading } from '../services/bookings.js';
 import { cashFor, declareCash, MAX_CASH } from '../services/cash.js';
+import { config } from '../config.js';
 import { claimVehicle } from '../services/crewCars.js';
+import { carFaresWaiting, releaseCarFares } from '../services/payouts.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
 import { askRefund, requestsForTrips } from '../services/refundRequests.js';
 import { boardByCode, setCarFull, boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
@@ -256,6 +259,25 @@ router.put('/cash', async (req, res) => {
   const body = parse(z.object({ day: z.string().date().default(nairobiToday), amount: z.number().int().min(0).max(MAX_CASH) }), req.body);
   const vehicle = await myVehicle(req.user);
   res.json(await declareCash(vehicle.id, req.user.id, body));
+});
+
+// The owner's money: FarePay fares wait until the car's DRIVER sends them ("Send to owner"). The conductor can't
+// see or send them.
+const driverOnly = (user) => {
+  if (user.role !== 'driver') throw new HttpError(403, 'FORBIDDEN', 'Only the driver can send the money to the owner');
+};
+
+router.get('/owner-money', async (req, res) => {
+  driverOnly(req.user);
+  const vehicle = await myVehicle(req.user);
+  res.json({ needs_driver: config.payoutsNeedDriver, waiting: await carFaresWaiting(vehicle.id) });
+});
+
+router.post('/owner-money/send', async (req, res) => {
+  driverOnly(req.user);
+  if (!config.payoutsNeedDriver) throw new HttpError(409, 'AUTOMATIC', 'Owners are paid automatically by the SACCO.');
+  const vehicle = await myVehicle(req.user);
+  res.json(await releaseCarFares(vehicle.id, req.user.id));
 });
 
 // "I'm working on this car": the crew member scans its sticker and takes their place on it (recorded for the office).

@@ -6,6 +6,7 @@ import { after, before, test } from 'node:test';
 import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
+process.env.PAYOUTS_NEED_DRIVER = 'false'; // these tests pay owners without the driver's "Send to owner"
 process.env.JWT_SECRET = 'test';
 process.env.MPESA_MODE = 'mock';
 process.env.SMS_PROVIDER = 'log';

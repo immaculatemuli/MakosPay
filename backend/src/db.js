@@ -699,6 +699,13 @@ if (!hasColumn('withdrawals', 'next_try_at')) db.exec('ALTER TABLE withdrawals A
 // "The car is full" (the same as migrations/020_car_full.sql for PostgreSQL).
 if (!hasColumn('loads', 'full_at')) db.exec('ALTER TABLE loads ADD COLUMN full_at TEXT');
 
+// The driver releases the car's fares to the owner (the same as migrations/021_driver_releases_fares.sql for PostgreSQL).
+if (!hasColumn('trips', 'released_at')) {
+  db.exec('ALTER TABLE trips ADD COLUMN released_at TEXT');
+  db.exec('UPDATE trips SET released_at = created_at');
+}
+if (!hasColumn('trips', 'released_by')) db.exec('ALTER TABLE trips ADD COLUMN released_by INTEGER REFERENCES users(id)');
+
 // Cash the crew declare per car and day (the same as migrations/018_cash_declarations.sql for PostgreSQL).
 db.exec(`
 CREATE TABLE IF NOT EXISTS cash_declarations (
