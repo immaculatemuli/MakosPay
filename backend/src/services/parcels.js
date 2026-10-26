@@ -247,7 +247,11 @@ async function refreshParcelPayment(payment) {
   let result;
   try {
     result = await mpesa.stkQuery(payment.checkout_request_id);
-  } catch {
+  } catch (err) {
+    // M-Pesa has no record of a prompt past its PIN time: it will never get an answer.
+    if (mpesa.lostByMpesa(err, payment.created_at)) {
+      await db.run(`UPDATE parcel_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW} WHERE id = ? AND status = 'pending'`, EXPIRED, payment.id);
+    }
     return; // usually "still being processed"
   }
   if (result.ResultCode !== undefined && !STILL_PROCESSING.has(String(result.ResultCode))) {
