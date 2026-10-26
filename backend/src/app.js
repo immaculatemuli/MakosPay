@@ -49,9 +49,28 @@ const WEBSITE_CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://tile.googleapis.com https://tile.openstreetmap.org; connect-src 'self'; " +
   "base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
+// The website's public pages, for search engines (the office, pay page and API stay out of search results).
+const PUBLIC_PAGES = ['/', '/app', '/book', '/parcels', '/privacy'];
+
 function serveWebsite(app) {
   const dir = config.websiteDir;
   if (!existsSync(join(dir, 'index.html'))) return;
+  // Built from the address the visitor used, so they stay right when the site moves to its own domain.
+  const siteUrl = (req) => `${req.protocol}://${req.get('host')}`;
+  app.get('/robots.txt', (req, res) => {
+    res.type('text/plain').send(`User-agent: *\nDisallow: /office/\nDisallow: /pay\nAllow: /\n\nSitemap: ${siteUrl(req)}/sitemap.xml\n`);
+  });
+  app.get('/sitemap.xml', (req, res) => {
+    const urls = PUBLIC_PAGES.map((p) => `  <url><loc>${siteUrl(req)}${p}</loc></url>`).join('\n');
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+  });
+  // Google Search Console's proof that the site is ours: GOOGLE_SITE_VERIFICATION is the file name it gives
+  // (e.g. google1a2b3c4d5e6f.html), answered with the line Google expects.
+  if (config.googleSiteVerification) {
+    app.get(`/${config.googleSiteVerification}`, (_req, res) => {
+      res.type('text/html').send(`google-site-verification: ${config.googleSiteVerification}`);
+    });
+  }
   app.use(
     (req, res, next) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return next();

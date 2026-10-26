@@ -4,6 +4,7 @@ import { after, before, test } from 'node:test';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
+process.env.GOOGLE_SITE_VERIFICATION = 'google1a2b3c.html';
 
 const { createApp } = await import('../src/app.js');
 
@@ -46,4 +47,18 @@ test('the short link /app opens the page to download the app', async () => {
     assert.match(html, /Get the FarePay app/);
     assert.match(html, /href="https:\/\/github\.com\/[\w-]+\/[\w-]+\/releases\/latest\/download\/FarePay\.apk"/, 'the newest release\'s APK');
   }
+});
+
+test('search engines: robots.txt and a sitemap of the public pages only, and the Google ownership file', async () => {
+  const robots = await (await fetch(`${base}/robots.txt`)).text();
+  assert.match(robots, /Disallow: \/office\//);
+  assert.match(robots, /Disallow: \/pay/);
+  assert.match(robots, new RegExp(`Sitemap: ${base}/sitemap.xml`));
+  const sitemap = await fetch(`${base}/sitemap.xml`);
+  assert.match(sitemap.headers.get('content-type'), /xml/);
+  const xml = await sitemap.text();
+  for (const page of ['/', '/app', '/book', '/parcels', '/privacy']) assert.match(xml, new RegExp(`<loc>${base}${page}</loc>`));
+  assert.doesNotMatch(xml, /office|\/pay/);
+  for (const page of ['/app', '/book', '/parcels', '/privacy']) assert.equal((await fetch(base + page)).status, 200, page);
+  assert.equal(await (await fetch(`${base}/google1a2b3c.html`)).text(), 'google-site-verification: google1a2b3c.html');
 });

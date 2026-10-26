@@ -20,6 +20,8 @@ export const config = {
   officeWebDir: env.OFFICE_WEB_DIR || fileURLToPath(new URL('../../admin-web/dist', import.meta.url)),
   // The public website (website/), served at the main address: /, /privacy.html ...
   websiteDir: env.WEBSITE_DIR || fileURLToPath(new URL('../../website', import.meta.url)),
+  // The file name Google Search Console gives to prove the website is ours (e.g. google1a2b3c4d5e6f.html). Empty: none.
+  googleSiteVerification: /^google[0-9a-f]+\.html$/.test(env.GOOGLE_SITE_VERIFICATION ?? '') ? env.GOOGLE_SITE_VERIFICATION : null,
   dbPath: env.DB_PATH ?? './data/farepay.db',
   // Which database the app uses: 'sqlite' (DB_PATH, today) or 'postgres' (DATABASE_URL, being prepared).
   dbEngine: env.DB_ENGINE ?? 'sqlite',
