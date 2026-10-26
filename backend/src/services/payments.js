@@ -238,7 +238,9 @@ export async function refreshPayment(payment) {
   let result;
   try {
     result = await mpesa.stkQuery(payment.checkout_request_id);
-  } catch {
+  } catch (err) {
+    // M-Pesa has no record of a prompt past its PIN time: it will never get an answer, so stop the waiting now.
+    if (mpesa.lostByMpesa(err, payment.created_at)) await expirePayment(payment);
     return getPayment(payment.id); // usually "being processed": the passenger hasn't entered their PIN yet
   }
   // 4999 "still under processing" is not an outcome: keep waiting.
@@ -265,20 +267,23 @@ export async function refreshPayment(payment) {
 export async function reconcilePendingPayments({ expireAfterMs = config.mpesa.pendingExpiryMs } = {}) {
   for (const payment of await db.all("SELECT * FROM mpesa_payments WHERE status = 'pending'")) {
     const current = await refreshPayment(payment);
-    if (current.status === 'pending' && Date.now() - Date.parse(current.created_at) > expireAfterMs) {
-      const expired = await db.run(
-        `UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW}
-         WHERE id = ? AND status = 'pending'`,
-        EXPIRED,
-        current.id,
-      );
-      if (!expired.changes) continue;
-      // A seat booking waiting for this payment fails with it (its passenger is told there), like a "failed" answer.
-      if (current.purpose === 'seat') await seatPaymentFailed(current, 'No answer from M-Pesa');
-      else await notifyTopupFailed(current, 'No answer from M-Pesa');
-    }
+    if (current.status === 'pending' && Date.now() - Date.parse(current.created_at) > expireAfterMs) await expirePayment(current);
   }
   await reconcileParcelPayments({ expireAfterMs });
+}
+
+/** A prompt that will never get an answer fails (a late "success" from M-Pesa can still complete it). */
+async function expirePayment(payment) {
+  const expired = await db.run(
+    `UPDATE mpesa_payments SET status = 'failed', result_desc = ?, completed_at = ${NOW}
+     WHERE id = ? AND status = 'pending'`,
+    EXPIRED,
+    payment.id,
+  );
+  if (!expired.changes) return;
+  // A seat booking waiting for this payment fails with it (its passenger is told there), like a "failed" answer.
+  if (payment.purpose === 'seat') await seatPaymentFailed(payment, 'No answer from M-Pesa');
+  else await notifyTopupFailed(payment, 'No answer from M-Pesa');
 }
 
 /** A passenger's own payment, refreshed, with the ticket once a fare is confirmed. */

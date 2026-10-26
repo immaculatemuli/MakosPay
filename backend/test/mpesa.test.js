@@ -231,6 +231,19 @@ test('a prompt M-Pesa never answers expires without crediting anything', async (
   assert.equal(await balance(), 100);
 });
 
+test('a prompt M-Pesa has no record of fails once past its PIN time, not after 15 minutes', async () => {
+  fake.defaultAnswers = ['unknown'];
+  const start = await api('POST', '/passenger/wallet/topup', { token: s.passenger, body: { amount: 30 } });
+  const id = start.body.payment.id;
+  assert.equal((await api('GET', `/passenger/mpesa/${id}`, { token: s.passenger })).body.payment.status, 'pending', 'still in its PIN time');
+  await db.run('UPDATE mpesa_payments SET created_at = ? WHERE id = ?', new Date(Date.now() - 2 * 60_000).toISOString(), id);
+  const seen = (await api('GET', `/passenger/mpesa/${id}`, { token: s.passenger })).body.payment;
+  assert.equal(seen.status, 'failed', 'the app is told straight away');
+  assert.match(seen.result_desc, /No answer from M-Pesa/);
+  assert.equal(await balance(), 100);
+  fake.defaultAnswers = ['processing', 'paid'];
+});
+
 test('a seat booking whose prompt M-Pesa never answers is released when the payment expires', async () => {
   fake.defaultAnswers = ['unknown'];
   const booked = await api('POST', '/book-api/seats', {

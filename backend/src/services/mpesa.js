@@ -125,6 +125,13 @@ export async function stkQuery(checkoutRequestId) {
   });
 }
 
+// A PIN prompt stays on the phone about a minute; after this, "does not exist" from the query is final.
+const LOST_AFTER_MS = 90_000;
+
+/** The STK query was refused because Safaricom has no record of the prompt (it never reached the phone). */
+export const lostByMpesa = (err, createdAt) =>
+  Boolean(err?.rejected) && /does not exist/i.test(err.message) && Date.now() - Date.parse(createdAt) > LOST_AFTER_MS;
+
 /**
  * Sends money to an M-Pesa number. Returns { providerReference }: IntaSend's tracking id, or
  * Daraja's ConversationID (Daraja reports the outcome by callback instead).
