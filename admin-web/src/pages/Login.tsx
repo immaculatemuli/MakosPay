@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { api, errorText } from '../api';
 import { useAuth } from '../auth';
 import { Banner, PasswordInput } from '../ui';
+import { passwordHint, passwordOk } from '../password';
 
 /** Office sign-in, and "forgot password" (a 6-digit code by SMS, then a new password). */
 export function Login() {
@@ -104,11 +105,12 @@ export function Login() {
               <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} required />
             </label>
             <label>
-              New password (at least 6 characters)
+              New password
               <PasswordInput value={password} onChange={setPassword} required />
+              <small className="muted">{passwordHint(password)}</small>
             </label>
             {error && <Banner tone="danger">{error}</Banner>}
-            <button type="submit" disabled={busy || code.length !== 6 || password.length < 6} style={{ width: '100%' }}>
+            <button type="submit" disabled={busy || code.length !== 6 || !passwordOk(password)} style={{ width: '100%' }}>
               {busy ? 'Saving…' : 'Set new password and sign in'}
             </button>
           </>

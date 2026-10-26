@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { dateTime, displayPhone, kes } from '../format';
 import { Badge, Banner, Dialog, Failed, Loading, PageHead, PasswordInput, Stat } from '../ui';
+import { passwordHint, passwordOk } from '../password';
 import { useApi } from '../useApi';
 
 interface Account {
@@ -65,7 +66,7 @@ function AccountList({ path, what, intro }: { path: string; what: string; intro:
         <Dialog
           title={`Add ${what}`}
           actionLabel={`Add ${what}`}
-          disabled={form.name.trim().length < 2 || form.phone.trim().length < 9 || form.password.length < 6}
+          disabled={form.name.trim().length < 2 || form.phone.trim().length < 9 || !passwordOk(form.password)}
           action={async () => {
             await api(path, { method: 'POST', body: { name: form.name.trim(), phone: form.phone.trim(), password: form.password } });
             setAdding(false);
@@ -84,8 +85,9 @@ function AccountList({ path, what, intro }: { path: string; what: string; intro:
             <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="07XXXXXXXX" />
           </label>
           <label>
-            Password (at least 6 characters)
+            Password
             <PasswordInput value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
+            <small className="muted">{passwordHint(form.password)}</small>
           </label>
         </Dialog>
       )}

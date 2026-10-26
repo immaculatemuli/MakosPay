@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { displayPhone } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { PRIVACY_POLICY_URL } from '@/lib/links';
+import { passwordHint, passwordOk } from '@/lib/password';
 import { ROLE_LABEL } from '@/lib/types';
 import { LanguageSwitch } from './LanguageSwitch';
 import { Button, Card, ErrorBox, Field, KeyValue, Muted, Notice, Screen, SectionTitle } from './ui';
@@ -118,8 +119,8 @@ export function AccountScreen({ children }: { children?: ReactNode }) {
       {error && <ErrorBox message={error} />}
       {done && <Notice tone="success">{t('Password changed. Any other phone signed in to this account has been signed out.')}</Notice>}
       <Field label={t('Current password')} secureTextEntry value={current} onChangeText={setCurrent} />
-      <Field label={t('New password')} hint={t('At least 6 characters')} secureTextEntry value={next} onChangeText={setNext} />
-      <Button title={t('Change password')} variant="secondary" onPress={changePassword} loading={busy} disabled={!current || next.length < 6} />
+      <Field label={t('New password')} hint={passwordHint(next)} secureTextEntry value={next} onChangeText={setNext} />
+      <Button title={t('Change password')} variant="secondary" onPress={changePassword} loading={busy} disabled={!current || !passwordOk(next)} />
 
       <SectionTitle>{t('Session')}</SectionTitle>
       <Button title={t('Privacy policy')} variant="secondary" icon="document-text-outline" onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)} />

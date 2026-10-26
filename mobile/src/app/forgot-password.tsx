@@ -6,6 +6,7 @@ import { Button, colors, ErrorBox, Field, Muted, Notice } from '@/components/ui'
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
+import { passwordHint, passwordOk } from '@/lib/password';
 
 /**
  * Forgot password: a 6-digit code is sent by SMS to the phone number; with it, a new password is set and the
@@ -74,8 +75,8 @@ export default function ForgotPassword() {
             onChangeText={(typed) => setCode(typed.replace(/\D/g, ''))}
             style={{ fontSize: 22, letterSpacing: 6, textAlign: 'center' }}
           />
-          <Field label={t('New password')} hint={t('At least 6 characters')} secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
-          <Button title={t('Set new password and sign in')} onPress={setNew} loading={busy} disabled={code.length !== 6 || password.length < 6} />
+          <Field label={t('New password')} hint={passwordHint(password)} secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
+          <Button title={t('Set new password and sign in')} onPress={setNew} loading={busy} disabled={code.length !== 6 || !passwordOk(password)} />
           <Button title={t('Send a new code')} variant="secondary" onPress={sendCode} disabled={busy} />
         </>
       )}

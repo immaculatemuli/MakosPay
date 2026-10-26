@@ -30,7 +30,7 @@ const login = async (phone, password) => (await api('POST', '/auth/login', { bod
 const s = {};
 
 async function passenger(name, phone) {
-  const token = (await signUp(api, { name, phone, password: 'pass123' })).body.token;
+  const token = (await signUp(api, { name, phone, password: 'Apass123' })).body.token;
   const userId = (await db.get('SELECT id FROM users WHERE phone = ?', `254${phone.slice(1)}`)).id;
   await tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 5000 }));
   return token;
@@ -53,13 +53,13 @@ before(async () => {
   s.admin = await login('0700000001', 'admin123');
   s.route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Machakos Road', origin: 'Machakos', stops: [{ name: 'Nairobi', fare: 200 }] } })).body;
   s.stop = s.route.stops[0];
-  const conductor = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711000001', password: 'crew123' } })).body;
+  const conductor = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711000001', password: 'Acrew123' } })).body;
   const car = (plate, seats, extra = {}) => api('POST', '/admin/vehicles', { token: s.admin, body: { plate, owner_name: 'Mary', owner_phone: '0744555666', route_id: s.route.id, seats, ...extra } }).then((r) => r.body);
   s.small = await car('KDA 123A', 3, { conductor_id: conductor.id });
   s.big = await car('KDB 123S', 14);
-  s.conductor = await login('0711000001', 'crew123');
-  await api('POST', '/admin/marshals', { token: s.admin, body: { name: 'Mary Marshal', phone: '0722000009', password: 'marsh123' } });
-  s.marshal = await login('0722000009', 'marsh123');
+  s.conductor = await login('0711000001', 'Acrew123');
+  await api('POST', '/admin/marshals', { token: s.admin, body: { name: 'Mary Marshal', phone: '0722000009', password: 'Amarsh123' } });
+  s.marshal = await login('0722000009', 'Amarsh123');
   s.pat = await passenger('Pat', '0733000001');
   s.walkers = await passenger('Walk In', '0733000002');
 });

@@ -41,8 +41,8 @@ before(async () => {
   })).body;
   [s.ruiru, s.juja] = s.route.stops;
   s.vehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: s.route.id } })).body;
-  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
-  s.other = (await signUp(api, { name: 'Other', phone: '0722333555', password: 'pass123' })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body.token;
+  s.other = (await signUp(api, { name: 'Other', phone: '0722333555', password: 'Apass123' })).body.token;
   const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
 });

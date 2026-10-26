@@ -27,13 +27,13 @@ after(() => server.close());
 test('no SMS: the app is told no code is needed, and a new number signs up', async () => {
   const sent = await api('POST', '/auth/register/code', { phone: '0722200001' });
   assert.deepEqual(sent.body, { code_needed: false });
-  const res = await api('POST', '/auth/register', { name: 'Pat', phone: '0722200001', password: 'pass1234' });
+  const res = await api('POST', '/auth/register', { name: 'Pat', phone: '0722200001', password: 'Apass1234' });
   assert.equal(res.status, 201);
 });
 
 test('no SMS: a number that paid without the app cannot be taken over', async () => {
   await passengerFor('254733200001');
-  const res = await api('POST', '/auth/register', { name: 'Not Them', phone: '0733200001', password: 'pass1234' });
+  const res = await api('POST', '/auth/register', { name: 'Not Them', phone: '0733200001', password: 'Apass1234' });
   assert.equal(res.status, 409);
   assert.match(res.body.error.message, /Ask the SACCO office/);
 });

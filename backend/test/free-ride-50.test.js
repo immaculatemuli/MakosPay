@@ -40,7 +40,7 @@ before(async () => {
   s.route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', fare: 100 }] } })).body;
   s.stop = s.route.stops[0];
   s.vehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: s.route.id } })).body;
-  s.token = (await signUp(api, { name: 'Pat', phone: '0722000001', password: 'pass123' })).body.token;
+  s.token = (await signUp(api, { name: 'Pat', phone: '0722000001', password: 'Apass123' })).body.token;
   s.userId = (await db.get("SELECT id FROM users WHERE phone = '254722000001'")).id;
   await tx(() => postWalletEntry(s.userId, { type: 'test_credit', amount: 10_000 }));
 });

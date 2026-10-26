@@ -32,7 +32,7 @@ before(async () => {
 after(() => server.close());
 
 test('only the SACCO office can use these screens', async () => {
-  const p = (await signUp(api, { name: 'Pat', phone: '0722222222', password: 'pass123' })).body.token;
+  const p = (await signUp(api, { name: 'Pat', phone: '0722222222', password: 'Apass123' })).body.token;
   assert.equal((await api('GET', '/admin/routes', { token: p })).status, 403);
   assert.equal((await api('GET', '/admin/routes')).status, 401);
 });
@@ -88,10 +88,10 @@ test('routes: edit fares, add a stop and remove one', async () => {
 });
 
 test('conductors: the office creates the account and the conductor can sign in', async () => {
-  const c = await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'cond123' } });
+  const c = await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'Acond123' } });
   assert.equal(c.status, 201);
   s.conductor = c.body;
-  const login = await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'cond123' } });
+  const login = await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'Acond123' } });
   assert.equal(login.body.user.role, 'conductor');
 });
 
@@ -145,7 +145,7 @@ test('disabling a conductor frees their vehicle and blocks their sign-in', async
   assert.equal(off.body.is_active, 0);
   const vehicle = await api('GET', `/admin/vehicles/${s.vehicle.id}`, { token: s.admin });
   assert.equal(vehicle.body.conductor_id, null);
-  assert.equal((await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'cond123' } })).status, 403);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'Acond123' } })).status, 403);
 });
 
 test('home dashboard counts what is set up', async () => {
@@ -169,11 +169,11 @@ test('the office finds passengers and sets a new password for one who forgot it'
   assert.equal(found[0].wallet_balance, 0);
   assert.deepEqual((await api('GET', '/admin/passengers?q=nobody', { token: s.admin })).body, []);
 
-  const r = await api('POST', `/admin/users/${found[0].id}/password`, { token: s.admin, body: { new_password: 'fresh123' } });
+  const r = await api('POST', `/admin/users/${found[0].id}/password`, { token: s.admin, body: { new_password: 'Afresh123' } });
   assert.equal(r.status, 200);
-  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722222222', password: 'fresh123' } })).status, 200);
-  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722222222', password: 'pass123' } })).status, 401);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722222222', password: 'Afresh123' } })).status, 200);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722222222', password: 'Apass123' } })).status, 401);
 
   const adminId = (await api('GET', '/auth/me', { token: s.admin })).body.user.id;
-  assert.equal((await api('POST', `/admin/users/${adminId}/password`, { token: s.admin, body: { new_password: 'nope123' } })).status, 404, 'not for office accounts');
+  assert.equal((await api('POST', `/admin/users/${adminId}/password`, { token: s.admin, body: { new_password: 'Anope123' } })).status, 404, 'not for office accounts');
 });

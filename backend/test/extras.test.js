@@ -75,7 +75,7 @@ before(async () => {
   s.stop = route.stops[0];
   s.routeId = route.id;
   s.mpesaVehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 111A', owner_name: 'Mary', owner_phone: '0744555666', route_id: route.id } })).body;
-  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body.token;
   s.passengerId = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(s.passengerId, { type: 'test_credit', amount: 1000 }));
 });
@@ -124,9 +124,9 @@ test('refund after the owner was paid: taken off their next payout', async () =>
 });
 
 test('conductor ticket check shows a refunded ticket as refunded', async () => {
-  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'cond123' } })).body;
+  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'Acond123' } })).body;
   await api('PATCH', `/admin/vehicles/${s.mpesaVehicle.id}`, { token: s.admin, body: { conductor_id: c.id } });
-  const conductor = (await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'cond123' } })).body.token;
+  const conductor = (await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'Acond123' } })).body.token;
   const r = await api('GET', `/conductor/tickets/${s.paidTrip.ticket_code}`, { token: conductor });
   assert.equal(r.body.refunded, true);
 });
@@ -179,33 +179,33 @@ test('switching an owner back to M-Pesa pays them by B2C to their phone', async 
 });
 
 test('office staff: add another office account; it can sign in; nobody can switch themselves off', async () => {
-  const add = await api('POST', '/admin/staff', { token: s.admin, body: { name: 'Second Clerk', phone: '0700000002', password: 'clerk123' } });
+  const add = await api('POST', '/admin/staff', { token: s.admin, body: { name: 'Second Clerk', phone: '0700000002', password: 'Aclerk123' } });
   assert.equal(add.status, 201);
-  const login = await api('POST', '/auth/login', { body: { phone: '0700000002', password: 'clerk123' } });
+  const login = await api('POST', '/auth/login', { body: { phone: '0700000002', password: 'Aclerk123' } });
   assert.equal(login.body.user.role, 'admin');
   assert.deepEqual((await api('GET', '/admin/staff', { token: s.admin })).body.map((x) => x.name).sort(), ['Office', 'Second Clerk']);
 
   assert.equal((await api('PATCH', `/admin/staff/${s.adminId}`, { token: s.admin, body: { is_active: false } })).status, 400);
   await api('PATCH', `/admin/staff/${add.body.id}`, { token: s.admin, body: { is_active: false } });
-  assert.equal((await api('POST', '/auth/login', { body: { phone: '0700000002', password: 'clerk123' } })).status, 403);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0700000002', password: 'Aclerk123' } })).status, 403);
 });
 
 test('a passenger can delete their account once the wallet is empty', async () => {
-  const blocked = await api('POST', '/auth/delete-account', { token: s.passenger, body: { password: 'pass123' } });
+  const blocked = await api('POST', '/auth/delete-account', { token: s.passenger, body: { password: 'Apass123' } });
   assert.equal(blocked.status, 409);
   assert.equal(blocked.body.error.code, 'WALLET_NOT_EMPTY');
 
   (await db.run('UPDATE wallets SET balance = 0 WHERE user_id = ?', s.passengerId));
   assert.equal((await api('POST', '/auth/delete-account', { token: s.passenger, body: { password: 'wrong' } })).status, 400);
-  const ok = await api('POST', '/auth/delete-account', { token: s.passenger, body: { password: 'pass123' } });
+  const ok = await api('POST', '/auth/delete-account', { token: s.passenger, body: { password: 'Apass123' } });
   assert.equal(ok.status, 200);
 
-  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722333444', password: 'pass123' } })).status, 401);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722333444', password: 'Apass123' } })).status, 401);
   assert.equal((await api('GET', '/auth/me', { token: s.passenger })).status, 401, 'signed out everywhere');
   const row = (await db.get('SELECT name, phone FROM users WHERE id = ?', s.passengerId));
   assert.deepEqual({ ...row }, { name: 'Deleted passenger', phone: `deleted-${s.passengerId}` });
   assert.ok((await db.get('SELECT COUNT(*) AS n FROM trips WHERE passenger_id = ?', s.passengerId)).n > 0, 'payment records kept');
 
   // The number can be used again for a new account.
-  assert.equal((await signUp(api, { name: 'New Pat', phone: '0722333444', password: 'pass123' })).status, 201);
+  assert.equal((await signUp(api, { name: 'New Pat', phone: '0722333444', password: 'Apass123' })).status, 201);
 });

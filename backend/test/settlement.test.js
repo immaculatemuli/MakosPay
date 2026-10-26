@@ -35,7 +35,7 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
   s.admin = await login('0700000001', 'admin123');
-  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body.token;
   s.passengerId = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(s.passengerId, { type: 'test_credit', amount: 500 }));
 });
@@ -110,7 +110,7 @@ test('when automatic payouts are off, the office sends it and records the M-Pesa
 });
 
 test('passengers with money left are pointed to Withdraw before deleting their account', async () => {
-  const r = await api('POST', '/auth/delete-account', { token: s.passenger, body: { password: 'pass123' } });
+  const r = await api('POST', '/auth/delete-account', { token: s.passenger, body: { password: 'Apass123' } });
   assert.equal(r.body.error.code, 'WALLET_NOT_EMPTY');
   assert.match(r.body.error.message, /Withdraw it to M-Pesa/);
 });

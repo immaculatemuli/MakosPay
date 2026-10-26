@@ -102,7 +102,7 @@ before(async () => {
     body: { plate: 'KDA 123A', owner_name: 'Mary Owner', owner_phone: '0744555666', route_id: route.id },
   })).body;
   s.qr = `farepay://pay?v=${vehicle.qr_token}`;
-  s.passenger = (await signUp(api, { name: 'Pat', phone: '0712345678', password: 'secret1' })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0712345678', password: 'Asecret1' })).body.token;
 });
 after(() => {
   server.close();

@@ -45,7 +45,7 @@ const balance = async () => (await db.get('SELECT balance FROM wallets WHERE use
 const nextTryIsDue = (id) => db.run('UPDATE withdrawals SET next_try_at = ? WHERE id = ?', new Date(Date.now() - 1000).toISOString(), id);
 
 before(async () => {
-  pat = await createUser({ name: 'Pat', phone: '254722000001', password: 'pass123', role: 'passenger' });
+  pat = await createUser({ name: 'Pat', phone: '254722000001', password: 'Apass123', role: 'passenger' });
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
   await tx(() => postWalletEntry(pat.id, { type: 'test_credit', amount: 1000 }));
 });

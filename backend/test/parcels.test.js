@@ -51,9 +51,9 @@ before(async () => {
   [s.near, s.far] = s.route.stops;
   s.other = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Other Road', origin: 'Town', stops: [{ name: 'Elsewhere', fare: 50 }] } })).body;
   for (const [n, routeId] of [[1, s.route.id], [2, s.other.id]]) {
-    const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: `Conductor ${n}`, phone: `071100000${n}`, password: 'cond123' } })).body;
+    const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: `Conductor ${n}`, phone: `071100000${n}`, password: 'Acond123' } })).body;
     await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: `KPA 00${n}A`, owner_name: 'Owner', owner_phone: '0744555666', conductor_id: c.id, route_id: routeId } });
-    s[`crew${n}`] = (await api('POST', '/auth/login', { body: { phone: `071100000${n}`, password: 'cond123' } })).body.token;
+    s[`crew${n}`] = (await api('POST', '/auth/login', { body: { phone: `071100000${n}`, password: 'Acond123' } })).body.token;
   }
 });
 after(() => server.close());

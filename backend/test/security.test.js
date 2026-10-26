@@ -34,7 +34,7 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
   s.admin = (await login('0700000001', 'admin123')).body.token;
-  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body;
 });
 after(() => server.close());
 
@@ -63,8 +63,8 @@ test('a wrong number and a wrong password get the same answer', async () => {
 });
 
 test('changing the password signs out other phones but keeps this one signed in', async () => {
-  const other = (await login('0722333444', 'pass123')).body.token;
-  const r = await api('POST', '/auth/change-password', { token: s.passenger.token, body: { current_password: 'pass123', new_password: 'newpass456' } });
+  const other = (await login('0722333444', 'Apass123')).body.token;
+  const r = await api('POST', '/auth/change-password', { token: s.passenger.token, body: { current_password: 'Apass123', new_password: 'Anewpass456' } });
   assert.equal(r.status, 200);
   assert.ok(r.body.token, 'a fresh sign-in for this phone');
   assert.equal((await api('GET', '/auth/me', { token: r.body.token })).status, 200);
@@ -77,9 +77,9 @@ test('changing the password signs out other phones but keeps this one signed in'
 
 test('an office password reset signs the person out everywhere', async () => {
   const id = s.passenger.user.id;
-  assert.equal((await api('POST', `/admin/users/${id}/password`, { token: s.admin, body: { new_password: 'office789' } })).status, 200);
+  assert.equal((await api('POST', `/admin/users/${id}/password`, { token: s.admin, body: { new_password: 'Aoffice789' } })).status, 200);
   assert.equal((await api('GET', '/auth/me', { token: s.passengerToken })).status, 401);
-  s.passengerToken = (await login('0722333444', 'office789')).body.token;
+  s.passengerToken = (await login('0722333444', 'Aoffice789')).body.token;
   assert.equal((await api('GET', '/passenger/wallet', { token: s.passengerToken })).status, 200);
 });
 

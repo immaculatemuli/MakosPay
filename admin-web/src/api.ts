@@ -36,7 +36,10 @@ export async function api<T>(path: string, { method = 'GET', body }: { method?: 
   if (!res.ok) {
     if (res.status === 401 && !path.startsWith('/auth/web/login')) onSignedOut();
     if (res.status >= 500 && !data?.error) throw new ApiError(res.status, 'SERVER', 'The FarePay server had a problem. Please try again.');
-    throw new ApiError(res.status, data?.error?.code ?? 'ERROR', data?.error?.message ?? `Request failed (${res.status})`);
+    // "Invalid request" alone says nothing: show what was wrong (e.g. the password rule) instead.
+    const details: { message: string }[] | undefined = data?.error?.code === 'VALIDATION_ERROR' ? data.error.details : undefined;
+    const message = details?.length ? details.map((d) => d.message).join('. ') : data?.error?.message;
+    throw new ApiError(res.status, data?.error?.code ?? 'ERROR', message ?? `Request failed (${res.status})`);
   }
   return data as T;
 }

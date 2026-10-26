@@ -83,7 +83,7 @@ before(async () => {
   await until(() => textsTo('+254722000001').length === 1, 'the sign-up code SMS');
   assert.match(textsTo('+254722000001')[0].message, /Your FarePay sign-up code is \d{6}\. It works for 10 minutes\./);
   const code = codeIn(textsTo('+254722000001')[0].message);
-  s.pat = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722000001', password: 'oldpass1', code } })).body.token;
+  s.pat = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722000001', password: 'Aoldpass1', code } })).body.token;
   assert.ok(s.pat);
   sms.splice(0); // the tests below count only their own texts
 });
@@ -119,15 +119,15 @@ test('an unknown number gets the same answer, and no SMS', async () => {
 });
 
 test('the right code sets a new password and signs out every other phone; the code works once', async () => {
-  const wrong = await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code: s.code === '000000' ? '111111' : '000000', new_password: 'newpass1' } });
+  const wrong = await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code: s.code === '000000' ? '111111' : '000000', new_password: 'Anewpass1' } });
   assert.equal(wrong.body.error.code, 'WRONG_CODE');
   assert.match(wrong.body.error.message, /4 tries left/);
-  const ok = await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code: s.code, new_password: 'newpass1' } });
+  const ok = await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code: s.code, new_password: 'Anewpass1' } });
   assert.deepEqual(ok.body, { ok: true });
-  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722000001', password: 'newpass1' } })).status, 200);
-  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722000001', password: 'oldpass1' } })).status, 401);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722000001', password: 'Anewpass1' } })).status, 200);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0722000001', password: 'Aoldpass1' } })).status, 401);
   assert.equal((await api('GET', '/passenger/wallet', { token: s.pat })).status, 401, 'the old sign-in no longer works');
-  const again = await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code: s.code, new_password: 'another1' } });
+  const again = await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code: s.code, new_password: 'Aanother1' } });
   assert.equal(again.body.error.code, 'NO_CODE');
   const log = await db.get("SELECT details FROM audit_log WHERE action = 'account.password_reset_by_sms'");
   assert.ok(log, 'in the audit log');
@@ -138,8 +138,8 @@ test('5 wrong codes stop the code; asking too often is stopped', async () => {
   await until(() => textsTo('+254722000001').length === 2, 'second code');
   const code = codeIn(textsTo('+254722000001')[1].message);
   const bad = code === '000000' ? '111111' : '000000';
-  for (let i = 0; i < 5; i++) await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code: bad, new_password: 'newpass2' } });
-  const blocked = await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code, new_password: 'newpass2' } });
+  for (let i = 0; i < 5; i++) await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code: bad, new_password: 'Anewpass2' } });
+  const blocked = await api('POST', '/auth/password-reset/confirm', { body: { phone: '0722000001', code, new_password: 'Anewpass2' } });
   assert.equal(blocked.body.error.code, 'TOO_MANY_TRIES', 'even the right code, after 5 wrong ones');
   assert.equal((await api('POST', '/auth/password-reset/request', { body: { phone: '0722000001' } })).status, 200, 'third request this hour');
   assert.equal((await api('POST', '/auth/password-reset/request', { body: { phone: '0722000001' } })).status, 429, 'fourth is refused');
@@ -153,17 +153,17 @@ test('a passenger who only paid without the app can set a first password by SMS'
   await api('POST', '/auth/password-reset/request', { body: { phone: '0733000009' } });
   await until(() => textsTo('+254733000009').length === 1, 'code to the no-app passenger');
   const code = codeIn(textsTo('+254733000009')[0].message);
-  await api('POST', '/auth/password-reset/confirm', { body: { phone: '0733000009', code, new_password: 'first123' } });
-  const login = await api('POST', '/auth/login', { body: { phone: '0733000009', password: 'first123' } });
+  await api('POST', '/auth/password-reset/confirm', { body: { phone: '0733000009', code, new_password: 'Afirst123' } });
+  const login = await api('POST', '/auth/login', { body: { phone: '0733000009', password: 'Afirst123' } });
   assert.equal(login.status, 200);
   assert.equal((await api('GET', '/passenger/trips', { token: login.body.token })).body.items.length, 1, 'their fare is in their account');
   s.route = route;
 });
 
 test('parcels: the receiver gets the tracking code and collection code, the sender a receipt, then "arrived"', async () => {
-  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Conductor', phone: '0711000001', password: 'cond123' } })).body;
+  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Conductor', phone: '0711000001', password: 'Acond123' } })).body;
   await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KSM 002S', owner_name: 'Owner', owner_phone: '0744555666', conductor_id: c.id, route_id: s.route.id } });
-  const crew = (await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'cond123' } })).body.token;
+  const crew = (await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'Acond123' } })).body.token;
   const p = (await api('POST', '/admin/parcels', {
     token: s.admin,
     body: { sender_name: 'Sam Sender', sender_phone: '0722111222', receiver_name: 'Mary Wanjiku', receiver_phone: '0733222111', route_id: s.route.id, stop_id: s.route.stops[0].id, fee: 300, payment: 'cash' },
@@ -184,7 +184,7 @@ test('parcels: the receiver gets the tracking code and collection code, the send
 
 test('a text Africa\'s Talking refuses is tried 3 times, then given up (and its text removed)', async () => {
   failNumber = '+254722999888';
-  await createUser({ name: 'Bad Number', phone: '254722999888', password: 'pass1234', role: 'passenger' });
+  await createUser({ name: 'Bad Number', phone: '254722999888', password: 'Apass1234', role: 'passenger' });
   await api('POST', '/auth/password-reset/request', { body: { phone: '0722999888' } });
   await until(async () => (await db.get("SELECT status FROM sms_outbox WHERE phone = '254722999888'"))?.status === 'failed', 'given up');
   const row = await db.get("SELECT attempts, message, error FROM sms_outbox WHERE phone = '254722999888'");
@@ -192,7 +192,7 @@ test('a text Africa\'s Talking refuses is tried 3 times, then given up (and its 
 });
 
 test('push: a phone registers, gets each new notification, and is forgotten once it stops accepting', async () => {
-  const token = (await api('POST', '/auth/login', { body: { phone: '0722000001', password: 'newpass1' } })).body.token;
+  const token = (await api('POST', '/auth/login', { body: { phone: '0722000001', password: 'Anewpass1' } })).body.token;
   assert.equal((await api('POST', '/notifications/push-token', { token, body: { token: 'not-a-token-at-all' } })).status, 400);
   assert.equal((await api('POST', '/notifications/push-token', { token, body: { token: 'ExponentPushToken[abcdefghij123]' } })).status, 200);
   await api('POST', '/passenger/wallet/topup', { token, body: { amount: 100 } }); // test M-Pesa confirms: "KES 100 added to your wallet"

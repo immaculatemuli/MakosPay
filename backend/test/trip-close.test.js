@@ -33,12 +33,12 @@ before(async () => {
   s.admin = await login('0700000001', 'admin123');
   const route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Machakos - Nairobi', origin: 'Machakos', stops: [{ name: 'Athi River', fare: 150 }] } })).body;
   for (const [n, phone] of [['One', '0711000001'], ['Two', '0711000002']]) {
-    await api('POST', '/admin/conductors', { token: s.admin, body: { name: `Conductor ${n}`, phone, password: 'cond123' } });
+    await api('POST', '/admin/conductors', { token: s.admin, body: { name: `Conductor ${n}`, phone, password: 'Acond123' } });
     const id = (await db.get('SELECT id FROM users WHERE phone = ?', `254${phone.slice(1)}`)).id;
     await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: `KDA 00${n.length}${n[0]}`, owner_name: 'Owner', owner_phone: '0744555666', route_id: route.id, conductor_id: id } });
   }
-  s.one = await login('0711000001', 'cond123');
-  s.two = await login('0711000002', 'cond123');
+  s.one = await login('0711000001', 'Acond123');
+  s.two = await login('0711000002', 'Acond123');
 });
 after(() => server.close());
 

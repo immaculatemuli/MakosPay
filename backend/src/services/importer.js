@@ -5,6 +5,7 @@ import { randomInt } from 'node:crypto';
 import { db, tx } from '../database.js';
 import { HttpError } from '../errors.js';
 import { newQrToken, normalizePhone } from '../util.js';
+import { PASSWORD_RULE, passwordOk } from '../validate.js';
 import { findOrCreateOwner, linkVehicle } from './owners.js';
 import { createRoute } from './routes.js';
 import { createUser } from './users.js';
@@ -134,7 +135,7 @@ async function checkCrew(rows) {
     if (!r.name || r.name.length < 2) errors.push('Name is empty');
     if (!phone) errors.push('Phone must be a Kenyan mobile number, e.g. 0712345678');
     if (!role) errors.push('Role must be driver, conductor or marshal');
-    if (r.password && r.password.length < 6) errors.push('Password needs at least 6 characters (or leave it empty to make one)');
+    if (r.password && !passwordOk(r.password)) errors.push(`${PASSWORD_RULE} (or leave it empty to make one)`);
     if (phone) {
       if (seen.has(phone)) errors.push(`Same phone as row ${seen.get(phone)}`);
       else seen.set(phone, line);

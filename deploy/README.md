@@ -133,8 +133,8 @@ If you started empty, create the first SACCO office account (and a platform admi
 
 ```bash
 cd /opt/farepay/backend
-sudo -u farepay node --env-file=.env scripts/create-admin.js --name "Office Name" --phone 07XXXXXXXX --password "a-strong-password"
-sudo -u farepay node --env-file=.env scripts/create-admin.js --platform --name "Your Name" --phone 07XXXXXXXX --password "a-strong-password"
+sudo -u farepay node --env-file=.env scripts/create-admin.js --name "Office Name" --phone 07XXXXXXXX --password "Strong-Pass1"
+sudo -u farepay node --env-file=.env scripts/create-admin.js --platform --name "Your Name" --phone 07XXXXXXXX --password "Strong-Pass1"
 ```
 
 ## 7. https address

@@ -52,13 +52,13 @@ before(async () => {
     token: s.admin,
     body: { name: 'Route 46', origin: 'Town', stops: [{ name: 'Kawangware', cash_fare: 70, app_fare: 60 }] },
   })).body;
-  const conductor = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'cond123' } })).body;
+  const conductor = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'Acond123' } })).body;
   s.vehicle = (await api('POST', '/admin/vehicles', {
     token: s.admin,
     body: { plate: 'KDA 123A', description: 'White Nissan', owner_name: 'Mary Owner', owner_phone: '0744555666', conductor_id: conductor.id, route_id: s.route.id },
   })).body;
   s.qr = `farepay://pay?v=${s.vehicle.qr_token}`;
-  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722222222', password: 'pass123' })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722222222', password: 'Apass123' })).body.token;
 });
 after(() => server.close());
 

@@ -45,7 +45,7 @@ before(async () => {
   const a = await car('KDA 001A', { owner_name: 'Mary Wanjiru', owner_phone: '0744555666' });
   const b = await car('KDA 002A', { owner_name: 'Mary Wanjiru', owner_phone: '0744555666' });
   const c = await car('KDB 003B', { owner_name: '=HYPERLINK("x")', owner_phone: '0755666777' });
-  const p = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
+  const p = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body.token;
   await tx(async () => postWalletEntry((await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id, { type: 'test_credit', amount: 5000 }));
   const pay = (v) => api('POST', '/passenger/pay', { token: p, body: { qr: v.qr_token, stop_id: route.stops[0].id, expected_fare: 100, idempotency_key: randomUUID() } }).then((r) => r.body.trip);
   await pay(a);

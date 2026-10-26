@@ -20,7 +20,7 @@ const api = async (method, path, { token, body } = {}) => {
   });
   return { status: res.status, body: await res.json() };
 };
-const login = async (phone) => (await api('POST', '/auth/login', { body: { phone, password: 'crew123' } })).body.token;
+const login = async (phone) => (await api('POST', '/auth/login', { body: { phone, password: 'Acrew123' } })).body.token;
 const crewOf = async (vehicleId) => ({ ...(await db.get('SELECT conductor_id, driver_id FROM vehicles WHERE id = ?', vehicleId)) });
 const s = {};
 
@@ -31,7 +31,7 @@ before(async () => {
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   s.route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Machakos Road', origin: 'Machakos', stops: [{ name: 'Nairobi', fare: 100 }] } })).body;
-  const add = (role, name, phone) => api('POST', `/admin/${role}s`, { token: s.admin, body: { name, phone, password: 'crew123' } }).then((r) => r.body);
+  const add = (role, name, phone) => api('POST', `/admin/${role}s`, { token: s.admin, body: { name, phone, password: 'Acrew123' } }).then((r) => r.body);
   s.ian = await add('conductor', 'Ian', '0711000001');
   s.joy = await add('conductor', 'Joy', '0711000002');
   s.dan = await add('driver', 'Dan', '0711000003');

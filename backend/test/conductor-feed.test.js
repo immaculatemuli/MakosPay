@@ -40,13 +40,13 @@ before(async () => {
     token: s.admin,
     body: { name: 'Machakos Road', origin: 'Machakos', stops: [{ name: 'Athi River', fare: 60 }, { name: 'Nairobi', fare: 100 }] },
   })).body;
-  const ian = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'cond123' } })).body;
+  const ian = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'Acond123' } })).body;
   s.vehicle = (await api('POST', '/admin/vehicles', {
     token: s.admin,
     body: { plate: 'KDA 123A', owner_name: 'Mary Owner', owner_phone: '0744555666', conductor_id: ian.id, route_id: s.route.id },
   })).body;
-  s.conductor = (await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'cond123' } })).body.token;
-  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' })).body.token;
+  s.conductor = (await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'Acond123' } })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'Apass123' })).body.token;
   const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
 });
