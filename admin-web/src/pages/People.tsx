@@ -4,6 +4,7 @@ import { api } from '../api';
 import { dateTime, displayPhone, kes } from '../format';
 import type { CrewMember, PassengerRow } from '../types';
 import { Badge, Chips, Dialog, Failed, Loading, PageHead, PasswordInput } from '../ui';
+import { passwordHint, passwordOk } from '../password';
 import { useApi } from '../useApi';
 
 /** The office sets a new password for someone who forgot theirs (they are signed out everywhere). */
@@ -21,7 +22,7 @@ export function SetPassword({ person, onClose }: { person: { id: number; name: s
     <Dialog
       title={`New password for ${person.name}`}
       actionLabel="Set password"
-      disabled={password.length < 6}
+      disabled={!passwordOk(password)}
       action={async () => {
         await api(`/admin/users/${person.id}/password`, { method: 'POST', body: { new_password: password } });
         setDone(true);
@@ -29,8 +30,9 @@ export function SetPassword({ person, onClose }: { person: { id: number; name: s
       onClose={onClose}
     >
       <label>
-        New password (at least 6 characters)
+        New password
         <PasswordInput value={password} onChange={setPassword} />
+        <small className="muted">{passwordHint(password)}</small>
       </label>
     </Dialog>
   );
@@ -108,7 +110,7 @@ export function Crew() {
         <Dialog
           title={`Add a ${word}`}
           actionLabel={`Add ${word}`}
-          disabled={form.name.trim().length < 2 || form.phone.trim().length < 9 || form.password.length < 6}
+          disabled={form.name.trim().length < 2 || form.phone.trim().length < 9 || !passwordOk(form.password)}
           action={async () => {
             await api(path, { method: 'POST', body: { name: form.name.trim(), phone: form.phone.trim(), password: form.password } });
             setAdding(false);
@@ -127,8 +129,9 @@ export function Crew() {
             <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="07XXXXXXXX" />
           </label>
           <label>
-            Password (at least 6 characters)
+            Password
             <PasswordInput value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
+            <small className="muted">{passwordHint(form.password)}</small>
           </label>
         </Dialog>
       )}

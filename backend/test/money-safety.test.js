@@ -41,11 +41,11 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
-  const reg = await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123', role: 'admin', balance: 100000 });
+  const reg = await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123', role: 'admin', balance: 100000 });
   s.pat = reg.body.token;
   s.patId = reg.body.user.id;
   assert.equal(reg.body.user.role, 'passenger', 'signing up can never pick a role');
-  const other = await signUp(api, { name: 'Olive', phone: '0722333555', password: 'pass123' });
+  const other = await signUp(api, { name: 'Olive', phone: '0722333555', password: 'Apass123' });
   s.oliveId = other.body.user.id;
   const route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Ruiru', cash_fare: 60, app_fare: 50 }] } })).body;
   s.stop = route.stops[0];

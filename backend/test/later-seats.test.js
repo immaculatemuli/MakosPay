@@ -34,7 +34,7 @@ const login = async (phone, password) => (await api('POST', '/auth/login', { bod
 const s = {};
 
 async function passenger(name, phone) {
-  const token = (await signUp(api, { name, phone, password: 'pass123' })).body.token;
+  const token = (await signUp(api, { name, phone, password: 'Apass123' })).body.token;
   const userId = (await db.get('SELECT id FROM users WHERE phone = ?', `254${phone.slice(1)}`)).id;
   await tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 2000 }));
   return { token, userId };
@@ -66,14 +66,14 @@ before(async () => {
     body: { name: 'Nairobi - Machakos', origin: 'Town', stops: [{ name: 'Juja', fare: 150 }, { name: 'Machakos', fare: 400 }] },
   })).body;
   [s.juja, s.machakos] = s.route.stops;
-  const driver = (await api('POST', '/admin/drivers', { token: s.admin, body: { name: 'Dan Driver', phone: '0711000001', password: 'drive123' } })).body;
+  const driver = (await api('POST', '/admin/drivers', { token: s.admin, body: { name: 'Dan Driver', phone: '0711000001', password: 'Adrive123' } })).body;
   s.car = (await api('POST', '/admin/vehicles', {
     token: s.admin,
     body: { plate: 'KDA 111A', owner_name: 'Owner', owner_phone: '0744555666', route_id: s.route.id, seats: 14, driver_id: driver.id },
   })).body;
-  s.driver = await login('0711000001', 'drive123');
-  await api('POST', '/admin/marshals', { token: s.admin, body: { name: 'Mary Marshal', phone: '0722000009', password: 'marsh123' } });
-  s.marshal = await login('0722000009', 'marsh123');
+  s.driver = await login('0711000001', 'Adrive123');
+  await api('POST', '/admin/marshals', { token: s.admin, body: { name: 'Mary Marshal', phone: '0722000009', password: 'Amarsh123' } });
+  s.marshal = await login('0722000009', 'Amarsh123');
   s.p1 = await passenger('Pat One', '0733000001');
   s.p2 = await passenger('Pam Two', '0733000002');
   s.p3 = await passenger('Pete Three', '0733000003');

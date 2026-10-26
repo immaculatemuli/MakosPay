@@ -22,7 +22,7 @@ const api = async (method, path, { token, body } = {}) => {
   return { status: res.status, body: await res.json() };
 };
 const askCode = async (phone) => (await api('POST', '/auth/register/code', { body: { phone } })).body;
-const register = (phone, code, name = 'Pat Passenger') => api('POST', '/auth/register', { body: { name, phone, password: 'pass1234', code } });
+const register = (phone, code, name = 'Pat Passenger') => api('POST', '/auth/register', { body: { name, phone, password: 'Apass1234', code } });
 
 before(async () => {
   server = createApp().listen(0);
@@ -73,7 +73,7 @@ test('asking again cancels the old code', async () => {
 });
 
 test('no code is sent to a number that already has an account', async () => {
-  await createUser({ name: 'Ian', phone: '254711100001', password: 'cond123', role: 'conductor' });
+  await createUser({ name: 'Ian', phone: '254711100001', password: 'Acond123', role: 'conductor' });
   const res = await api('POST', '/auth/register/code', { body: { phone: '0711100001' } });
   assert.equal(res.status, 409);
   assert.equal(await db.get("SELECT id FROM sms_outbox WHERE phone = '254711100001'"), undefined);

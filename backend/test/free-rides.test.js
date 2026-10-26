@@ -31,7 +31,7 @@ const login = async (phone, password) => (await api('POST', '/auth/login', { bod
 const s = {};
 
 async function passenger(phone) {
-  const token = (await signUp(api, { name: 'Pat', phone, password: 'pass123' })).body.token;
+  const token = (await signUp(api, { name: 'Pat', phone, password: 'Apass123' })).body.token;
   const userId = (await db.get('SELECT id FROM users WHERE phone = ?', `254${phone.slice(1)}`)).id;
   await tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 2000 }));
   return { token, userId };

@@ -38,7 +38,7 @@ before(async () => {
   s.admin = await login('0700000001', 'admin123');
   s.thika = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 120, app_fare: 100 }] } })).body;
   s.msa = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Mombasa Road', origin: 'Town', stops: [{ name: 'Athi River', cash_fare: 150, app_fare: 150 }] } })).body;
-  const crew = (n, role) => api('POST', `/admin/${role}s`, { token: s.admin, body: { name: `${role} ${n}`, phone: `07110000${n}`, password: 'crew123' } });
+  const crew = (n, role) => api('POST', `/admin/${role}s`, { token: s.admin, body: { name: `${role} ${n}`, phone: `07110000${n}`, password: 'Acrew123' } });
   s.d1 = (await crew('01', 'driver')).body;
   s.d2 = (await crew('02', 'driver')).body;
   s.c1 = (await crew('03', 'conductor')).body;
@@ -47,7 +47,7 @@ before(async () => {
   s.a = (await car('KDA 001A', s.thika, { driver_id: s.d1.id, conductor_id: s.c1.id })).body;
   s.b = (await car('KDA 002A', s.thika, {})).body;
   s.c = (await car('KDB 003B', s.msa, { driver_id: s.d2.id })).body;
-  s.p = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
+  s.p = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body.token;
   const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 5000 }));
 });
@@ -75,11 +75,11 @@ test('the office messages all crew on a route, or the marshals, by notification 
   const sent = await api('POST', '/admin/broadcast', { token: s.admin, body: { audience: 'crew', route_id: s.thika.id, message: 'Thika Road closed at Juja, use the bypass', sms: true } });
   assert.equal(sent.status, 201, JSON.stringify(sent.body));
   assert.deepEqual(sent.body, { sent_to: 2, by_sms: true });
-  const driver = await login('0711000001', 'crew123');
+  const driver = await login('0711000001', 'Acrew123');
   const notes = (await api('GET', '/notifications', { token: driver })).body.items;
   assert.ok(notes.some((n) => n.title === 'Message from the SACCO office (Thika Road)' && n.body === 'Thika Road closed at Juja, use the bypass'));
   assert.match((await texts('254711000003')).at(-1).message, /use the bypass — Grace Office, SACCO office/);
-  const other = await login('0711000002', 'crew123');
+  const other = await login('0711000002', 'Acrew123');
   assert.ok(!(await api('GET', '/notifications', { token: other })).body.items.some((n) => n.kind === 'broadcast'), 'not the Mombasa Road driver');
 
   const none = await api('POST', '/admin/broadcast', { token: s.admin, body: { audience: 'drivers', route_id: 999, message: 'Hello there' } });
@@ -93,6 +93,6 @@ test('a driver resets their own password by SMS, without the office', async () =
   const sms = (await texts('254711000001')).find((t) => t.kind === 'password_reset');
   const code = sms.message.match(/\d{6}/)[0];
   assert.equal(asked.body.test_code, code, 'SMS test mode: the app is given the code to show');
-  assert.equal((await api('POST', '/auth/password-reset/confirm', { body: { phone: '0711000001', code, new_password: 'newpass9' } })).status, 200);
-  assert.equal((await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'newpass9' } })).status, 200);
+  assert.equal((await api('POST', '/auth/password-reset/confirm', { body: { phone: '0711000001', code, new_password: 'Anewpass9' } })).status, 200);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'Anewpass9' } })).status, 200);
 });

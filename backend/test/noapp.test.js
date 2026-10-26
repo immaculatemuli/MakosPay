@@ -42,14 +42,14 @@ before(async () => {
     body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Ruiru', cash_fare: 60, app_fare: 50 }, { name: 'Juja', cash_fare: 80, app_fare: 70 }] },
   })).body;
   [s.ruiru, s.juja] = s.route.stops;
-  await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'cond123' } });
+  await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'Acond123' } });
   const conductorId = (await db.get("SELECT id FROM users WHERE phone = '254711111111'")).id;
   s.vehicle = (await api('POST', '/admin/vehicles', {
     token: s.admin,
     body: { plate: 'KDA 123A', description: 'White Nissan', owner_name: 'Mary Owner', owner_phone: '0744555666', conductor_id: conductorId, route_id: s.route.id },
   })).body;
   s.token = s.vehicle.qr_token;
-  s.conductor = (await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'cond123' } })).body.token;
+  s.conductor = (await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'Acond123' } })).body.token;
 });
 after(() => server.close());
 
@@ -115,17 +115,17 @@ test('the status link is not a sign-in, and a changed one does not work', async 
 });
 
 test('signing up in the app with that number takes over the fares paid without the app', async () => {
-  const res = await signUp(api, { name: 'Nina NoApp', phone: '0733000111', password: 'pass1234' });
+  const res = await signUp(api, { name: 'Nina NoApp', phone: '0733000111', password: 'Apass1234' });
   assert.equal(res.status, 201);
   const trips = (await api('GET', '/passenger/trips', { token: res.body.token })).body.items;
   assert.deepEqual(trips.map((t) => t.ticket_code), [s.ticket]);
   // ...and once it has a password, nobody else can sign up with it.
-  const twice = await signUp(api, { name: 'Someone', phone: '0733000111', password: 'other123' });
+  const twice = await signUp(api, { name: 'Someone', phone: '0733000111', password: 'Aother123' });
   assert.equal(twice.body.error.code, 'PHONE_TAKEN');
 });
 
 test('an app passenger who pays from the page gets the ticket in their app', async () => {
-  const token = (await signUp(api, { name: 'Pat App', phone: '0722222222', password: 'pass123' })).body.token;
+  const token = (await signUp(api, { name: 'Pat App', phone: '0722222222', password: 'Apass123' })).body.token;
   const res = await payPage('0722222222', { stopId: s.ruiru.id, fare: 50 });
   assert.equal(res.body.status, 'paid');
   const trips = (await api('GET', '/passenger/trips', { token })).body.items;
@@ -148,7 +148,7 @@ test('PIN prompts from the page are limited per phone number', async () => {
 });
 
 test('the in-app scanner also accepts the link sticker', async () => {
-  const token = (await api('POST', '/auth/login', { body: { phone: '0722222222', password: 'pass123' } })).body.token;
+  const token = (await api('POST', '/auth/login', { body: { phone: '0722222222', password: 'Apass123' } })).body.token;
   const res = await api('GET', `/passenger/scan?qr=${encodeURIComponent(`https://fare.example.co.ke/pay?v=${s.token}`)}&stop_id=${s.juja.id}`, { token });
   assert.equal(res.status, 200);
   assert.equal(res.body.vehicle.plate, 'KDA 123A');

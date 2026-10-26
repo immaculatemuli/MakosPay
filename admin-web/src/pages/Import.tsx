@@ -18,7 +18,7 @@ interface ImportResult {
 
 const STEPS: { kind: Kind; title: string; help: string }[] = [
   { kind: 'routes', title: '1. Routes and fares', help: 'One row per stop, in order along the route. App fare empty = the same as the cash fare.' },
-  { kind: 'crew', title: '2. Drivers, conductors and stage marshals', help: 'Role: driver, conductor or marshal. Leave Password empty and one is made for each person.' },
+  { kind: 'crew', title: '2. Drivers, conductors and stage marshals', help: 'Role: driver, conductor or marshal. Leave Password empty and one is made for each person; a password you type needs at least 8 characters, with a capital letter, a small letter and a number.' },
   { kind: 'vehicles', title: '3. Vehicles and owners', help: 'Route by its name; driver and conductor by their phone number. Paid by: M-Pesa or Bank (then bank name, paybill and account).' },
 ];
 

@@ -30,11 +30,11 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
   await createUser({ name: 'Office Olive', phone: '254700000001', password: 'admin123', role: 'admin' });
   s.admin = await login('0700000001', 'admin123');
-  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
-  s.other = (await signUp(api, { name: 'Oscar', phone: '0722333555', password: 'pass123' })).body.token;
-  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'cond123' } })).body;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body.token;
+  s.other = (await signUp(api, { name: 'Oscar', phone: '0722333555', password: 'Apass123' })).body.token;
+  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'Acond123' } })).body;
   await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', conductor_id: c.id } });
-  s.conductor = await login('0711111111', 'cond123');
+  s.conductor = await login('0711111111', 'Acond123');
   s.report = (await api('POST', '/passenger/reports', { token: s.passenger, body: { category: 'other', message: 'My fare did not go through' } })).body;
 });
 after(() => server.close());

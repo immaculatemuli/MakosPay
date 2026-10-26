@@ -60,7 +60,7 @@ test('routes: checked, then saved in one go with stops in order', async () => {
 test('crew: passwords made for those without one, shown once', async () => {
   const rows = [
     { Name: 'Dan Driver', Phone: '0711000001', Role: 'Driver', Password: '' },
-    { Name: 'Kim Kondakta', Phone: '0711000002', Role: 'kondakta', Password: 'secret99' },
+    { Name: 'Kim Kondakta', Phone: '0711000002', Role: 'kondakta', Password: 'Asecret99' },
     { Name: 'Mary Marshal', Phone: '0711000003', Role: 'Marshal', Password: '' },
   ];
   const bad = await load('crew', [...rows, { Name: 'Dup', Phone: '0711 000 001', Role: 'pilot' }]);

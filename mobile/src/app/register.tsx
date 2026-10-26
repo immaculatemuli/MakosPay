@@ -7,6 +7,7 @@ import { Button, colors, ErrorBox, Field, Notice } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
+import { passwordHint, passwordOk } from '@/lib/password';
 
 /**
  * Sign up in two steps: name, number and password, then the 6-digit code sent to that number by SMS (it proves
@@ -82,13 +83,13 @@ export default function Register() {
             value={phone}
             onChangeText={setPhone}
           />
-          <Field label={t('Password')} hint={t('At least 6 characters')} secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
+          <Field label={t('Password')} hint={passwordHint(password)} secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
           <Button
             title={t('Send me a code')}
             icon="chatbubble-ellipses-outline"
             onPress={sendCode}
             loading={busy}
-            disabled={name.trim().length < 2 || phone.trim().length < 9 || password.length < 6}
+            disabled={name.trim().length < 2 || phone.trim().length < 9 || !passwordOk(password)}
           />
           <Text style={{ textAlign: 'center', color: colors.muted, fontSize: 13 }}>
             {t('By creating an account you agree to our')}{' '}

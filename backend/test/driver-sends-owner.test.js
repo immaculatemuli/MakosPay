@@ -61,11 +61,11 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
 
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
-  await createUser({ name: 'Dan Driver', phone: '254700000002', password: 'drive123', role: 'driver' });
-  await createUser({ name: 'Connie Conductor', phone: '254700000003', password: 'cond123', role: 'conductor' });
+  await createUser({ name: 'Dan Driver', phone: '254700000002', password: 'Adrive123', role: 'driver' });
+  await createUser({ name: 'Connie Conductor', phone: '254700000003', password: 'Acond123', role: 'conductor' });
   s.admin = await login('0700000001', 'admin123');
-  s.driver = await login('0700000002', 'drive123');
-  s.conductor = await login('0700000003', 'cond123');
+  s.driver = await login('0700000002', 'Adrive123');
+  s.conductor = await login('0700000003', 'Acond123');
 
   const route = (await api('POST', '/admin/routes', {
     token: s.admin,
@@ -79,7 +79,7 @@ before(async () => {
     assert.equal(claimed.status, 200, JSON.stringify(claimed.body));
   }
 
-  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'Apass123' })).body.token;
   const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
   await pay(s.car, s.juja); // 70

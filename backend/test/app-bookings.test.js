@@ -38,11 +38,11 @@ before(async () => {
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   s.route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Machakos Road', origin: 'Town', stops: [{ name: 'Machakos', fare: 200 }] } })).body;
   [s.stop] = s.route.stops;
-  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Conductor', phone: '0711000001', password: 'cond123' } })).body;
+  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Conductor', phone: '0711000001', password: 'Acond123' } })).body;
   await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KAP 001A', owner_name: 'Owner', owner_phone: '0744555666', seats: 6, conductor_id: c.id, route_id: s.route.id } });
-  s.crew = (await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'cond123' } })).body.token;
-  s.pat = (await signUp(api, { name: 'Pat App', phone: '0722000001', password: 'pass1234' })).body.token;
-  s.kim = (await signUp(api, { name: 'Kim Other', phone: '0722000002', password: 'pass1234' })).body.token;
+  s.crew = (await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'Acond123' } })).body.token;
+  s.pat = (await signUp(api, { name: 'Pat App', phone: '0722000001', password: 'Apass1234' })).body.token;
+  s.kim = (await signUp(api, { name: 'Kim Other', phone: '0722000002', password: 'Apass1234' })).body.token;
   await api('POST', '/passenger/wallet/topup', { token: s.pat, body: { amount: 500 } }); // test M-Pesa confirms at once
   await api('POST', '/crew/loading/start', { token: s.crew });
 });

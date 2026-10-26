@@ -41,7 +41,7 @@ before(async () => {
   s.stop = route.stops[0];
   s.mary = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: route.id } })).body;
   s.john = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDB 222B', owner_name: 'John', owner_phone: '0755666777', route_id: route.id } })).body;
-  const reg = await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' });
+  const reg = await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' });
   s.passenger = reg.body.token;
   await tx(() => postWalletEntry(reg.body.user.id, { type: 'test_credit', amount: 1000 }));
 });

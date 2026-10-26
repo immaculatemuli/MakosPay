@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Button, ErrorBox, Field, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
+import { passwordHint, passwordOk } from '@/lib/password';
 
 /** Add another SACCO office account. They sign in with this phone and password. */
 export default function StaffForm() {
@@ -28,9 +29,9 @@ export default function StaffForm() {
     <Screen>
       <Field label="Full name" value={name} onChangeText={setName} />
       <Field label="Phone number" placeholder="07XX XXX XXX" keyboardType="phone-pad" value={phone} onChangeText={setPhone} hint="They sign in with this number" />
-      <Field label="Password" secureTextEntry value={password} onChangeText={setPassword} hint="At least 6 characters. They can change it after signing in." />
+      <Field label="Password" secureTextEntry value={password} onChangeText={setPassword} hint={`${passwordHint(password)}. They can change it after signing in.`} />
       {error && <ErrorBox message={error} />}
-      <Button title="Create office account" onPress={save} loading={busy} disabled={name.trim().length < 2 || !phone.trim() || password.length < 6} />
+      <Button title="Create office account" onPress={save} loading={busy} disabled={name.trim().length < 2 || !phone.trim() || !passwordOk(password)} />
     </Screen>
   );
 }

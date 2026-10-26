@@ -82,7 +82,7 @@ before(async () => {
   s.kdb = await add('KDB 456B', 'Mary Owner', '0744555666');
   s.kdc = await add('KDC 789C', 'John Owner', '0755666777');
 
-  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'Apass123' })).body.token;
   const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
   await pay(s.kda, s.juja); // 70 Mary

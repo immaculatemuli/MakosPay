@@ -35,10 +35,10 @@ before(async () => {
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
   s.admin = await login('0700000001', 'admin123');
   s.route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 120, app_fare: 100 }] } })).body;
-  s.driver = (await api('POST', '/admin/drivers', { token: s.admin, body: { name: 'Dan Driver', phone: '0711000001', password: 'drive123' } })).body;
+  s.driver = (await api('POST', '/admin/drivers', { token: s.admin, body: { name: 'Dan Driver', phone: '0711000001', password: 'Adrive123' } })).body;
   s.withDriver = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: s.route.id, driver_id: s.driver.id } })).body;
   s.noRoute = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDB 222B', owner_name: 'John', owner_phone: '0755666777' } })).body;
-  s.p = (await signUp(api, { name: 'Pat Wanjiku', phone: '0722333444', password: 'pass123' })).body.token;
+  s.p = (await signUp(api, { name: 'Pat Wanjiku', phone: '0722333444', password: 'Apass123' })).body.token;
 });
 after(() => server.close());
 

@@ -39,7 +39,7 @@ before(async () => {
   s.route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 60 }] } })).body;
   s.stop = s.route.stops[0];
   s.vehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: s.route.id } })).body;
-  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'pass123' })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body.token;
   s.pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(s.pid, { type: 'test_credit', amount: 1000 }));
 });
@@ -98,7 +98,7 @@ test('a change dated today applies at once; Member Fare above cash fare is refus
 });
 
 test('the audit log records office actions with who did them, without passwords', async () => {
-  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'secret99' } })).body;
+  const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'Asecret99' } })).body;
   const trip = (await pay(75)).body.trip;
   await api('POST', `/admin/payments/${trip.id}/refund`, { token: s.admin, body: { reason: 'Vehicle broke down' } });
 
@@ -108,7 +108,7 @@ test('the audit log records office actions with who did them, without passwords'
   assert.deepEqual([refund.actor_name, refund.actor_role, refund.entity, refund.entity_id, refund.details.reason], ['Office Clerk', 'admin', 'payments', trip.id, 'Vehicle broke down']);
   const created = log.find((e) => e.action === 'POST /admin/conductors');
   assert.equal(created.details.password, '[hidden]', 'passwords are never stored');
-  assert.ok(!JSON.stringify(log).includes('secret99'));
+  assert.ok(!JSON.stringify(log).includes('Asecret99'));
   assert.ok(log.some((e) => e.action === 'POST /admin/stops/:id/fare-change' && e.entity_id === s.stop.id));
 
   assert.ok(log.every((e) => e.action !== 'GET'), 'reading is not logged');

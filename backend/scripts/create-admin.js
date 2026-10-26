@@ -1,19 +1,20 @@
 // Creates a SACCO office account, or (with --platform) a platform admin account. Usage:
-//   yarn create-admin --name "Jane Doe" --phone 0712345678 --password "a-strong-password"
-//   yarn create-admin --platform --name "Jane Doe" --phone 0712345678 --password "a-strong-password"
+//   yarn create-admin --name "Jane Doe" --phone 0712345678 --password "Strong-Pass1"
+//   yarn create-admin --platform --name "Jane Doe" --phone 0712345678 --password "Strong-Pass1"
 import { parseArgs } from 'node:util';
 import { config } from '../src/config.js';
 import { closeDatabase, isPostgres } from '../src/database.js';
 import { createUser } from '../src/services/users.js';
 import { normalizePhone } from '../src/util.js';
+import { PASSWORD_RULE, passwordOk } from '../src/validate.js';
 
 const { values } = parseArgs({
   options: { name: { type: 'string' }, phone: { type: 'string' }, password: { type: 'string' }, platform: { type: 'boolean', default: false } },
 });
 
 const phone = normalizePhone(values.phone);
-if (!values.name || !phone || !values.password || values.password.length < 6) {
-  console.error('Usage: yarn create-admin [--platform] --name "Full Name" --phone 07XXXXXXXX --password <at least 6 characters>');
+if (!values.name || !phone || !passwordOk(values.password)) {
+  console.error(`Usage: yarn create-admin [--platform] --name "Full Name" --phone 07XXXXXXXX --password <password>\n${PASSWORD_RULE}.`);
   process.exit(1);
 }
 

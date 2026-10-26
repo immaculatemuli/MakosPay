@@ -53,8 +53,8 @@ before(async () => {
   const car = async (plate) => (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate, owner_name: 'Mary Owner', owner_phone: '0744555666' } })).body;
   s.first = await car('KDA 123A'); // car number 101
   s.second = await car('KDB 456B'); // car number 102
-  await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'cond123' } });
-  s.conductor = await login('0711111111', 'cond123');
+  await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'Acond123' } });
+  s.conductor = await login('0711111111', 'Acond123');
 });
 after(() => {
   server.close();

@@ -27,8 +27,8 @@ before(async () => {
   await new Promise((resolve) => server.once('listening', resolve));
   base = `http://127.0.0.1:${server.address().port}`;
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
-  await createUser({ name: 'Ian', phone: '254711000001', password: 'cond123', role: 'conductor' });
-  await signUp(request, { name: 'Pat', phone: '0722333444', password: 'pass123' });
+  await createUser({ name: 'Ian', phone: '254711000001', password: 'Acond123', role: 'conductor' });
+  await signUp(request, { name: 'Pat', phone: '0722333444', password: 'Apass123' });
 });
 after(() => server.close());
 
@@ -73,7 +73,7 @@ test('changes with the cookie need the dashboard header and our own origin (no f
 });
 
 test('the web dashboard is for the office only; passengers and crew use the app', async () => {
-  for (const [phone, password] of [['0722333444', 'pass123'], ['0711000001', 'cond123']]) {
+  for (const [phone, password] of [['0722333444', 'Apass123'], ['0711000001', 'Acond123']]) {
     const r = await request('POST', '/auth/web/login', { headers: WEB, body: { phone, password } });
     assert.equal(r.status, 403);
     assert.equal(r.body.error.code, 'OFFICE_ONLY');
@@ -107,7 +107,7 @@ test('no other website gets permission to call the API (no CORS headers, even wh
 });
 
 test('changing the password on the web keeps this browser signed in and signs out the old cookie', async () => {
-  const r = await request('POST', '/auth/change-password', { headers: { cookie: s.cookie, ...WEB }, body: { current_password: 'admin123', new_password: 'admin456' } });
+  const r = await request('POST', '/auth/change-password', { headers: { cookie: s.cookie, ...WEB }, body: { current_password: 'admin123', new_password: 'Aadmin456' } });
   assert.equal(r.status, 200);
   assert.equal(r.body.token, undefined);
   const fresh = asCookie(cookieFrom(r));
