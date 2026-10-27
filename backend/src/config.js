@@ -56,7 +56,7 @@ export const config = {
     minimumVersion: env.APP_MIN_VERSION || null,
     downloadUrl: env.APP_DOWNLOAD_URL || 'https://github.com/immaculatemuli/MakosPay/releases/latest/download/FarePay.apk',
     // Named in the "please update" message that apps older than the minimum get instead of every answer.
-    website: env.APP_WEBSITE || 'farepayimm.netlify.app',
+    website: env.APP_WEBSITE || 'makos-farepay.onrender.com',
   },
 
   // Wallet limits, in whole shillings.

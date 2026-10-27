@@ -7,7 +7,7 @@ import { Button, colors, ErrorBox, Field } from '@/components/ui';
 import { errorMessage, getApiUrl } from '@/lib/api';
 import { lastPhoneNumber, useAuth } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
-import { APK_URL } from '@/lib/links';
+import { UPDATE_SITE } from '@/lib/links';
 import { loadSavedTickets } from '@/lib/savedTickets';
 
 export default function SignIn() {
@@ -62,8 +62,9 @@ export default function SignIn() {
           </Text>
         </Link>
       )}
-      <Text onPress={() => void Linking.openURL(APK_URL)} style={{ textAlign: 'center', marginTop: 4, padding: 8, color: colors.muted }}>
-        {t('Version {version}', { version: Constants.expoConfig?.version ?? '' })} · <Text style={{ color: colors.primary, fontWeight: '700' }}>{t('Update the app')}</Text>
+      <Text onPress={() => void Linking.openURL(`https://${UPDATE_SITE}/`)} style={{ textAlign: 'center', marginTop: 4, padding: 8, color: colors.muted }}>
+        {t('Version {version}', { version: Constants.expoConfig?.version ?? '' })} · {t('Update the app')}:{' '}
+        <Text style={{ color: colors.primary, fontWeight: '700' }}>{UPDATE_SITE}</Text>
       </Text>
       {/* Debug: which server this build talks to (from EXPO_PUBLIC_API_URL). */}
       <Text selectable style={{ textAlign: 'center', marginTop: 12, color: colors.muted, fontSize: 11 }}>
