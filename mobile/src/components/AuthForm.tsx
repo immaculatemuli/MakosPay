@@ -4,8 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LanguageSwitch } from './LanguageSwitch';
 import { colors } from './ui';
 
-/** Full-screen layout for sign-in and registration (no navigation header). */
-export function AuthForm({ subtitle, children }: { subtitle: string; children: ReactNode }) {
+/** Full-screen layout for sign-in and registration (no navigation header). footer: shown under the language switch. */
+export function AuthForm({ subtitle, children, footer }: { subtitle: string; children: ReactNode; footer?: ReactNode }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -16,6 +16,7 @@ export function AuthForm({ subtitle, children }: { subtitle: string; children: R
           </View>
           {children}
           <LanguageSwitch />
+          {footer}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
