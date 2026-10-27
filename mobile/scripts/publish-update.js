@@ -16,7 +16,8 @@ if (!build?.channel || !build.env?.EXPO_PUBLIC_API_URL) {
   process.exit(1);
 }
 // Through the shell (npx needs it on Windows), so the message is quoted to stay one argument.
-const result = spawnSync('npx', ['eas-cli@latest', 'update', '--channel', build.channel, '--message', JSON.stringify(message)], {
+const args = ['eas-cli@latest', 'update', '--channel', build.channel, '--environment', profile, '--message', JSON.stringify(message)];
+const result = spawnSync('npx', args, {
   stdio: 'inherit',
   shell: true,
   env: { ...process.env, EXPO_PUBLIC_API_URL: build.env.EXPO_PUBLIC_API_URL },
