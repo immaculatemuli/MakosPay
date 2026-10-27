@@ -76,6 +76,7 @@ export function targetHref(role: Role, target: string | null): Href | null {
     if (kind === 'money-check') return '/admin/reconciliation';
     if (kind === 'withdrawals') return '/admin/withdrawals';
     if (kind === 'refund-requests') return '/admin/refund-requests';
+    if (kind === 'ratings') return '/admin/ratings';
   }
   return null;
 }

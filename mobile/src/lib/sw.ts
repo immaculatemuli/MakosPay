@@ -621,6 +621,12 @@ export const SW: Record<string, string> = {
   'Download it and install it over this one. You stay signed in.': 'Lipakue na ulisakinishe juu ya hili. Utabaki umeingia.',
   Download: 'Pakua',
   Later: 'Baadaye',
+  // Rating a trip
+  'How was your trip?': 'Safari yako ilikuwaje?',
+  '{n} stars': 'Nyota {n}',
+  'Thank you. Only the SACCO office sees your rating.': 'Asante. Ni ofisi ya SACCO pekee inayoona tathmini yako.',
+  'Anything to tell the SACCO? (optional)': 'Kuna jambo la kuiambia SACCO? (si lazima)',
+  'Send rating': 'Tuma tathmini',
   'Version {version}': 'Toleo {version}',
   'Update the app': 'Sasisha programu',
   'You’ve reached {stop}. Thank you for travelling with us.': 'Umefika {stop}. Asante kwa kusafiri nasi.',

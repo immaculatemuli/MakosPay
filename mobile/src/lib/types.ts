@@ -154,6 +154,8 @@ export interface Trip {
   refund_reason: string | null;
   /** A loyalty free ride: paid by the SACCO, nothing taken from the passenger. */
   free_ride?: boolean | number;
+  /** The passenger's own rating of this trip (1–5), in their trip list. */
+  my_rating?: number | null;
 }
 
 /** Loyalty: paid rides counted towards the next free one. */
@@ -712,6 +714,9 @@ export interface SeatBooking {
   } | null;
   assigned_at: string | null;
   boarded_at: string | null;
+  /** On board: the fare paid for this booking, and the passenger's rating of it. */
+  trip_id: number | null;
+  my_rating: number | null;
   reason: string | null;
   refund_to: 'mpesa' | 'wallet' | null;
   can_cancel: boolean;
@@ -799,4 +804,32 @@ export interface OfficeParcel {
   collected_at: string | null;
   cancelled_at: string | null;
   payments?: { id: number; phone: string; amount: number; status: string; mpesa_receipt: string | null; result_desc: string | null; created_at: string }[];
+}
+
+/** Passengers' trip ratings, for the office: the newest, and averages (lowest first) per car, driver and conductor. */
+export interface OfficeRatings {
+  ratings: {
+    id: number;
+    stars: number;
+    comment: string | null;
+    created_at: string;
+    ticket_code: string;
+    stop_name: string | null;
+    route_name: string;
+    vehicle_id: number;
+    plate: string;
+    driver_name: string | null;
+    conductor_name: string | null;
+    passenger_name: string;
+  }[];
+  by_vehicle: RatingAverage[];
+  by_driver: RatingAverage[];
+  by_conductor: RatingAverage[];
+}
+
+export interface RatingAverage {
+  id: number;
+  name: string;
+  average: number;
+  count: number;
 }

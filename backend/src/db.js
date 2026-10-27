@@ -750,6 +750,23 @@ CREATE TABLE IF NOT EXISTS vehicle_locations (
 );
 `);
 
+// Passengers rating their trips (the same as migrations/022_trip_ratings.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS trip_ratings (
+  id           INTEGER PRIMARY KEY,
+  trip_id      INTEGER NOT NULL UNIQUE REFERENCES trips(id),
+  passenger_id INTEGER NOT NULL REFERENCES users(id),
+  vehicle_id   INTEGER NOT NULL REFERENCES vehicles(id),
+  driver_id    INTEGER REFERENCES users(id),
+  conductor_id INTEGER REFERENCES users(id),
+  stars        INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+  comment      TEXT,
+  created_at   TEXT NOT NULL DEFAULT (${NOW}),
+  updated_at   TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS trip_ratings_vehicle ON trip_ratings (vehicle_id, id);
+`);
+
 /**
  * Runs fn inside a write transaction. fn must be synchronous (no await inside),
  * which together with node:sqlite's synchronous API makes it atomic.

@@ -169,6 +169,7 @@ export async function seatView(bookingId) {
     assigned_at: b.assigned_at,
     boarded_at: b.boarded_at,
     trip_id: b.trip_id,
+    my_rating: b.trip_id ? ((await db.get('SELECT stars FROM trip_ratings WHERE trip_id = ?', b.trip_id))?.stars ?? null) : null,
     reason: b.status === 'failed' ? b.result_desc : b.status === 'cancelled' ? b.cancel_reason : null,
     refund_to: b.refund_to,
     can_cancel: OPEN.includes(b.status),

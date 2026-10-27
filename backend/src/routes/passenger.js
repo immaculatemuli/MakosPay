@@ -8,6 +8,7 @@ import { HttpError } from '../errors.js';
 import { cancelPassengerBooking, MAX_SEATS_PER_BOOKING, passengerBooking, passengerBookings, routesForBooking, startBooking } from '../services/bookings.js';
 import { getUserPayment, startFarePayment, startTopup } from '../services/payments.js';
 import { freeRideProgress } from '../services/rewards.js';
+import { myRatings, rateTrip } from '../services/ratings.js';
 import { bookSeats, cancelSeat, MAX_SEATS, mySeat, mySeats, passengerHere, seatRoutes } from '../services/seats.js';
 import { fileReport, getPhoto, myReports, replySchema, reporterReply, reportSchema, sendPhoto } from '../services/reports.js';
 import { listRoutes, publicFareChanges } from '../services/routes.js';
@@ -329,7 +330,14 @@ router.get('/trips', async (req, res) => {
     before ?? null,
     limit,
   );
-  res.json(page(rows.map(forPassenger), limit));
+  const rated = await myRatings(req.user.id, rows.map((r) => r.id));
+  res.json(page(rows.map((r) => ({ ...forPassenger(r), my_rating: rated[r.id] ?? null })), limit));
+});
+
+// Rating a trip after the ride (seen only by the SACCO office). Rating again changes it.
+router.post('/trips/:id/rating', async (req, res) => {
+  const body = parse(z.object({ stars: z.number().int().min(1).max(5), comment: z.string().trim().max(300).optional() }), req.body);
+  res.json(await rateTrip(req.user.id, parse(id, req.params.id), { stars: body.stars, comment: body.comment || null }));
 });
 
 export default router;

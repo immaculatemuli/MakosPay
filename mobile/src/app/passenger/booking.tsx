@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Linking, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { CarMap } from '@/components/CarMap';
+import { RateTrip } from '@/components/RateTrip';
 import { RideStops, SeatJourney } from '@/components/SeatJourney';
 import { Button, Card, colors, ErrorBox, KeyValue, Loading, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
@@ -139,6 +140,7 @@ export default function BookingScreen() {
           onPress={cancel}
         />
       )}
+      {b.status === 'boarded' && b.car?.reached_my_stop && b.trip_id && <RateTrip tripId={b.trip_id} rated={b.my_rating} />}
       {b.status === 'boarded' && b.car?.reached_my_stop && (
         <Button title={t('Report a problem')} variant="secondary" icon="chatbox-ellipses-outline" onPress={() => router.push('/passenger/report')} />
       )}
