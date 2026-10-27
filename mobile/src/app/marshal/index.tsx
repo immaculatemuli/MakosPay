@@ -126,7 +126,7 @@ export default function StageQueue() {
           {/* The stage at a glance: who is waiting, and the car loading now. */}
           <View style={styles.nowCard}>
             <Text style={styles.nowLabel}>{t('Queue at {place}', { place: route.origin })}</Text>
-            <Text style={styles.nowBig}>{route.seats_waiting ? t('{n} seats waiting', { n: route.seats_waiting }) : t('Nobody is waiting.')}</Text>
+            <Text style={styles.nowBig}>{route.seats_waiting ? t(route.seats_waiting === 1 ? '1 seat waiting' : '{n} seats waiting', { n: route.seats_waiting }) : t('Nobody is waiting.')}</Text>
             <Text style={styles.nowLabel}>
               {loading.length
                 ? loading.map((c) => `${c.plate}: ${c.full || !c.seats_left ? t('Full') : t('{n} left', { n: c.seats_left })}`).join(' · ')
@@ -189,7 +189,7 @@ export default function StageQueue() {
             <Muted>{t('Nobody is waiting.')}</Muted>
           ) : (
             <Card>
-              <Muted>{t('{n} seats booked. The next car to arrive takes them in this order.', { n: route.seats_waiting })}</Muted>
+              <Muted>{t(route.seats_waiting === 1 ? '1 seat booked. The next car to arrive takes it.' : '{n} seats booked. The next car to arrive takes them in this order.', { n: route.seats_waiting })}</Muted>
               {route.stage_queue.map((b) => (
                 <View key={b.id} style={styles.row}>
                   {passengerLine(b)}

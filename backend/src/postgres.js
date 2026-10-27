@@ -1,7 +1,7 @@
 // PostgreSQL connection, migrations and backups. The app reaches it through database.js (DB_ENGINE=postgres).
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -22,6 +22,21 @@ export function createPool(connectionString, extra = {}) {
   return new pg.Pool({ connectionString, max: 10, allowExitOnIdle: true, ...extra });
 }
 
+// The operating system's trusted certificates (Debian/Ubuntu, e.g. Render; then Red Hat-style systems).
+const SYSTEM_CA_FILES = ['/etc/ssl/certs/ca-certificates.crt', '/etc/pki/tls/certs/ca-bundle.crt'];
+
+/**
+ * pg_dump checking the server's certificate (sslmode verify-full or verify-ca, as Neon's addresses can ask) looks for
+ * ~/.postgresql/root.crt unless told otherwise, which hosts like Render don't have: point it at the system's trusted
+ * certificates instead. Nothing changes when the address names its own sslrootcert.
+ */
+function sslRootEnv(url) {
+  const mode = url.searchParams.get('sslmode') ?? process.env.PGSSLMODE ?? '';
+  if (!mode.startsWith('verify') || url.searchParams.has('sslrootcert') || process.env.PGSSLROOTCERT) return {};
+  const file = SYSTEM_CA_FILES.find((f) => existsSync(f));
+  return file ? { PGSSLROOTCERT: file } : {};
+}
+
 /** A full backup with pg_dump (custom format, restore with pg_restore). `schema` limits it to one schema. */
 export function pgDump(connectionString, file, schema = null) {
   return new Promise((resolve, reject) => {
@@ -30,7 +45,7 @@ export function pgDump(connectionString, file, schema = null) {
     const password = decodeURIComponent(url.password);
     url.password = '';
     const args = ['--format=custom', '--no-owner', '--no-password', `--file=${file}`, ...(schema ? [`--schema=${schema}`] : []), `--dbname=${url}`];
-    const child = spawn('pg_dump', args, { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, PGPASSWORD: password } });
+    const child = spawn('pg_dump', args, { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ...sslRootEnv(url), PGPASSWORD: password } });
     let errors = '';
     child.stderr.on('data', (d) => (errors += d));
     child.on('error', (err) => reject(new Error(`pg_dump could not start (is PostgreSQL's bin folder on PATH?): ${err.message}`)));
