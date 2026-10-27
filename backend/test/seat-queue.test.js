@@ -319,3 +319,23 @@ test("the car's position is shared only while it is on a trip, shown to the pass
   assert.equal((await seat(s.p1, r.body.id)).car, null, 'not after the booking is over');
   assert.equal((await api('POST', '/crew/location', { token: s.driver, body: { lat: 200, lng: 0 } })).status, 400);
 });
+
+test('on board, the passenger follows the ride: the stops after their pickup, ticked as the crew reach them', async () => {
+  // KDA 111A is on the road (from the test above). Pam is picked at Juja and gets off at Kyumbi.
+  const r = await book(s.p2, { pickup_stop_id: s.juja.id, stop_id: s.kyumbi.id, expected_fare: 300 });
+  const car = (await queues()).cars.find((c) => c.plate === 'KDA 111A');
+  await api('POST', `/marshal/seats/${r.body.id}/assign`, { token: s.marshal, body: { load_id: car.load_id } });
+  assert.equal((await seat(s.p2, r.body.id)).car.stops, undefined, 'not before boarding');
+  await api('POST', `/crew/seats/${r.body.id}/board`, { token: s.driver });
+
+  const onBoard = await seat(s.p2, r.body.id);
+  assert.deepEqual(onBoard.car.stops, [{ name: 'Kyumbi', reached_at: null, mine: true }], 'from after Juja to Kyumbi');
+  assert.equal(onBoard.car.reached_my_stop, false);
+
+  await api('POST', `/crew/road/stops/${s.juja.id}`, { token: s.driver });
+  await api('POST', `/crew/road/stops/${s.kyumbi.id}`, { token: s.driver });
+  const there = await seat(s.p2, r.body.id);
+  assert.ok(there.car.stops[0].reached_at);
+  assert.equal(there.car.reached_my_stop, true);
+  assert.equal(there.car.expected_at_my_stop, null);
+});

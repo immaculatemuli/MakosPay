@@ -26,6 +26,8 @@ export default function PassengerLayout() {
       <Stack.Screen name="book" options={{ title: t('Book a seat') }} />
       <Stack.Screen name="booking" options={{ title: t('Your booking') }} />
       <Stack.Screen name="parcel" options={{ title: t('Track a parcel') }} />
+      <Stack.Screen name="account" options={{ title: t('My account') }} />
+      <Stack.Screen name="delete-account" options={{ title: t('Delete account') }} />
     </Stack>
   );
 }

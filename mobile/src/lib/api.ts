@@ -1,3 +1,5 @@
+import Constants from 'expo-constants';
+
 /**
  * Where the FarePay backend lives: EXPO_PUBLIC_API_URL and nothing else (no address saved on the phone, no guess).
  * Set per build profile in eas.json for the installable app, or in mobile/.env for `expo start`,
@@ -28,6 +30,9 @@ export function configureAuth(token: string | null, handler?: () => void) {
 
 /** What a picture from the server (e.g. a report photo) needs to be allowed to load. */
 export const authHeaders = (): Record<string, string> => (authToken ? { Authorization: `Bearer ${authToken}` } : {});
+
+/** This app's version, sent with every request: the server tells apps older than its minimum to update. */
+export const versionHeader = { 'X-App-Version': Constants.expoConfig?.version ?? '0.0.0' };
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -73,6 +78,7 @@ export async function api<T>(path: string, options: { method?: Method; body?: un
       method: options.method ?? 'GET',
       headers: {
         Accept: 'application/json',
+        ...versionHeader,
         ...(options.body !== undefined && { 'Content-Type': 'application/json' }),
         ...(authToken && { Authorization: `Bearer ${authToken}` }),
       },

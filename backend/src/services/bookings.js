@@ -232,7 +232,7 @@ export async function bookingStatus(bookingId) {
 }
 
 /** The route's current stops in order, each with when this trip's car reached it (null = not yet). */
-function tripStops(load) {
+export function tripStops(load) {
   return db.all(
     `SELECT s.id, s.name, ls.reached_at FROM route_stops s
      LEFT JOIN load_stops ls ON ls.stop_id = s.id AND ls.load_id = ?

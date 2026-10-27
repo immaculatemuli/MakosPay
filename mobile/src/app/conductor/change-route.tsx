@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert } from 'react-native';
-import { Empty, ErrorBox, List, ListRow, Loading, Muted, Screen } from '@/components/ui';
+import { Alert, View } from 'react-native';
+import { RouteCard, routeEnds, routeMatches, RouteSearch } from '@/components/RouteCard';
+import { Empty, ErrorBox, Loading, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { kes } from '@/lib/format';
 import { useT } from '@/lib/i18n';
@@ -14,8 +15,10 @@ export default function ChangeRoute() {
   const routes = useApi<PublicRoute[]>('/crew/routes');
   const vehicle = useApi<ConductorVehicle>('/crew/vehicle');
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
   if ((routes.loading && !routes.data) || (vehicle.loading && !vehicle.data)) return <Loading />;
   const currentId = vehicle.data?.route?.id;
+  const shown = routes.data?.filter((r) => routeMatches(r, query));
 
   const choose = (r: PublicRoute) => {
     if (r.id === currentId || busy) return router.back();
@@ -43,23 +46,22 @@ export default function ChangeRoute() {
       {routes.error && <ErrorBox message={routes.error} onRetry={routes.reload} />}
       <Muted>{t('Choose the route your vehicle is on now.')}</Muted>
       {routes.data?.length === 0 && <Empty text={t('No routes yet. Ask the SACCO office to add one.')} />}
-      {!!routes.data?.length && (
-        <List>
-          {routes.data.map((r) => {
-            const fares = r.stops.map((s) => s.app_fare);
-            return (
-              <ListRow
-                key={r.id}
-                icon={r.id === currentId ? 'checkmark-circle' : 'map-outline'}
-                title={r.name}
-                subtitle={`${t('From {place}', { place: r.origin })} · ${r.stops.map((s) => s.name).join(', ')}`}
-                right={fares.length ? kes(Math.min(...fares)) : ''}
-                onPress={() => choose(r)}
-              />
-            );
-          })}
-        </List>
-      )}
+      <View style={{ height: 10 }} />
+      {!!routes.data?.length && <RouteSearch value={query} onChangeText={setQuery} />}
+      {!!routes.data?.length && shown?.length === 0 && <Empty text={t('No route has that stage.')} />}
+      {shown?.map((r) => {
+        const fares = r.stops.map((s) => s.app_fare);
+        return (
+          <RouteCard
+            key={r.id}
+            title={r.name}
+            subtitle={`${routeEnds(r)} · ${r.stops.map((s) => s.name).join(', ')}`}
+            right={fares.length ? kes(Math.min(...fares)) : ''}
+            icon={r.id === currentId ? 'checkmark-circle' : 'chevron-forward'}
+            onPress={() => choose(r)}
+          />
+        );
+      })}
     </Screen>
   );
 }

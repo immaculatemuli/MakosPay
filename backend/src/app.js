@@ -18,6 +18,7 @@ import notificationRoutes from './routes/notifications.js';
 import { payApi, payPage } from './routes/noapp.js';
 import passengerRoutes from './routes/passenger.js';
 import platformRoutes from './routes/platform.js';
+import { appTooOld } from './util.js';
 
 // Dashboard pages may load only their own scripts, styles and data from FarePay (plus the QR picture,
 // which arrives as data), and may not be shown inside other websites.
@@ -84,6 +85,18 @@ function serveWebsite(app) {
   );
 }
 
+/**
+ * A phone app older than APP_MIN_VERSION gets "please update" instead of any answer, and shows it on screen. The app
+ * says its version in X-App-Version; apps from before that header (Android's okhttp, no header) count as 1.0.0.
+ * Browsers (the office website) and M-Pesa are never stopped.
+ */
+function requireAppVersion(req, _res, next) {
+  const min = config.app.minimumVersion;
+  const version = req.get('X-App-Version') ?? (/okhttp/i.test(req.get('User-Agent') ?? '') ? '1.0.0' : null);
+  if (!min || !version || !appTooOld(version, min)) return next();
+  next(new HttpError(426, 'UPDATE_APP', `This FarePay app is out of date. Open ${config.app.website} on your phone, tap "Download the app" and install it over this one. You stay signed in.`));
+}
+
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
@@ -116,6 +129,10 @@ export function createApp() {
   // For the hosting's uptime check and the keep-awake ping: the server is up. It doesn't touch the database (so the
   // pings let it sleep) and isn't counted as use. /health/db also makes sure the database answers.
   app.get('/health', (_req, res) => res.json({ ok: true }));
+  // The app asks on opening whether a newer APK is out (no sign-in needed).
+  app.get('/app-version', (_req, res) =>
+    res.json({ latest: config.app.latestVersion, minimum: config.app.minimumVersion, download_url: config.app.downloadUrl }),
+  );
   app.get('/health/db', async (_req, res) => {
     await db.get('SELECT 1 AS ok');
     res.json({ ok: true, database: true });
@@ -125,6 +142,7 @@ export function createApp() {
     noteActivity();
     next();
   });
+  app.use(['/auth', '/admin', '/platform', '/passenger', '/crew', '/conductor', '/marshal', '/notifications'], requireAppVersion);
   app.use('/auth', authRoutes);
   // Every change made by office, platform and crew accounts is recorded in the audit log (auditChanges).
   // The platform admin can do everything the SACCO office can, plus the platform screens.

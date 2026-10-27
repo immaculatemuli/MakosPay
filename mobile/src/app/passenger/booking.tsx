@@ -4,15 +4,16 @@ import { useEffect, useState } from 'react';
 import { Alert, Linking, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { CarMap } from '@/components/CarMap';
+import { RideStops, SeatJourney } from '@/components/SeatJourney';
 import { Button, Card, colors, ErrorBox, KeyValue, Loading, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { dateTime, dayTime, displayPhone, kes, time } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import type { SeatBooking } from '@/lib/types';
-import { SEAT_TITLE, seatLine } from '@/lib/seatText';
+import { seatLine, seatTitle } from '@/lib/seatText';
 import { useApi } from '@/lib/useApi';
 
-/** One seat booking (?id=): its code, the queue or its car, calling the crew, "I'm here", and cancelling. */
+/** One seat booking (?id=): its code, the journey so far (queue, car, ride), calling the crew, "I'm here", and cancelling. */
 export default function BookingScreen() {
   const { t } = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,15 +22,15 @@ export default function BookingScreen() {
   const [error, setError] = useState<string | null>(null);
   const b = booking.data;
 
-  // Keep it fresh while something can still change (every 3 s while paying, else every 10 s).
+  // Keep it fresh while something can still change: every 3 s while paying, 10 s waiting for the car, 20 s on the ride.
   const { reload } = booking;
-  const waiting = b && ['paying', 'queued', 'assigned'].includes(b.status);
-  const paying = b?.status === 'paying';
+  const riding = b?.status === 'boarded' && !b.car?.reached_my_stop;
+  const every = b?.status === 'paying' ? 3000 : b && ['queued', 'assigned'].includes(b.status) ? 10000 : riding ? 20000 : null;
   useEffect(() => {
-    if (!waiting) return;
-    const timer = setInterval(() => void reload(), paying ? 3000 : 10000);
+    if (!every) return;
+    const timer = setInterval(() => void reload(), every);
     return () => clearInterval(timer);
-  }, [waiting, paying, reload]);
+  }, [every, reload]);
 
   if (booking.loading && !b) return <Loading />;
   if (!b) return <Screen><ErrorBox message={booking.error ?? t('Booking not found')} onRetry={booking.reload} /></Screen>;
@@ -66,7 +67,7 @@ export default function BookingScreen() {
       <Card>
         <View style={{ alignItems: 'center', paddingVertical: 6 }}>
           <Text style={{ fontWeight: '800', fontSize: 18, color: good ? colors.primaryDark : b.status === 'paying' ? colors.warning : colors.danger }}>
-            {t(SEAT_TITLE[b.status])}
+            {t(seatTitle(b))}
           </Text>
           {/* Shown at boarding: the marshal or conductor scans it (or reads the code below). */}
           {(b.status === 'queued' || b.status === 'assigned') && (
@@ -81,6 +82,13 @@ export default function BookingScreen() {
         </View>
       </Card>
       <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, textAlign: 'center', marginVertical: 8 }}>{seatLine(b)}</Text>
+      {good && <SeatJourney b={b} onDue={() => void reload()} />}
+      {!!every && every > 3000 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', marginBottom: 8 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary }} />
+          <Muted>{t('Live: this page updates by itself')}</Muted>
+        </View>
+      )}
 
       {b.status === 'assigned' && b.car?.expected_at_pickup && (
         <Muted center>{t('It usually reaches {place} about {time}.', { place: b.pickup.name, time: time(b.car.expected_at_pickup) })}</Muted>
@@ -91,6 +99,7 @@ export default function BookingScreen() {
           <Muted center>{t('Position at {time}', { time: time(b.car.location.at) })}</Muted>
         </>
       )}
+      <RideStops b={b} />
       {crew && (
         <Button
           title={t('Call {who} ({name})', { who: b.car?.conductor ? t('the conductor') : t('the driver'), name: crew.name })}
@@ -129,6 +138,9 @@ export default function BookingScreen() {
           loading={busy === 'cancel'}
           onPress={cancel}
         />
+      )}
+      {b.status === 'boarded' && b.car?.reached_my_stop && (
+        <Button title={t('Report a problem')} variant="secondary" icon="chatbox-ellipses-outline" onPress={() => router.push('/passenger/report')} />
       )}
       <Button title={t('Book another seat')} variant="secondary" onPress={() => router.replace('/passenger/book')} />
     </Screen>

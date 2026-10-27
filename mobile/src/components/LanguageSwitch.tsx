@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View, ViewStyle } from 'react-native';
 import { type Language, useT } from '@/lib/i18n';
 import { colors } from './ui';
 
@@ -8,10 +8,10 @@ const LANGUAGES: { value: Language; label: string }[] = [
 ];
 
 /** English | Kiswahili, on the sign-in screens and in My account. Each name is written in its own language. */
-export function LanguageSwitch() {
+export function LanguageSwitch({ style }: { style?: ViewStyle }) {
   const { language, setLanguage } = useT();
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 16 }} accessibilityRole="radiogroup">
+    <View style={[{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 16 }, style]} accessibilityRole="radiogroup">
       {LANGUAGES.map((l) => {
         const on = l.value === language;
         return (

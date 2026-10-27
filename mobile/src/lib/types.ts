@@ -704,7 +704,13 @@ export interface SeatBooking {
     location: CarLocation | null;
     /** A road pickup's car on the way: when it usually reaches the pickup. */
     expected_at_pickup: string | null;
+    /** On board: the stops after the pickup up to the drop-off, ticked as the crew reach them. */
+    stops?: { name: string; reached_at: string | null; mine: boolean }[];
+    reached_my_stop?: boolean;
+    /** On board: when the car usually reaches the drop-off (null once there, or with no past trips). */
+    expected_at_my_stop?: string | null;
   } | null;
+  assigned_at: string | null;
   boarded_at: string | null;
   reason: string | null;
   refund_to: 'mpesa' | 'wallet' | null;

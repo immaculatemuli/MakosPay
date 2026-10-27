@@ -1,11 +1,13 @@
+import Constants from 'expo-constants';
 import { Link, Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { Linking, Text } from 'react-native';
 import { AuthForm } from '@/components/AuthForm';
 import { Button, colors, ErrorBox, Field } from '@/components/ui';
 import { errorMessage, getApiUrl } from '@/lib/api';
 import { lastPhoneNumber, useAuth } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
+import { APK_URL } from '@/lib/links';
 import { loadSavedTickets } from '@/lib/savedTickets';
 
 export default function SignIn() {
@@ -60,6 +62,9 @@ export default function SignIn() {
           </Text>
         </Link>
       )}
+      <Text onPress={() => void Linking.openURL(APK_URL)} style={{ textAlign: 'center', marginTop: 4, padding: 8, color: colors.muted }}>
+        {t('Version {version}', { version: Constants.expoConfig?.version ?? '' })} · <Text style={{ color: colors.primary, fontWeight: '700' }}>{t('Update the app')}</Text>
+      </Text>
       {/* Debug: which server this build talks to (from EXPO_PUBLIC_API_URL). */}
       <Text selectable style={{ textAlign: 'center', marginTop: 12, color: colors.muted, fontSize: 11 }}>
         API: {getApiUrl() || '(EXPO_PUBLIC_API_URL not set)'}
