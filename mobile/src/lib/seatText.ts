@@ -14,6 +14,16 @@ export const SEAT_TITLE: Record<SeatBooking['status'], string> = {
   failed: 'Not paid',
 };
 
+/** What a seat booking is doing now, in a few words. */
+export const SEAT_WORD: Record<SeatBooking['status'], string> = {
+  paying: 'Paying…',
+  queued: 'In the queue',
+  assigned: 'Car coming',
+  boarded: 'On board',
+  cancelled: 'Cancelled',
+  failed: 'Not paid',
+};
+
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`;
 
 /** The booking screen's title: "You’ve arrived" once the car reaches the drop-off. */

@@ -101,8 +101,24 @@ export default function Pay() {
     );
   }
 
+  // The pay button stays at the bottom of the screen.
+  const footer = (
+    <>
+      {payError && <ErrorBox message={payError} />}
+      {!stop ? (
+        <Button title={t('Choose where you get off')} disabled onPress={() => {}} />
+      ) : q.free_ride ? (
+        <Button title={t('Get my free ride')} icon="gift-outline" onPress={() => pay(false)} loading={paying} />
+      ) : canPay ? (
+        <Button title={t('Pay {amount} from wallet', { amount: kes(stop.app_fare) })} icon="checkmark-circle-outline" onPress={() => pay(false)} loading={paying} />
+      ) : (
+        <Button title={t('Pay {amount} with M-Pesa', { amount: kes(stop.app_fare) })} icon="phone-portrait-outline" onPress={() => pay(true)} loading={paying} />
+      )}
+    </>
+  );
+
   return (
-    <Screen>
+    <Screen footer={footer}>
       <Card>
         <Text style={{ fontSize: 13, color: colors.muted }}>{t('Check this is your vehicle')}</Text>
         <Text style={{ fontSize: 28, fontWeight: '800', color: colors.text, marginTop: 2 }}>{q.vehicle.plate}</Text>
@@ -150,18 +166,9 @@ export default function Pay() {
           })}
         </Notice>
       )}
-      {payError && <ErrorBox message={payError} />}
-
-      {!stop ? (
-        <Button title={t('Choose where you get off')} disabled onPress={() => {}} />
-      ) : q.free_ride ? (
-        <Button title={t('Get my free ride')} icon="gift-outline" onPress={() => pay(false)} loading={paying} />
-      ) : canPay ? (
-        <Button title={t('Pay {amount} from wallet', { amount: kes(stop.app_fare) })} icon="checkmark-circle-outline" onPress={() => pay(false)} loading={paying} />
-      ) : (
+      {stop && !canPay && !q.free_ride && (
         <>
           <Notice>{t('Your wallet is {amount} short. Pay this fare with M-Pesa instead.', { amount: kes(stop.app_fare - q.wallet_balance) })}</Notice>
-          <Button title={t('Pay {amount} with M-Pesa', { amount: kes(stop.app_fare) })} icon="phone-portrait-outline" onPress={() => pay(true)} loading={paying} />
           <Button
             title={t('Top up wallet instead')}
             variant="secondary"

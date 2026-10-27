@@ -4,7 +4,7 @@ import { HeaderActions } from '@/components/AccountButton';
 import { tabOptions } from '@/components/navigation';
 import { useT } from '@/lib/i18n';
 
-/** Passenger tabs, as in the brief: Home, Pay, Wallet, Trips, Profile. */
+/** Passenger tabs, as in the brief: Home, Pay, Wallet, Trips (and seat bookings), Profile. */
 export default function PassengerTabs() {
   const { t } = useT();
   return (
@@ -23,7 +23,7 @@ export default function PassengerTabs() {
       />
       <Tabs.Screen
         name="trips"
-        options={{ title: t('My trips'), tabBarLabel: t('Trips'), tabBarIcon: ({ color, size }) => <Ionicons name="bus-outline" color={color} size={size} /> }}
+        options={{ title: t('Trips & bookings'), tabBarLabel: t('Trips'), tabBarIcon: ({ color, size }) => <Ionicons name="bus-outline" color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="profile"

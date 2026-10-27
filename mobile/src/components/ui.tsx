@@ -12,6 +12,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/lib/i18n';
 
 export const colors = {
@@ -20,7 +21,7 @@ export const colors = {
   primaryDark: '#A8166E',
   primarySoft: '#FCE7F3',
   text: '#111827',
-  muted: '#6B7280',
+  muted: '#4B5563',
   border: '#E5E7EB',
   bg: '#F5F6F8',
   card: '#FFFFFF',
@@ -32,17 +33,20 @@ export const colors = {
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
-/** Scrollable page with standard padding and optional pull-to-refresh. */
+/** Scrollable page with standard padding and optional pull-to-refresh; a footer (the pay buttons) stays fixed at the bottom. */
 export function Screen({
   children,
   refreshing,
   onRefresh,
+  footer,
 }: {
   children: ReactNode;
   refreshing?: boolean;
   onRefresh?: () => void;
+  footer?: ReactNode;
 }) {
-  return (
+  const insets = useSafeAreaInsets();
+  const page = (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.screenContent}
@@ -51,6 +55,13 @@ export function Screen({
     >
       {children}
     </ScrollView>
+  );
+  if (!footer) return page;
+  return (
+    <View style={styles.screen}>
+      {page}
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 6) }]}>{footer}</View>
+    </View>
   );
 }
 
@@ -245,7 +256,7 @@ export function Badge({ text, tone = 'neutral' }: { text: string; tone?: 'neutra
   }[tone];
   return (
     <View style={[styles.badge, { backgroundColor: palette[0] }]}>
-      <Text style={{ color: palette[1], fontSize: 12, fontWeight: '600' }}>{text}</Text>
+      <Text style={{ color: palette[1], fontSize: 13, fontWeight: '600' }}>{text}</Text>
     </View>
   );
 }
@@ -308,6 +319,7 @@ export function KeyValue({ label, value }: { label: string; value: ReactNode }) 
 export const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   screenContent: { padding: 16, paddingBottom: 40 },
+  footer: { backgroundColor: colors.card, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingHorizontal: 16, paddingTop: 10 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.bg },
   card: {
     backgroundColor: colors.card,
@@ -318,7 +330,7 @@ export const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', marginTop: 12, marginBottom: 8 },
-  muted: { color: colors.muted, fontSize: 14 },
+  muted: { color: colors.muted, fontSize: 15 },
   button: {
     minHeight: 50,
     borderRadius: 12,
@@ -332,7 +344,7 @@ export const styles = StyleSheet.create({
   buttonText: { fontSize: 16, fontWeight: '600' },
   field: { marginBottom: 14 },
   label: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 6 },
-  hint: { fontSize: 12, color: colors.muted, marginTop: 4 },
+  hint: { fontSize: 13, color: colors.muted, marginTop: 4 },
   eye: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 46, alignItems: 'center', justifyContent: 'center' },
   input: {
     backgroundColor: colors.card,
@@ -358,7 +370,7 @@ export const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   rowTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
-  rowSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  rowSub: { fontSize: 14, color: colors.muted, marginTop: 2 },
   rowRight: { fontSize: 15, fontWeight: '600', color: colors.text },
   badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
