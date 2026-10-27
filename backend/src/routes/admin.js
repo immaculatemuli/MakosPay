@@ -33,6 +33,7 @@ import { createOwner, findOrCreateOwner, getOwner, linkVehicle, listOwners, owne
 import { cancelParcel, collectParcel, createParcel, listParcels, recordPayment, refreshedParcel, sendParcelPrompt } from '../services/parcels.js';
 import { getPhoto, officeReply, officeReports, replySchema, sendPhoto, updateReport } from '../services/reports.js';
 import { approveRefund, declineRefund, listRefundRequests } from '../services/refundRequests.js';
+import { officeRatings } from '../services/ratings.js';
 import { syncTrackers, trackerOn, trackerStatus } from '../services/tracker.js';
 import { refundTrip, TRIP_SELECT } from '../services/trips.js';
 import { createUser, deleteCrewMember, resetPassword } from '../services/users.js';
@@ -124,6 +125,12 @@ router.post('/tracker/check', async (_req, res) => {
 });
 
 // "Paid by mistake" requests from conductors and drivers: ?status=waiting (default) or all.
+// Passengers' trip ratings: the newest (one car's, or only 1–2 stars), and averages per car, driver and conductor.
+router.get('/ratings', async (req, res) => {
+  const q = parse(z.object({ vehicle_id: id.optional(), low: z.enum(['1', '0']).default('0') }), req.query);
+  res.json(await officeRatings({ vehicleId: q.vehicle_id ?? null, low: q.low === '1' }));
+});
+
 router.get('/refund-requests', async (req, res) => {
   const { status } = parse(z.object({ status: z.enum(['waiting', 'all']).default('waiting') }), req.query);
   res.json({ requests: await listRefundRequests({ status }) });

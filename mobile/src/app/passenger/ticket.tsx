@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
+import { RateTrip } from '@/components/RateTrip';
 import { Button, Card, colors, KeyValue, Screen } from '@/components/ui';
 import { dateTime, kes } from '@/lib/format';
 import { useT } from '@/lib/i18n';
@@ -45,6 +46,7 @@ export default function Ticket() {
         <KeyValue label={t('Time')} value={p.at ? dateTime(p.at) : ''} />
         {p.balance !== undefined && <KeyValue label={t('Wallet balance')} value={kes(Number(p.balance))} />}
       </Card>
+      {!!p.id && !refunded && <RateTrip tripId={Number(p.id)} rated={p.rating ? Number(p.rating) : null} />}
       <View style={{ height: 8 }} />
       <Button title={t('Done')} onPress={done} />
       {!!p.id && (
