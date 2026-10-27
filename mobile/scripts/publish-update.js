@@ -15,7 +15,8 @@ if (!build?.channel || !build.env?.EXPO_PUBLIC_API_URL) {
   console.error(`eas.json has no channel and EXPO_PUBLIC_API_URL for "${profile}"`);
   process.exit(1);
 }
-const result = spawnSync('npx', ['eas-cli@latest', 'update', '--channel', build.channel, '--message', message], {
+// Through the shell (npx needs it on Windows), so the message is quoted to stay one argument.
+const result = spawnSync('npx', ['eas-cli@latest', 'update', '--channel', build.channel, '--message', JSON.stringify(message)], {
   stdio: 'inherit',
   shell: true,
   env: { ...process.env, EXPO_PUBLIC_API_URL: build.env.EXPO_PUBLIC_API_URL },
