@@ -42,7 +42,15 @@ export default function SignIn() {
   };
 
   return (
-    <AuthForm subtitle={t('Pay your fare by scanning the QR code')}>
+    <AuthForm
+      subtitle={t('Pay your fare by scanning the QR code')}
+      footer={
+        <Text onPress={() => void Linking.openURL(`https://${UPDATE_SITE}/`)} style={{ textAlign: 'center', marginTop: 8, padding: 8, color: colors.muted }}>
+          {t('Version {version}', { version: Constants.expoConfig?.version ?? '' })} · {t('Update the app')}:{' '}
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>{UPDATE_SITE}</Text>
+        </Text>
+      }
+    >
       {error && <ErrorBox message={error} />}
       <Field label={t('Phone number')} placeholder="07XX XXX XXX" keyboardType="phone-pad" autoComplete="tel" value={phone} onChangeText={setPhone} />
       <Field label={t('Password')} secureTextEntry autoComplete="password" value={password} onChangeText={setPassword} onSubmitEditing={submit} />
@@ -62,10 +70,6 @@ export default function SignIn() {
           </Text>
         </Link>
       )}
-      <Text onPress={() => void Linking.openURL(`https://${UPDATE_SITE}/`)} style={{ textAlign: 'center', marginTop: 4, padding: 8, color: colors.muted }}>
-        {t('Version {version}', { version: Constants.expoConfig?.version ?? '' })} · {t('Update the app')}:{' '}
-        <Text style={{ color: colors.primary, fontWeight: '700' }}>{UPDATE_SITE}</Text>
-      </Text>
       {/* Debug: which server this build talks to (from EXPO_PUBLIC_API_URL). */}
       <Text selectable style={{ textAlign: 'center', marginTop: 12, color: colors.muted, fontSize: 11 }}>
         API: {getApiUrl() || '(EXPO_PUBLIC_API_URL not set)'}
