@@ -3,7 +3,7 @@ import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { Chips, ErrorBox, List, ListRow, Loading, Muted, Screen } from '@/components/ui';
-import { authHeaders, errorMessage, getApiUrl } from '@/lib/api';
+import { authHeaders, errorMessage, getApiUrl, versionHeader } from '@/lib/api';
 import { prettyDate } from '@/lib/format';
 import { periodDates, PERIODS, type PeriodKey } from '@/lib/periods';
 import { useApi } from '@/lib/useApi';
@@ -18,7 +18,7 @@ export default function Exports() {
   const download = async (kind: string, title: string) => {
     setBusy(kind);
     try {
-      const res = await fetch(`${getApiUrl()}/admin/exports/${kind}?from=${from}&to=${to}`, { headers: authHeaders() });
+      const res = await fetch(`${getApiUrl()}/admin/exports/${kind}?from=${from}&to=${to}`, { headers: { ...authHeaders(), ...versionHeader } });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error?.message ?? `Could not make the report (${res.status})`);
       const file = new File(Paths.cache, `FarePay ${title} ${from}${to !== from ? ` to ${to}` : ''}.csv`);
       if (file.exists) file.delete();

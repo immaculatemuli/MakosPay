@@ -24,6 +24,7 @@
     "expo-speech": "~57.0.3",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.26",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-qrcode-svg": "^6.3.26",
@@ -45,7 +46,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "update": "node scripts/publish-update.js"
   },
   "private": true,
   "packageManager": "yarn@1.22.22"

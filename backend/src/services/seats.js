@@ -15,7 +15,7 @@ import { config } from '../config.js';
 import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import { nairobiToday, randomCode } from '../util.js';
-import { departLoad, isLoading, startLoading, typicalMinutes } from './bookings.js';
+import { departLoad, isLoading, startLoading, tripStops, typicalMinutes } from './bookings.js';
 import { runDaily } from './jobs.js';
 import { kesText, notify, notifyOffice } from './notifications.js';
 import { getPayment, refreshPayment, requireMpesa, sendPrompt } from './payments.js';
@@ -133,6 +133,8 @@ export async function seatView(bookingId) {
   // A road pickup's car on the way: when it usually reaches the pickup, from past trips.
   const minutes =
     b.status === 'assigned' && b.pickup_stop_id && b.car_status === 'departed' && !b.finished_at ? await typicalMinutes(b.pickup_stop_id) : null;
+  // On board: the trip's stops from the pickup to the drop-off, ticked as the crew reach them.
+  const ride = b.status === 'boarded' && b.load_id ? await rideProgress(b) : null;
   return {
     id: b.id,
     code: b.code,
@@ -161,6 +163,7 @@ export async function seatView(bookingId) {
           // Only while the passenger is waiting for it.
           location: b.status === 'assigned' ? await carLocation(b.vehicle_id) : null,
           expected_at_pickup: minutes === null ? null : new Date(Date.parse(b.departed_at) + minutes * 60_000).toISOString(),
+          ...(ride ?? {}),
         }
       : null,
     assigned_at: b.assigned_at,
@@ -170,6 +173,26 @@ export async function seatView(bookingId) {
     refund_to: b.refund_to,
     can_cancel: OPEN.includes(b.status),
     free_ride: Boolean(b.free_ride),
+  };
+}
+
+/**
+ * A boarded passenger's ride: the stops after their pickup up to their drop-off, with when the car reached each; whether
+ * it has reached the drop-off (or finished the trip); and, until then, when it usually gets there.
+ */
+async function rideProgress(b) {
+  const load = await db.get('SELECT * FROM loads WHERE id = ?', b.load_id);
+  if (!load) return null;
+  const all = await tripStops(load);
+  const from = b.pickup_stop_id ? all.findIndex((s) => s.id === b.pickup_stop_id) + 1 : 0;
+  const to = all.findIndex((s) => s.id === b.stop_id);
+  const stops = to >= from ? all.slice(from, to + 1) : all.filter((s) => s.id === b.stop_id);
+  const reached = Boolean(stops[stops.length - 1]?.reached_at) || Boolean(load.finished_at);
+  const minutes = !reached && load.departed_at ? await typicalMinutes(b.stop_id) : null;
+  return {
+    stops: stops.map((s) => ({ name: s.name, reached_at: s.reached_at, mine: s.id === b.stop_id })),
+    reached_my_stop: reached,
+    expected_at_my_stop: minutes === null ? null : new Date(Date.parse(load.departed_at) + minutes * 60_000).toISOString(),
   };
 }
 
@@ -403,7 +426,7 @@ export async function seatPaymentConfirmed(payment, receipt, paidAmount) {
       kind: 'seat.failed',
       title: 'Seat booking not made',
       body: `M-Pesa took ${kesText(paidAmount)} but the booking was ${kesText(b.amount)}, so the money is in your FarePay wallet.`,
-      target: 'seats',
+      target: `seat:${b.id}`,
     });
     await notifyOffice({ kind: 'seat.amount_mismatch', title: `Seat booking ${b.code}: M-Pesa amount did not match`, body: `Paid ${paidAmount}, expected ${b.amount}. Receipt ${reference}.`, target: 'reports' });
     return;
@@ -423,7 +446,7 @@ export async function seatPaymentFailed(payment, reason) {
   const b = await db.get("SELECT * FROM seat_bookings WHERE mpesa_payment_id = ? AND status = 'paying'", payment.id);
   if (!b) return;
   await db.run("UPDATE seat_bookings SET status = 'failed' WHERE id = ?", b.id);
-  await notify([b.passenger_id], { kind: 'seat.failed', title: 'Seat booking not paid', body: `${reason}. No money was taken.`, target: 'seats' });
+  await notify([b.passenger_id], { kind: 'seat.failed', title: 'Seat booking not paid', body: `${reason}. No money was taken.`, target: `seat:${b.id}` });
 }
 
 /** A booking was just paid: tell the passenger, and (unless it is for later) seat them at once if a car at the stage has room. */
@@ -544,7 +567,7 @@ const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st
 
 /** Tells a passenger: in the app (and by push), and by SMS for passengers who booked without the app. */
 async function tell(b, { kind, title, body, sms }) {
-  await notify([b.passenger_id], { kind, title, body, target: 'seats' });
+  await notify([b.passenger_id], { kind, title, body, target: `seat:${b.id}` });
   if (b.no_app && sms) await queueSms(b.passenger_phone, kind, sms);
 }
 
@@ -780,7 +803,7 @@ export async function boardSeat(bookingId, { vehicleId = null } = {}) {
     const tripId = await recordTrip({ passengerId: b.passenger_id, vehicle, stop, fare: b.amount, idempotencyKey: `seat-${b.id}`, freeRide: Boolean(b.free_ride) });
     await db.run(`UPDATE seat_bookings SET status = 'boarded', boarded_at = ${NOW}, trip_id = ? WHERE id = ?`, tripId, b.id);
     if (!b.free_ride) await afterPaidRide(b.passenger_id);
-    await notify([b.passenger_id], { kind: 'seat.boarded', title: `On board ${b.plate}`, body: `Have a good trip to ${b.stop_name}.`, target: 'seats' });
+    await notify([b.passenger_id], { kind: 'seat.boarded', title: `On board ${b.plate}`, body: `Have a good trip to ${b.stop_name}.`, target: `seat:${b.id}` });
   });
   return seatView(bookingId);
 }

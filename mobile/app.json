@@ -3,7 +3,13 @@
     "name": "FarePay",
     "slug": "farepay",
     "scheme": "farepay",
-    "version": "1.0.0",
+    "version": "1.1.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/327ed4c2-7a02-4e2d-bcc9-1e59da98ac1c"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

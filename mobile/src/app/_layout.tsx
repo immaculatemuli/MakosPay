@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Loading } from '@/components/ui';
+import { useAppVersionCheck } from '@/lib/appVersion';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LanguageProvider } from '@/lib/i18n';
 import { onNotificationTap } from '@/lib/push';
@@ -10,6 +11,7 @@ import { isOffice } from '@/lib/types';
 
 function RootNavigator() {
   const { loading, user } = useAuth();
+  useAppVersionCheck();
 
   // Tapping a push notification opens the bell (the notifications list) of whoever is signed in.
   const section = user ? (isOffice(user.role) ? 'admin' : user.role) : null;

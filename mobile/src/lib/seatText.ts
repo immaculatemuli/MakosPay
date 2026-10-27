@@ -16,6 +16,9 @@ export const SEAT_TITLE: Record<SeatBooking['status'], string> = {
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`;
 
+/** The booking screen's title: "You’ve arrived" once the car reaches the drop-off. */
+export const seatTitle = (b: SeatBooking) => (b.status === 'boarded' && b.car?.reached_my_stop ? 'You’ve arrived' : SEAT_TITLE[b.status]);
+
 /** What to tell the passenger now: pay, their place in the queue, which car to board, or what happened. */
 export function seatLine(b: SeatBooking) {
   if (b.status === 'paying') return t('Enter your M-Pesa PIN on your phone to finish booking.');
@@ -24,6 +27,7 @@ export function seatLine(b: SeatBooking) {
     const where = b.refund_to === 'wallet' ? t('{amount} is back in your FarePay wallet.', { amount: kes(b.amount) }) : t('{amount} is being sent back to your M-Pesa.', { amount: kes(b.amount) });
     return `${b.reason ? `${b.reason}. ` : ''}${where}`;
   }
+  if (b.status === 'boarded' && b.car?.reached_my_stop) return t('You’ve reached {stop}. Thank you for travelling with us.', { stop: b.stop_name });
   if (b.status === 'boarded') return t('You’re on board {plate}. Have a good trip to {stop}.', { plate: b.car?.plate ?? '', stop: b.stop_name });
   if (b.status === 'assigned' && b.car) {
     if (b.pickup.at_stage) return t('Board {plate} now at {place}. Show this code when you get on.', { plate: b.car.plate, place: b.pickup.name });

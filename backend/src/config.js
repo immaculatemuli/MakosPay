@@ -49,6 +49,16 @@ export const config = {
   ussdCode: env.USSD_CODE || null,
   qrPrefix: env.QR_PREFIX || (/^https:\/\//.test(env.MPESA_CALLBACK_BASE_URL ?? '') ? `${env.MPESA_CALLBACK_BASE_URL.replace(/\/+$/, '')}/pay?v=` : 'farepay://pay?v='),
 
+  // The phone app: the newest version, and the oldest that still works (older ones must update). Empty: no check.
+  // Change them after publishing a new APK, e.g. APP_LATEST_VERSION=1.1.0.
+  app: {
+    latestVersion: env.APP_LATEST_VERSION || null,
+    minimumVersion: env.APP_MIN_VERSION || null,
+    downloadUrl: env.APP_DOWNLOAD_URL || 'https://github.com/immaculatemuli/MakosPay/releases/latest/download/FarePay.apk',
+    // Named in the "please update" message that apps older than the minimum get instead of every answer.
+    website: env.APP_WEBSITE || 'farepayimm.netlify.app',
+  },
+
   // Wallet limits, in whole shillings.
   minTopup: num(env.MIN_TOPUP, 10),
   maxTopup: num(env.MAX_TOPUP, 20000),

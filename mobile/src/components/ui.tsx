@@ -188,6 +188,7 @@ export function ListRow({
   rightSub,
   onPress,
   icon,
+  external,
 }: {
   title: string;
   subtitle?: string;
@@ -195,6 +196,8 @@ export function ListRow({
   rightSub?: ReactNode;
   onPress?: () => void;
   icon?: IconName;
+  /** Opens a web page: shows an arrow out instead of the chevron. */
+  external?: boolean;
 }) {
   return (
     <Pressable
@@ -211,7 +214,7 @@ export function ListRow({
         {right !== undefined && <Text style={styles.rowRight}>{right}</Text>}
         {rightSub}
       </View>
-      {onPress && <Ionicons name="chevron-forward" size={18} color="#9CA3AF" style={{ marginLeft: 4 }} />}
+      {onPress && <Ionicons name={external ? 'open-outline' : 'chevron-forward'} size={18} color="#9CA3AF" style={{ marginLeft: 4 }} />}
     </Pressable>
   );
 }
