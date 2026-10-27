@@ -2,5 +2,5 @@
 export const WEBSITE_URL = 'https://farepayimm.netlify.app';
 export const PRIVACY_POLICY_URL = `${WEBSITE_URL}/privacy.html`;
 export const HELP_URL = `${WEBSITE_URL}/#contact`;
-/** Always the newest FarePay.apk (the GitHub release the website's download button uses too). */
-export const APK_URL = 'https://github.com/immaculatemuli/MakosPay/releases/latest/download/FarePay.apk';
+/** Where to get the newest app: the FarePay site on the server, whose download button gives the latest FarePay.apk. */
+export const UPDATE_SITE = 'makos-farepay.onrender.com';
