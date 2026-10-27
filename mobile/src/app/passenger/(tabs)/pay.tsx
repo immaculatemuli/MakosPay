@@ -9,7 +9,7 @@ import { useT } from '@/lib/i18n';
 import type { PassengerSummary } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
-/** Pay a fare: confirm where you're going, then scan the QR code inside the vehicle. */
+/** Pay a fare: scan the QR code inside the vehicle, then choose where you get off. A usual drop-off can be set ahead. */
 export default function PayTab() {
   const { t } = useT();
   const summary = useApi<PassengerSummary>('/passenger/summary');
@@ -23,20 +23,21 @@ export default function PayTab() {
   return (
     <Screen refreshing={summary.refreshing} onRefresh={summary.refresh}>
       {summary.error && <ErrorBox message={summary.error} onRetry={summary.reload} />}
-      <SectionTitle>{t('1. Where are you going?')}</SectionTitle>
+      <SectionTitle>{t('Scan the QR code in the vehicle')}</SectionTitle>
+      <View style={{ alignItems: 'center', marginVertical: 8 }}>
+        <Text style={{ color: colors.muted, textAlign: 'center' }}>{t('Then choose where you get off. You’ll see the vehicle, route and fare before anything is paid.')}</Text>
+      </View>
+      <Button title={t('Scan QR code')} icon="qr-code-outline" onPress={() => router.push('/passenger/scan')} />
+      {s && <Muted center>{t('Wallet balance {amount}. If it’s too low you can pay with M-Pesa.', { amount: kes(s.balance) })}</Muted>}
+
+      <SectionTitle>{t('Your usual drop-off (optional)')}</SectionTitle>
+      <Muted>{t('Choose it here and it is ready when you scan.')}</Muted>
       <WhereGoing chosen={chosen} saved={s?.saved ?? []} frequent={s?.frequent ?? []} onChosen={() => setPickKey((k) => k + 1)} />
       {fareInfo && (
         <Card>
           <KeyValue label={t('Fare')} value={kes(fareInfo.app_fare)} />
         </Card>
       )}
-
-      <SectionTitle>{t('2. Scan the QR code in the vehicle')}</SectionTitle>
-      <View style={{ alignItems: 'center', marginVertical: 8 }}>
-        <Text style={{ color: colors.muted, textAlign: 'center' }}>{t('You’ll see the vehicle, route and fare before anything is paid.')}</Text>
-      </View>
-      <Button title={t('Scan QR code')} icon="qr-code-outline" onPress={() => router.push('/passenger/scan')} />
-      {s && <Muted center>{t('Wallet balance {amount}. If it’s too low you can pay with M-Pesa.', { amount: kes(s.balance) })}</Muted>}
     </Screen>
   );
 }

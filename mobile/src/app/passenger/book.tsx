@@ -6,6 +6,7 @@ import { Button, Card, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, M
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { dayTime, kes } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { SEAT_WORD } from '@/lib/seatText';
 import type { PassengerSummary, SeatBooking, SeatRoutes } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
@@ -26,16 +27,6 @@ function readyTimes(r: SeatRoutes, day: 'today' | 'tomorrow') {
   }
   return out;
 }
-
-/** What a seat booking is doing now, in a few words. */
-const SEAT_WORD: Record<SeatBooking['status'], string> = {
-  paying: 'Paying…',
-  queued: 'In the queue',
-  assigned: 'Car coming',
-  boarded: 'On board',
-  cancelled: 'Cancelled',
-  failed: 'Not paid',
-};
 
 /**
  * Book a seat from anywhere: the route, where to be picked (the stage, or a stop on the road), the drop-off and the
@@ -138,8 +129,25 @@ export default function BookSeat() {
     />
   );
 
+  // Ready to pay: the pay buttons stay at the bottom of the screen.
+  const ready = Boolean(route && stop && pickupId !== undefined && timeChosen);
+  const footer = ready && (
+    <>
+      {error && <ErrorBox message={error} />}
+      {freeNow ? (
+        <Button title={t('Book my free ride')} icon="gift-outline" loading={busy} onPress={() => void book('wallet')} />
+      ) : (
+        <>
+          {balance < total && <Muted center>{t('Your wallet is short by {amount}: pay with M-Pesa, or add money first.', { amount: kes(total - balance) })}</Muted>}
+          <Button title={t('Pay {amount} from wallet', { amount: kes(total) })} icon="wallet-outline" disabled={balance < total} loading={busy} onPress={() => void book('wallet')} />
+          <Button title={t('Pay {amount} with M-Pesa', { amount: kes(total) })} variant="secondary" icon="phone-portrait-outline" disabled={busy} onPress={() => void book('mpesa')} />
+        </>
+      )}
+    </>
+  );
+
   return (
-    <Screen refreshing={data.refreshing || mine.refreshing} onRefresh={refresh}>
+    <Screen refreshing={data.refreshing || mine.refreshing} onRefresh={refresh} footer={footer}>
       {open.length > 0 && (
         <>
           <SectionTitle>{t('Your bookings')}</SectionTitle>
@@ -245,7 +253,7 @@ export default function BookSeat() {
         </>
       )}
 
-      {route && stop && pickupId !== undefined && timeChosen && (
+      {route && stop && ready && (
         <>
           <Card>
             <View style={{ alignItems: 'center' }}>
@@ -258,16 +266,7 @@ export default function BookSeat() {
             </View>
           </Card>
           {pickupStop && <Muted>{t('The fare is the same as from the stage, wherever you are picked.')}</Muted>}
-          {error && <ErrorBox message={error} />}
           {freeNow && <Notice tone="success">{t('This booking is your free ride: nothing is charged.')}</Notice>}
-          {freeNow && <Button title={t('Book my free ride')} icon="gift-outline" loading={busy} onPress={() => void book('wallet')} />}
-          {!freeNow && (
-          <>
-          <Button title={t('Pay {amount} from wallet', { amount: kes(total) })} icon="wallet-outline" disabled={balance < total} loading={busy} onPress={() => void book('wallet')} />
-          <Button title={t('Pay {amount} with M-Pesa', { amount: kes(total) })} variant="secondary" icon="phone-portrait-outline" disabled={busy} onPress={() => void book('mpesa')} />
-          {balance < total && <Muted center>{t('Your wallet is short by {amount}: pay with M-Pesa, or add money first.', { amount: kes(total - balance) })}</Muted>}
-          </>
-          )}
           <Muted center>{readyAt ? t('If no car takes you that day, the money goes back the way you paid.') : t('If no car takes you today, the money goes back the way you paid.')}</Muted>
         </>
       )}

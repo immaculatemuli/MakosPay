@@ -102,27 +102,43 @@ export default function AdminHome() {
         </View>
       )}
 
-      <SectionTitle>Quick actions</SectionTitle>
+      <SectionTitle>Today</SectionTitle>
       <List>
         <ListRow icon="people-outline" title="Bookings & trips" subtitle="Cars loading at the stage and on the road" onPress={() => router.push('/admin/trips')} />
-        <ListRow icon="cube-outline" title="Parcels" subtitle="Record, find and hand over parcels" onPress={() => router.push('/admin/parcels')} />
-        <ListRow icon="add-circle-outline" title="Add route" subtitle="Drop-off stops and their fares" onPress={() => router.push('/admin/route-form')} />
-        <ListRow icon="add-circle-outline" title="Add vehicle" subtitle="Plate, owner's M-Pesa number, QR sticker" onPress={() => router.push('/admin/vehicle-form')} />
-        <ListRow icon="person-add-outline" title="Add conductor" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'conductor' } })} />
-        <ListRow icon="car-outline" title="Add driver" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'driver' } })} />
-        <ListRow icon="download-outline" title="Reports & downloads" subtitle="Takings and payouts for the accountant (Excel)" onPress={() => router.push('/admin/exports')} />
-        <ListRow icon="megaphone-outline" title="Message crew" subtitle="One message to all drivers on a route" onPress={() => router.push('/admin/broadcast')} />
-        <ListRow icon="people-outline" title="Vehicle owners" subtitle="Their cars, takings and payouts" onPress={() => router.push('/admin/owners')} />
-        <ListRow icon="flag-outline" title="Stage marshals" subtitle="Manage the queue of booked passengers" onPress={() => router.push({ pathname: '/admin/crew', params: { role: 'marshal' } })} />
         <ListRow icon="people-circle-outline" title="Stage queues" subtitle="What the marshals see: queues and cars" onPress={() => router.push('/marshal')} />
-        <ListRow icon="chatbox-ellipses-outline" title="Problem reports" subtitle="From passengers and crew" onPress={() => router.push('/admin/reports')} />
-        <ListRow icon="star-outline" title="Passenger ratings" subtitle="Stars and comments per car and crew" onPress={() => router.push('/admin/ratings')} />
+        <ListRow icon="cube-outline" title="Parcels" subtitle="Record, find and hand over parcels" onPress={() => router.push('/admin/parcels')} />
+        <ListRow icon="megaphone-outline" title="Message crew" subtitle="One message to all drivers on a route" onPress={() => router.push('/admin/broadcast')} />
+      </List>
+
+      <SectionTitle>Money</SectionTitle>
+      <List>
+        <ListRow icon="download-outline" title="Reports & downloads" subtitle="Takings and payouts for the accountant (Excel)" onPress={() => router.push('/admin/exports')} />
         <ListRow icon="arrow-up-circle-outline" title="Passenger withdrawals" subtitle="Wallet money sent back to M-Pesa" onPress={() => router.push('/admin/withdrawals')} />
         <ListRow icon="return-down-back-outline" title="Refunds asked by crew" subtitle="Passengers who paid by mistake" onPress={() => router.push('/admin/refund-requests')} />
         <ListRow icon="checkmark-done-outline" title="Money check" subtitle="Do wallets, M-Pesa and payouts add up?" onPress={() => router.push('/admin/reconciliation')} />
         <ListRow icon="document-text-outline" title="M-Pesa statement check" subtitle="Match the Paybill statement with FarePay" onPress={() => router.push('/admin/statement')} />
-        <ListRow icon="list-outline" title="Audit log" subtitle="Who changed what, and when" onPress={() => router.push('/admin/audit')} />
+      </List>
+
+      <SectionTitle>People & vehicles</SectionTitle>
+      <List>
+        <ListRow icon="add-circle-outline" title="Add route" subtitle="Drop-off stops and their fares" onPress={() => router.push('/admin/route-form')} />
+        <ListRow icon="add-circle-outline" title="Add vehicle" subtitle="Plate, owner's M-Pesa number, QR sticker" onPress={() => router.push('/admin/vehicle-form')} />
+        <ListRow icon="person-add-outline" title="Add conductor" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'conductor' } })} />
+        <ListRow icon="car-outline" title="Add driver" subtitle="Creates their sign-in" onPress={() => router.push({ pathname: '/admin/crew-form', params: { role: 'driver' } })} />
+        <ListRow icon="people-outline" title="Vehicle owners" subtitle="Their cars, takings and payouts" onPress={() => router.push('/admin/owners')} />
+        <ListRow icon="flag-outline" title="Stage marshals" subtitle="Manage the queue of booked passengers" onPress={() => router.push({ pathname: '/admin/crew', params: { role: 'marshal' } })} />
         <ListRow icon="briefcase-outline" title="Office staff" subtitle="Other SACCO office accounts" onPress={() => router.push('/admin/staff')} />
+      </List>
+
+      <SectionTitle>Feedback</SectionTitle>
+      <List>
+        <ListRow icon="chatbox-ellipses-outline" title="Problem reports" subtitle="From passengers and crew" onPress={() => router.push('/admin/reports')} />
+        <ListRow icon="star-outline" title="Passenger ratings" subtitle="Stars and comments per car and crew" onPress={() => router.push('/admin/ratings')} />
+      </List>
+
+      <SectionTitle>Records</SectionTitle>
+      <List>
+        <ListRow icon="list-outline" title="Audit log" subtitle="Who changed what, and when" onPress={() => router.push('/admin/audit')} />
         {user?.role === 'platform_admin' && (
           <ListRow icon="shield-checkmark-outline" title="Platform" subtitle="Payment setup and platform admins" onPress={() => router.push('/admin/platform')} />
         )}

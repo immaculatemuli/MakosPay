@@ -736,4 +736,11 @@ export const SW: Record<string, string> = {
     'Nafasi ya {when}. Fika {place} kufikia wakati huo: utaingia kwenye foleni wakati huo na tutakuambia gari lako. Unaweza kughairi bure hadi wakati huo.',
   'Booked for later': 'Nafasi za baadaye',
   'Paid. Each joins the queue at their time, ahead of anyone who chose a later time.': 'Zimelipwa. Kila mmoja anaingia kwenye foleni wakati wake, mbele ya aliyechagua wakati wa baadaye.',
+  'Trips & bookings': 'Safari na nafasi',
+  'Seat bookings': 'Nafasi za viti',
+  'Fares paid': 'Nauli zilizolipwa',
+  'Scan the QR code in the vehicle': 'Skani msimbo wa QR ndani ya gari',
+  'Then choose where you get off. You’ll see the vehicle, route and fare before anything is paid.': 'Kisha chagua utakaposhuka. Utaona gari, njia na nauli kabla ya kulipa chochote.',
+  'Your usual drop-off (optional)': 'Unaposhuka kwa kawaida (si lazima)',
+  'Choose it here and it is ready when you scan.': 'Ichague hapa na itakuwa tayari ukiskani.',
 };
