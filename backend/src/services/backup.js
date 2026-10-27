@@ -31,7 +31,14 @@ export function startNightlyBackup() {
       const { file, bytes } = await backupNow();
       console.log(`[backup] saved ${file} (${Math.round(bytes / 1024)} KB)`);
     } catch (err) {
-      await notifyOffice({ kind: 'backup.failed', title: 'Nightly database backup failed', body: `${err.message}. Tell whoever runs the FarePay server.`, target: null });
+      // The office gets plain words; the technical details go to the server log for whoever runs the server.
+      console.error('[backup] failed:', err.message);
+      await notifyOffice({
+        kind: 'backup.failed',
+        title: 'Nightly database backup failed',
+        body: "Last night's copy of the FarePay data was not made. Nothing is lost, but tell whoever runs the FarePay server (the details are in the server's log).",
+        target: null,
+      });
       throw err;
     }
   });

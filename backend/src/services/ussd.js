@@ -29,7 +29,12 @@ export const ussdIdle = () => Promise.allSettled([...pending]);
 function later(phone, work) {
   const job = new Promise((resolve) => setTimeout(resolve, config.ussd.promptDelayMs))
     .then(work)
-    .catch((err) => queueSms(phone, 'ussd_failed', `${config.saccoName}: your payment was not started. ${err.message}`))
+    // Expected problems (wrong car number, ...) carry a message for the passenger; anything else is not shown to them.
+    .catch((err) => {
+      if (!(err.status && err.status < 500)) console.error('[ussd] payment not started:', err.message);
+      const why = err.status && err.status < 500 ? ` ${err.message}` : ' Please try again in a few minutes.';
+      return queueSms(phone, 'ussd_failed', `${config.saccoName}: your payment was not started.${why}`);
+    })
     .catch((err) => console.error('[ussd] could not tell the passenger', err))
     .finally(() => pending.delete(job));
   pending.add(job);

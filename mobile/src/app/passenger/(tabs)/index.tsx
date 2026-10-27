@@ -1,22 +1,20 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
 import { FreeRideCard } from '@/components/FreeRideCard';
 import { OpenBookingCard } from '@/components/OpenBookingCard';
-import { WhereGoing } from '@/components/WhereGoing';
 import { Badge, colors, Empty, ErrorBox, List, ListRow, Loading, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
-import { useChosenStop } from '@/lib/chosenRoute';
-import { dateTime, kes, monthName } from '@/lib/format';
+import { dateTime, kes } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { saveTickets } from '@/lib/savedTickets';
 import { openTicket } from '@/lib/ticket';
 import type { Paged, PassengerSummary, SeatBooking, Trip } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
-/** Passenger home: balance, Add money / Pay fare, trips and spending, where they're going, recent payments. */
+/** Passenger home: balance with Pay fare / Book a seat / Add money, an open booking, free-ride progress, recent payments. */
 export default function PassengerHome() {
   const { user } = useAuth();
   const { t } = useT();
@@ -34,8 +32,6 @@ export default function PassengerHome() {
       return () => clearInterval(timer);
     }, [hasOpen, reloadSeats]),
   );
-  const [pickKey, setPickKey] = useState(0);
-  const chosen = useChosenStop(pickKey);
   // The latest tickets are kept on the phone, to open without internet.
   useEffect(() => {
     if (recent.data?.items.length) void saveTickets(recent.data.items);
@@ -48,7 +44,6 @@ export default function PassengerHome() {
     recent.refresh();
     seats.refresh();
   };
-  const joined = s ? new Date(s.since_joining.joined_at) : null;
 
   return (
     <Screen refreshing={summary.refreshing} onRefresh={refresh}>
@@ -56,13 +51,17 @@ export default function PassengerHome() {
         <Text style={styles.balanceLabel}>{t('Wallet balance')}</Text>
         <Text style={styles.balance}>{s ? kes(s.balance) : '—'}</Text>
         <View style={styles.heroButtons}>
-          <Pressable style={({ pressed }) => [styles.heroButton, styles.heroButtonSolid, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/topup')}>
-            <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-            <Text style={[styles.heroButtonText, { color: colors.primary }]}>{t('Add money')}</Text>
+          <Pressable style={({ pressed }) => [styles.heroButton, styles.heroButtonSolid, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/scan')}>
+            <Ionicons name="qr-code-outline" size={18} color={colors.primary} />
+            <Text style={[styles.heroButtonText, { color: colors.primary }]}>{t('Pay fare')}</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [styles.heroButton, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/scan')}>
-            <Ionicons name="qr-code-outline" size={18} color="#fff" />
-            <Text style={styles.heroButtonText}>{t('Pay fare')}</Text>
+          <Pressable style={({ pressed }) => [styles.heroButton, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/book')}>
+            <Ionicons name="people-outline" size={18} color="#fff" />
+            <Text style={styles.heroButtonText}>{t('Book a seat')}</Text>
+          </Pressable>
+          <Pressable style={({ pressed }) => [styles.heroButton, pressed && { opacity: 0.8 }]} onPress={() => router.push('/passenger/topup')}>
+            <Ionicons name="add-circle-outline" size={18} color="#fff" />
+            <Text style={styles.heroButtonText}>{t('Add money')}</Text>
           </Pressable>
         </View>
       </Hero>
@@ -71,32 +70,11 @@ export default function PassengerHome() {
         <OpenBookingCard key={b.id} booking={b} />
       ))}
 
-      {s && (
-        <View style={styles.stats}>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{kes(s.this_month.spent)}</Text>
-            <Text style={styles.statLabel}>{t('Spent this month')}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{s.since_joining.trips}</Text>
-            <Text style={styles.statLabel}>{joined ? t('Trips since {when}', { when: `${monthName(joined.getMonth())} ${joined.getFullYear()}` }) : t('Trips since joining')}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{s.this_month.trips}</Text>
-            <Text style={styles.statLabel}>{t('Trips this month')}</Text>
-          </View>
-        </View>
-      )}
-
       {s && s.free_ride.every > 0 && <FreeRideCard p={s.free_ride} />}
 
       <List>
-        <ListRow icon="people-outline" title={t('Book a seat')} subtitle={t('From anywhere: at the stage or on the road')} onPress={() => router.push('/passenger/book')} />
         <ListRow icon="cube-outline" title={t('Track a parcel')} subtitle={t('With the tracking code from the receipt')} onPress={() => router.push('/passenger/parcel')} />
       </List>
-
-      <SectionTitle>{t('Where are you going?')}</SectionTitle>
-      <WhereGoing chosen={chosen} saved={s?.saved ?? []} frequent={s?.frequent ?? []} onChosen={() => setPickKey((k) => k + 1)} />
 
       <SectionTitle>{t('Recent trips')}</SectionTitle>
       {recent.data?.items.length === 0 && <Empty text={t('No trips yet. Scan the QR code inside the vehicle to pay.')} />}
@@ -122,7 +100,7 @@ export default function PassengerHome() {
 const styles = StyleSheet.create({
   balanceLabel: { color: colors.primarySoft, fontSize: 13, marginTop: 16 },
   balance: { color: '#fff', fontSize: 34, fontWeight: '800' },
-  heroButtons: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  heroButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   heroButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -135,15 +113,4 @@ const styles = StyleSheet.create({
   },
   heroButtonSolid: { backgroundColor: '#fff', borderColor: '#fff' },
   heroButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  stats: { flexDirection: 'row', gap: 8, marginBottom: 6 },
-  stat: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  statValue: { fontSize: 17, fontWeight: '800', color: colors.primaryDark },
-  statLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
 });
