@@ -621,6 +621,7 @@ export const SW: Record<string, string> = {
   'Download it and install it over this one. You stay signed in.': 'Lipakue na ulisakinishe juu ya hili. Utabaki umeingia.',
   Download: 'Pakua',
   Later: 'Baadaye',
+  'Connecting to FarePay… this can take up to a minute.': 'Inaunganisha na FarePay… hii inaweza kuchukua hadi dakika moja.',
   // Rating a trip
   'How was your trip?': 'Safari yako ilikuwaje?',
   '{n} stars': 'Nyota {n}',

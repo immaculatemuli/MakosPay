@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ComponentProps, ReactNode, useState } from 'react';
+import { ComponentProps, ReactNode, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -165,10 +165,27 @@ export function Notice({ children, tone = 'warning' }: { children: ReactNode; to
   );
 }
 
+/** Still waiting after a few seconds (the free server waking up): says so, so the app doesn't look stuck. */
+export function useSlow(waiting = true, afterMs = 5000) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => setSlow(true), afterMs);
+    return () => {
+      clearTimeout(timer);
+      setSlow(false);
+    };
+  }, [waiting, afterMs]);
+  return waiting && slow;
+}
+
 export function Loading() {
+  const { t } = useT();
+  const slow = useSlow();
   return (
     <View style={styles.center}>
       <ActivityIndicator size="large" color={colors.primary} />
+      {slow && <Text style={[styles.muted, { textAlign: 'center', marginTop: 16 }]}>{t('Connecting to FarePay… this can take up to a minute.')}</Text>}
     </View>
   );
 }

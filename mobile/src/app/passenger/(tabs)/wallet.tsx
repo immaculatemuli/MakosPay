@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
-import { Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Badge, Button, Card, colors, Empty, ErrorBox, List, ListRow, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
-import { dateTime, kes, signedKes } from '@/lib/format';
+import { dateTime, kes, monthName, signedKes } from '@/lib/format';
 import { useT } from '@/lib/i18n';
-import type { MpesaPayment, WalletTx } from '@/lib/types';
+import type { MpesaPayment, PassengerSummary, WalletTx } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 import { usePaged } from '@/lib/usePaged';
 
@@ -22,18 +22,22 @@ const LABEL: Record<WalletTx['type'], string> = {
 
 type Attempt = Pick<MpesaPayment, 'id' | 'amount' | 'purpose' | 'status' | 'result_desc'> & { created_at: string };
 
-/** Balance, Add money, M-Pesa payments still waiting or failed, and every movement in and out of the wallet. */
+/** Balance, Add money, spending and trips, M-Pesa payments still waiting or failed, and every movement in and out of the wallet. */
 export default function Wallet() {
   const { t } = useT();
   const wallet = useApi<{ balance: number }>('/passenger/wallet');
   const attempts = useApi<Attempt[]>('/passenger/mpesa');
   const txs = usePaged<WalletTx>('/passenger/wallet/transactions');
+  const summary = useApi<PassengerSummary>('/passenger/summary');
   if (txs.loading && wallet.loading) return <Loading />;
+  const s = summary.data;
+  const joined = s ? new Date(s.since_joining.joined_at) : null;
 
   const refresh = () => {
     wallet.refresh();
     attempts.refresh();
     txs.refresh();
+    summary.refresh();
   };
 
   return (
@@ -44,6 +48,23 @@ export default function Wallet() {
       </Card>
       <Button title={t('Add money with M-Pesa')} icon="add-circle-outline" onPress={() => router.push('/passenger/topup')} />
       <Button title={t('Withdraw to M-Pesa')} variant="secondary" icon="arrow-up-circle-outline" onPress={() => router.push('/passenger/withdraw')} />
+
+      {s && (
+        <View style={styles.stats}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{kes(s.this_month.spent)}</Text>
+            <Text style={styles.statLabel}>{t('Spent this month')}</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{s.since_joining.trips}</Text>
+            <Text style={styles.statLabel}>{joined ? t('Trips since {when}', { when: `${monthName(joined.getMonth())} ${joined.getFullYear()}` }) : t('Trips since joining')}</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{s.this_month.trips}</Text>
+            <Text style={styles.statLabel}>{t('Trips this month')}</Text>
+          </View>
+        </View>
+      )}
 
       {!!attempts.data?.length && (
         <>
@@ -93,3 +114,17 @@ export default function Wallet() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  stats: { flexDirection: 'row', gap: 8, marginBottom: 6 },
+  stat: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  statValue: { fontSize: 17, fontWeight: '800', color: colors.primaryDark },
+  statLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
+});
