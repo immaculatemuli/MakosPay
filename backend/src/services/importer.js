@@ -27,7 +27,7 @@ const ALIASES = {
 
 /** The template's columns for each kind (what the dashboard's "download template" gives). */
 export const TEMPLATES = {
-  routes: ['Route', 'Starts from', 'Stop', 'Cash fare', 'App fare'],
+  routes: ['Route', 'Starts from', 'Stop', 'Fare'],
   crew: ['Name', 'Phone', 'Role', 'Password'],
   vehicles: ['Plate', 'Seats', 'Route', 'Owner name', 'Owner phone', 'Paid by', 'Bank name', 'Bank paybill', 'Bank account', 'Driver phone', 'Conductor phone', 'Description'],
 };
@@ -85,18 +85,20 @@ async function checkRoutes(rows) {
     const line = i + 2;
     if (!r.route) errors.push('Route is empty');
     if (!r.stop) errors.push('Stop is empty');
-    const cash = whole(r.cash_fare ?? '');
-    const app = r.app_fare ? whole(r.app_fare) : cash;
-    if (!(cash > 0)) errors.push('Cash fare must be a whole number of shillings');
-    if (!(app > 0)) errors.push('App fare must be a whole number of shillings');
-    if (cash > 0 && app > cash) errors.push('App fare cannot be more than the cash fare');
+    // A route has one fare. It may be on every row or just one; rows that give it must agree.
+    // (Files from the older template have "Cash fare" and "App fare": the app fare is what is charged.)
+    const fareText = r.app_fare || r.cash_fare || '';
+    const fare = fareText ? whole(fareText) : null;
+    if (fareText && !(fare > 0)) errors.push('Fare must be a whole number of shillings');
     if (r.route) {
       const key = r.route.toLowerCase();
-      const route = routes.get(key) ?? { name: r.route, origin: r.origin ?? '', stops: [], firstRow: line };
+      const route = routes.get(key) ?? { name: r.route, origin: r.origin ?? '', fare: null, fareRow: null, stops: [], firstRow: line };
       if (!route.origin && r.origin) route.origin = r.origin;
       if (r.origin && route.origin && r.origin.toLowerCase() !== route.origin.toLowerCase()) errors.push(`Starts from differs from row ${route.firstRow} (${route.origin})`);
       if (r.stop && route.stops.some((s) => s.name.toLowerCase() === r.stop.toLowerCase())) errors.push(`${r.stop} is already a stop on ${route.name}`);
-      route.stops.push({ name: r.stop, cash_fare: cash, app_fare: app });
+      if (fare > 0 && route.fare && fare !== route.fare) errors.push(`Every stop on ${route.name} has the same fare: row ${route.fareRow} says KES ${route.fare}`);
+      if (fare > 0 && !route.fare) Object.assign(route, { fare, fareRow: line });
+      route.stops.push({ name: r.stop });
       routes.set(key, route);
     }
     return { row: line, label: [r.route, r.stop].filter(Boolean).join(' → '), errors };
@@ -106,6 +108,7 @@ async function checkRoutes(rows) {
     const first = checked.find((c) => c.row === route.firstRow);
     if (exists) first.errors.push(`A route called ${route.name} already exists (change its fares on its page)`);
     if (!route.origin) first.errors.push('Starts from is empty');
+    if (!route.fare) first.errors.push(`Enter the fare for ${route.name}`);
   }
   return {
     rows: checked,
@@ -113,7 +116,7 @@ async function checkRoutes(rows) {
     save: async (by) => {
       const made = [];
       for (const route of routes.values()) {
-        await createRoute({ name: route.name, origin: route.origin, stops: route.stops }, by);
+        await createRoute({ name: route.name, origin: route.origin, fare: route.fare, stops: route.stops }, by);
         made.push({ route: route.name, stops: route.stops.length });
       }
       return made;

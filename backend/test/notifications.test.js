@@ -101,7 +101,7 @@ test('a fare change reaches passengers who use the route, not others', async () 
   await api('POST', `/admin/stops/${s.ruiru.id}/fare-change`, { token: s.admin, body: { cash_fare: 70, app_fare: 60, effective_date: nairobiToday() } });
   const n = await latest(s.passenger);
   assert.equal(n.kind, 'fare.changed');
-  assert.equal(n.title, 'New fare to Ruiru (Thika Road)');
+  assert.equal(n.title, 'New fare on Thika Road');
   assert.equal(n.body, 'Fare KES 50 → KES 60, from today.');
   assert.equal((await inbox(s.other)).items.length, before, 'Olive never used this route');
 });

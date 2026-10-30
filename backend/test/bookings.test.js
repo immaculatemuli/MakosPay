@@ -37,7 +37,7 @@ before(async () => {
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   s.route = (await api('POST', '/admin/routes', {
     token: s.admin,
-    body: { name: 'Machakos Road', origin: 'Town', stops: [{ name: 'Athi River', fare: 100 }, { name: 'Machakos', fare: 200 }] },
+    body: { name: 'Machakos Road', origin: 'Town', fare: 200, stops: [{ name: 'Athi River' }, { name: 'Machakos' }] },
   })).body;
   [s.athi, s.juja] = s.route.stops; // "juja" = the far stop, KES 200
   for (const [n, plate, seats] of [[1, 'KMA 001A', 3], [2, 'KMB 002B', 2]]) {
@@ -60,7 +60,7 @@ test('no car loading: nobody can book yet', async () => {
   const routes = (await api('GET', '/book-api/routes')).body;
   const r = routes.find((x) => x.id === s.route.id);
   assert.deepEqual([r.cars_loading, r.seats_left, r.next_car], [0, 0, null]);
-  assert.deepEqual(r.stops.map((x) => `${x.name} ${x.fare}`), ['Athi River 100', 'Machakos 200']);
+  assert.deepEqual(r.stops.map((x) => `${x.name} ${x.fare}`), ['Athi River 200', 'Machakos 200'], 'one fare, wherever you get off');
   assert.equal((await book('0733000001', 1)).body.error.code, 'NO_CAR_LOADING');
 });
 
@@ -97,7 +97,7 @@ test('seats run out: a bigger booking is refused, and the next car takes it', as
   assert.equal(second.body.car.cars_ahead, 1, 'KMA 001A started loading first and leaves first');
   s.second = second.body;
   const one = await book('0733000003', 1, { stop: s.athi });
-  assert.deepEqual([one.body.car.plate, one.body.amount], ['KMA 001A', 100], 'one seat still fits the first car');
+  assert.deepEqual([one.body.car.plate, one.body.amount], ['KMA 001A', 200], 'one seat still fits the first car');
   s.third = one.body;
   assert.equal((await book('0733000004', 1)).body.error.code, 'NO_CAR_LOADING', 'both cars full');
 });

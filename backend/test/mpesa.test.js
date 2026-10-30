@@ -93,7 +93,7 @@ before(async () => {
   const admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   const route = (await api('POST', '/admin/routes', {
     token: admin,
-    body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 70 }, { name: 'Thika', cash_fare: 100, app_fare: 90 }] },
+    body: { name: 'Thika Road', origin: 'Town', fare: 70, stops: [{ name: 'Juja' }, { name: 'Thika' }] },
   })).body;
   s.juja = route.stops[0];
   s.routeId = route.id;

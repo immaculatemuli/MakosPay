@@ -2,16 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorText } from '../api';
 import { dateTime, kes, nairobiToday, prettyDate } from '../format';
-import type { FareChange, Route, Stop } from '../types';
+import type { FareChange, Route } from '../types';
 import { Badge, Banner, Dialog, Failed, Loading, PageHead } from '../ui';
 import { useApi } from '../useApi';
 
-// Each stop has one fare: what every passenger pays.
-type StopDraft = { id?: number; name: string; fare: string };
-const toDraft = (s: Stop): StopDraft => ({ id: s.id, name: s.name, fare: String(s.app_fare) });
+// A route has one fixed fare: every passenger pays it, wherever they get off. Stops are just names.
+type StopDraft = { id?: number; name: string };
 const whole = (v: string) => (/^\d+$/.test(v.trim()) ? Number(v.trim()) : NaN);
 
-/** Add a route, or change one: its name, start, drop-off stops and their fares. Fare history and scheduled changes below. */
+/** Add a route, or change one: its name, start, its one fare and its drop-off stops. Fare history and scheduled changes below. */
 export function RouteEdit() {
   const { id } = useParams();
   const isNew = id === 'new';
@@ -20,11 +19,12 @@ export function RouteEdit() {
   const history = useApi<FareChange[]>(isNew ? null : `/admin/routes/${id}/fare-changes`);
   const [name, setName] = useState('');
   const [origin, setOrigin] = useState('');
-  const [stops, setStops] = useState<StopDraft[]>([{ name: '', fare: '' }]);
+  const [fare, setFare] = useState('');
+  const [stops, setStops] = useState<StopDraft[]>([{ name: '' }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  const [schedule, setSchedule] = useState<Stop | null>(null);
+  const [schedule, setSchedule] = useState(false);
   const [cancel, setCancel] = useState<FareChange | null>(null);
   const [onOff, setOnOff] = useState(false);
 
@@ -32,7 +32,8 @@ export function RouteEdit() {
     if (route.data) {
       setName(route.data.name);
       setOrigin(route.data.origin);
-      setStops(route.data.stops.map(toDraft));
+      setFare(route.data.fare ? String(route.data.fare) : '');
+      setStops(route.data.stops.map((s) => ({ id: s.id, name: s.name })));
     }
   }, [route.data]);
 
@@ -43,10 +44,10 @@ export function RouteEdit() {
   const problems: string[] = [];
   if (name.trim().length < 2) problems.push('Give the route a name.');
   if (origin.trim().length < 2) problems.push('Say where it starts.');
+  if (!(whole(fare) > 0)) problems.push('The fare must be whole shillings above 0.');
   if (stops.length === 0) problems.push('Add at least one drop-off stop.');
   stops.forEach((s, i) => {
     if (s.name.trim().length < 2) problems.push(`Stop ${i + 1}: give it a name.`);
-    if (!(whole(s.fare) > 0)) problems.push(`Stop ${i + 1}: the fare must be whole shillings above 0.`);
   });
   if (new Set(stops.map((s) => s.name.trim().toLowerCase())).size !== stops.length) problems.push('Each stop needs a different name.');
 
@@ -57,7 +58,8 @@ export function RouteEdit() {
     const body = {
       name: name.trim(),
       origin: origin.trim(),
-      stops: stops.map((s) => ({ ...(s.id && { id: s.id }), name: s.name.trim(), fare: whole(s.fare) })),
+      fare: whole(fare),
+      stops: stops.map((s) => ({ ...(s.id && { id: s.id }), name: s.name.trim() })),
     };
     try {
       if (isNew) {
@@ -66,7 +68,7 @@ export function RouteEdit() {
       } else {
         await api(`/admin/routes/${id}`, { method: 'PATCH', body });
         await Promise.all([route.reload(), history.reload()]);
-        setSaved('Saved. Changed fares apply from now, and are in the fare history below.');
+        setSaved('Saved. A changed fare applies from now, and is in the fare history below.');
       }
     } catch (err) {
       setError(errorText(err));
@@ -106,14 +108,25 @@ export function RouteEdit() {
             Starts at
             <input value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="e.g. Town (Odeon)" />
           </label>
+          <label>
+            Fare (KES)
+            <input value={fare} onChange={(e) => setFare(e.target.value)} inputMode="numeric" placeholder="e.g. 200" />
+          </label>
         </div>
+        <p className="muted">
+          One fixed fare for the whole route: passengers pay it wherever they get off.{' '}
+          {!isNew && r?.fare && (
+            <button className="link" onClick={() => setSchedule(true)}>
+              Change the fare from a date…
+            </button>
+          )}
+        </p>
         <h2 style={{ marginTop: 6 }}>Drop-off stops, in order</h2>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Stop</th>
-                <th>Fare (KES)</th>
                 <th />
               </tr>
             </thead>
@@ -123,9 +136,6 @@ export function RouteEdit() {
                   <td>
                     <input value={s.name} onChange={(e) => setStop(i, { name: e.target.value })} placeholder="e.g. Juja" aria-label={`Stop ${i + 1} name`} />
                   </td>
-                  <td>
-                    <input value={s.fare} onChange={(e) => setStop(i, { fare: e.target.value })} inputMode="numeric" style={{ width: 110 }} aria-label={`Stop ${i + 1} fare`} />
-                  </td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="secondary" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
                       ↑
@@ -133,11 +143,6 @@ export function RouteEdit() {
                     <button className="secondary" disabled={i === stops.length - 1} onClick={() => move(i, 1)} aria-label="Move down">
                       ↓
                     </button>{' '}
-                    {s.id && r?.stops.find((x) => x.id === s.id) && (
-                      <button className="secondary" onClick={() => setSchedule(r.stops.find((x) => x.id === s.id)!)}>
-                        Fare from a date…
-                      </button>
-                    )}{' '}
                     <button className="secondary" onClick={() => setStops((all) => all.filter((_, j) => j !== i))} aria-label="Remove stop">
                       Remove
                     </button>
@@ -148,12 +153,12 @@ export function RouteEdit() {
           </table>
         </div>
         <p>
-          <button className="secondary" onClick={() => setStops((all) => [...all, { name: '', fare: '' }])}>
+          <button className="secondary" onClick={() => setStops((all) => [...all, { name: '' }])}>
             + Add a stop
           </button>
         </p>
         <p className="muted">
-          Fares changed here apply at once (past payments keep the fare they were paid at). A removed stop is switched off, not deleted, so its past payments stay.
+          A fare changed here applies at once (past payments keep the fare they were paid at). A removed stop is switched off, not deleted, so its past payments stay.
         </p>
         {problems.length > 0 && <Banner>{problems[0]}</Banner>}
         {error && <Banner tone="danger">{error}</Banner>}
@@ -173,7 +178,6 @@ export function RouteEdit() {
               <table>
                 <thead>
                   <tr>
-                    <th>Stop</th>
                     <th>Fare</th>
                     <th>From</th>
                     <th>By</th>
@@ -183,7 +187,6 @@ export function RouteEdit() {
                 <tbody>
                   {history.data.map((f) => (
                     <tr key={f.id}>
-                      <td>{f.stop_name}</td>
                       <td>
                         {kes(f.old_app_fare)} → {kes(f.new_app_fare)}
                       </td>
@@ -215,10 +218,10 @@ export function RouteEdit() {
         </>
       )}
 
-      {schedule && <ScheduleFare stop={schedule} onClose={() => setSchedule(null)} onDone={() => Promise.all([route.reload(), history.reload()]).then(() => setSchedule(null))} />}
+      {schedule && r && <ScheduleFare route={r} onClose={() => setSchedule(false)} onDone={() => Promise.all([route.reload(), history.reload()]).then(() => setSchedule(false))} />}
       {cancel && (
         <Dialog
-          title={`Cancel the new fare for ${cancel.stop_name}?`}
+          title={`Cancel the new fare for ${r?.name}?`}
           actionLabel="Cancel this change"
           danger
           action={async () => {
@@ -252,26 +255,26 @@ export function RouteEdit() {
   );
 }
 
-/** A new fare for one stop from a date (Kenyan time, from midnight that day). Today applies at once. */
-function ScheduleFare({ stop, onClose, onDone }: { stop: Stop; onClose: () => void; onDone: () => Promise<unknown> }) {
-  const [fareText, setFareText] = useState(String(stop.app_fare));
+/** A new fare for the whole route from a date (Kenyan time, from midnight that day). Today applies at once. */
+function ScheduleFare({ route, onClose, onDone }: { route: Route; onClose: () => void; onDone: () => Promise<unknown> }) {
+  const [fareText, setFareText] = useState(String(route.fare));
   const [date, setDate] = useState(nairobiToday());
   const [reason, setReason] = useState('');
   const fare = whole(fareText);
   const ok = fare > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date);
   return (
     <Dialog
-      title={`New fare for ${stop.name}`}
+      title={`New fare for ${route.name}`}
       actionLabel={date <= nairobiToday() ? 'Change fare now' : `Change from ${prettyDate(date)}`}
       disabled={!ok}
       action={async () => {
-        await api(`/admin/stops/${stop.id}/fare-change`, { method: 'POST', body: { fare, effective_date: date, ...(reason.trim() && { reason: reason.trim() }) } });
+        await api(`/admin/routes/${route.id}/fare-change`, { method: 'POST', body: { fare, effective_date: date, ...(reason.trim() && { reason: reason.trim() }) } });
         await onDone();
       }}
       onClose={onClose}
     >
       <p className="muted">
-        Now {kes(stop.app_fare)}. Passengers who use this route are told about the change.
+        Now {kes(route.fare ?? 0)} to every stop. Passengers who use this route are told about the change.
       </p>
       <label>
         New fare (KES)

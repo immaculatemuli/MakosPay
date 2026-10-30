@@ -46,15 +46,11 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
   await createUser({ name: 'Office', phone: '254700000001', password: 'admin123', role: 'admin' });
   s.admin = await login('0700000001', 'admin123');
-  const route = (name, stops) => api('POST', '/admin/routes', { token: s.admin, body: { name, origin: 'Town', stops } });
+  const route = (name, fare, stops) => api('POST', '/admin/routes', { token: s.admin, body: { name, origin: 'Town', fare, stops } });
   s.thika = (
-    await route('Thika Road', [
-      { name: 'Ruiru', cash_fare: 70, app_fare: 60 },
-      { name: 'Juja', cash_fare: 120, app_fare: 100 },
-      { name: 'Thika', cash_fare: 170, app_fare: 150 },
-    ])
+    await route('Thika Road', 100, [{ name: 'Ruiru' }, { name: 'Juja' }, { name: 'Thika' }])
   ).body;
-  s.long = (await route('Long Road', Array.from({ length: 12 }, (_, i) => ({ name: `Stop number ${i + 1}`, cash_fare: 50 + i * 10, app_fare: 40 + i * 10 })))).body;
+  s.long = (await route('Long Road', 90, Array.from({ length: 12 }, (_, i) => ({ name: `Stop number ${i + 1}` })))).body;
   const car = (plate, r) => api('POST', '/admin/vehicles', { token: s.admin, body: { plate, route_id: r.id, owner_name: 'Mary', owner_phone: '0744555666' } });
   s.car = (await car('KDA 123A', s.thika)).body;
   s.longCar = (await car('KDB 456B', s.long)).body;
@@ -78,7 +74,7 @@ test('pay a fare by car number: the prompt asks for exactly the fare, and the ti
   session++;
   assert.match((await ussd('1')).text, /^CON Enter the car number/);
   const stops = await ussd('1*101');
-  assert.match(stops.text, /^CON Car 101 \(KDA 123A\)\nWhere do you get off\?\n1\. Ruiru KES 60\n2\. Juja KES 100\n3\. Thika KES 150/);
+  assert.match(stops.text, /^CON Car 101 \(KDA 123A\)\nWhere do you get off\?\n1\. Ruiru KES 100\n2\. Juja KES 100\n3\. Thika KES 100/);
   assert.match((await ussd('1*101*2')).text, /^CON Pay KES 100 to Juja, Car 101 \(KDA 123A\)\?\n1\. Pay with M-Pesa\n2\. Cancel/);
   const done = await ussd('1*101*2*1');
   assert.match(done.text, /^END An M-Pesa prompt for KES 100 is coming now/);
@@ -130,7 +126,7 @@ test('a long list of stops goes on pages, and numbers keep their meaning', async
   const shown = first.text.match(/^\d+\. Stop/gm).length;
   const second = await ussd('1*102*0');
   assert.match(second.text, new RegExp(`\\n${shown + 1}\\. Stop number ${shown + 1} `));
-  assert.match((await ussd(`1*102*0*${shown + 1}`)).text, new RegExp(`^CON Pay KES ${40 + shown * 10} to Stop number ${shown + 1},`));
+  assert.match((await ussd(`1*102*0*${shown + 1}`)).text, new RegExp(`^CON Pay KES 90 to Stop number ${shown + 1},`));
   assert.match((await ussd('1*102*0*1')).text, /^END That is not one of the choices/, 'page 1 numbers are not on page 2');
 });
 
@@ -139,7 +135,7 @@ test('book a seat at the stage: priced fare × seats, paid by prompt, joins the 
   const phone = '+254733444555';
   const routes = (await ussd('2', { phone })).text;
   const n = routes.match(/(\d+)\. Thika Road/)[1];
-  assert.match((await ussd(`2*${n}`, { phone })).text, /^CON Where do you get off\?\n1\. Ruiru KES 60\n2\. Juja KES 100/);
+  assert.match((await ussd(`2*${n}`, { phone })).text, /^CON Where do you get off\?\n1\. Ruiru KES 100\n2\. Juja KES 100/);
   assert.match((await ussd(`2*${n}*2`, { phone })).text, /^CON Where will you board\?\n1\. At Town stage\n2\. On the road, before Juja/);
   assert.match((await ussd(`2*${n}*2*1`, { phone })).text, /^CON How many seats\?/);
   assert.match((await ussd(`2*${n}*2*1*2`, { phone })).text, /^CON Book 2 seats to Juja, at Town stage: KES 200\?/);
@@ -159,13 +155,13 @@ test('book a seat to be picked on the road, before the drop-off', async () => {
   const phone = '+254733666777';
   const n = (await ussd('2', { phone })).text.match(/(\d+)\. Thika Road/)[1];
   assert.match((await ussd(`2*${n}*3*2`, { phone })).text, /^CON Where should the car pick you\?\n1\. Ruiru\n2\. Juja$/);
-  assert.match((await ussd(`2*${n}*3*2*2*1`, { phone })).text, /^CON Book 1 seat to Thika, pick-up at Juja: KES 150\?/);
+  assert.match((await ussd(`2*${n}*3*2*2*1`, { phone })).text, /^CON Book 1 seat to Thika, pick-up at Juja: KES 100\?/);
   await ussd(`2*${n}*3*2*2*1*1`, { phone });
   await ussdIdle();
   const b = await db.get("SELECT * FROM seat_bookings WHERE idempotency_key = ?", `ussd-s${session}`);
   const juja = s.thika.stops.find((x) => x.name === 'Juja');
   assert.equal(b.pickup_stop_id, juja.id);
-  assert.equal(b.amount, 150, 'the full fare from the stage to the drop-off');
+  assert.equal(b.amount, 100, "the route's one fare");
 });
 
 test('a drop-off at the first stop has no road pickup to ask about', async () => {

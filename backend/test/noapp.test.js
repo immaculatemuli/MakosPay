@@ -39,7 +39,7 @@ before(async () => {
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   s.route = (await api('POST', '/admin/routes', {
     token: s.admin,
-    body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Ruiru', cash_fare: 60, app_fare: 50 }, { name: 'Juja', cash_fare: 80, app_fare: 70 }] },
+    body: { name: 'Thika Road', origin: 'Town', fare: 70, stops: [{ name: 'Ruiru' }, { name: 'Juja' }] },
   })).body;
   [s.ruiru, s.juja] = s.route.stops;
   await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'Acond123' } });
@@ -72,7 +72,7 @@ test('the page shows the vehicle, route and member fares, and nothing private', 
   const { status, body } = await api('GET', `/pay-api/vehicle?qr=${s.token}`);
   assert.equal(status, 200);
   assert.equal(body.vehicle.plate, 'KDA 123A');
-  assert.deepEqual(body.route.stops.map((x) => `${x.name} ${x.fare}`), ['Ruiru 50', 'Juja 70']);
+  assert.deepEqual(body.route.stops.map((x) => `${x.name} ${x.fare}`), ['Ruiru 70', 'Juja 70']);
   const text = JSON.stringify(body);
   for (const secret of ['744555666', 'Mary Owner', s.token, 'Ian']) assert.ok(!text.includes(secret), `does not show ${secret}`);
   assert.equal((await api('GET', '/pay-api/vehicle?qr=not-a-sticker')).body.error.code, 'INVALID_QR');
@@ -126,7 +126,7 @@ test('signing up in the app with that number takes over the fares paid without t
 
 test('an app passenger who pays from the page gets the ticket in their app', async () => {
   const token = (await signUp(api, { name: 'Pat App', phone: '0722222222', password: 'Apass123' })).body.token;
-  const res = await payPage('0722222222', { stopId: s.ruiru.id, fare: 50 });
+  const res = await payPage('0722222222', { stopId: s.ruiru.id, fare: 70 });
   assert.equal(res.body.status, 'paid');
   const trips = (await api('GET', '/passenger/trips', { token })).body.items;
   assert.equal(trips[0].ticket_code, res.body.ticket.code);

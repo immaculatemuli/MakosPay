@@ -40,11 +40,8 @@ before(async () => {
     body: {
       name: 'Thika Road',
       origin: 'Town',
-      stops: [
-        { name: 'Ruiru', cash_fare: 60, app_fare: 50 },
-        { name: 'Juja', cash_fare: 80, app_fare: 70 },
-        { name: 'Thika', cash_fare: 100, app_fare: 90 },
-      ],
+      fare: 70,
+      stops: [{ name: 'Ruiru' }, { name: 'Juja' }, { name: 'Thika' }],
     },
   })).body;
   [s.ruiru, s.juja, s.thika] = s.route.stops;
@@ -70,7 +67,7 @@ test('the passenger sees routes with their drop-off stops and fares', async () =
     routes.map((r) => [r.name, r.stops.map((st) => `${st.name} ${st.app_fare} (save ${st.you_save})`)]),
     [
       ['Route 46', ['Kawangware 60 (save 10)']],
-      ['Thika Road', ['Ruiru 50 (save 10)', 'Juja 70 (save 10)', 'Thika 90 (save 10)']],
+      ['Thika Road', ['Ruiru 70 (save 0)', 'Juja 70 (save 0)', 'Thika 70 (save 0)']],
     ],
   );
 });
@@ -84,7 +81,7 @@ test('scanning shows the vehicle, conductor, route and the fare to the chosen dr
   assert.deepEqual(q.route.stops.map((st) => st.name), ['Ruiru', 'Juja', 'Thika']);
   assert.deepEqual(q.stop, { id: s.juja.id, name: 'Juja' });
   assert.equal(q.fare, 70);
-  assert.equal(q.you_save, 10);
+  assert.equal(q.you_save, 0);
   assert.equal(q.can_pay, false);
   assert.equal(q.shortfall, 70);
   assert.equal(q.chosen_elsewhere, null);
@@ -151,13 +148,7 @@ test('scanning again soon after paying warns about paying twice', async () => {
 test('if the fare changed since the scan, the passenger is asked to confirm again', async () => {
   await api('PATCH', `/admin/routes/${s.route.id}`, {
     token: s.admin,
-    body: {
-      stops: [
-        { id: s.ruiru.id, name: 'Ruiru', cash_fare: 60, app_fare: 50 },
-        { id: s.juja.id, name: 'Juja', cash_fare: 90, app_fare: 80 },
-        { id: s.thika.id, name: 'Thika', cash_fare: 100, app_fare: 90 },
-      ],
-    },
+    body: { fare: 80 },
   });
   const r = await pay(randomUUID(), 70);
   assert.equal(r.status, 409);

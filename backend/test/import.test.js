@@ -33,27 +33,29 @@ before(async () => {
 });
 after(() => server.close());
 
+// A route has one fare: it may be on just one of its rows.
 const ROUTES = [
-  { Route: 'Nairobi - Machakos', 'Starts from': 'Town', Stop: 'Mlolongo', 'Cash fare': '150', 'App fare': '140' },
-  { Route: 'Nairobi - Machakos', 'Starts from': 'Town', Stop: 'Machakos', 'Cash fare': '400', 'App fare': '' },
-  { Route: 'Thika Road', 'Starts from': 'Town', Stop: 'Juja', 'Cash fare': '120', 'App fare': '100' },
+  { Route: 'Nairobi - Machakos', 'Starts from': 'Town', Stop: 'Mlolongo', Fare: '' },
+  { Route: 'Nairobi - Machakos', 'Starts from': 'Town', Stop: 'Machakos', Fare: '400' },
+  { Route: 'Thika Road', 'Starts from': 'Town', Stop: 'Juja', Fare: '100' },
 ];
 
 test('routes: checked, then saved in one go with stops in order', async () => {
-  const bad = await load('routes', [...ROUTES, { Route: 'Thika Road', 'Starts from': 'Ruiru', Stop: 'Juja', 'Cash fare': 'abc' }]);
+  const bad = await load('routes', [...ROUTES, { Route: 'Thika Road', 'Starts from': 'Ruiru', Stop: 'Juja', Fare: 'abc' }, { Route: 'Thika Road', Stop: 'Thika', Fare: '150' }]);
   assert.equal(bad.body.ok, false);
   const errors = bad.body.rows.find((r) => r.row === 5).errors.join(' | ');
-  assert.match(errors, /Cash fare/);
+  assert.match(errors, /Fare must be/);
+  assert.match(bad.body.rows.find((r) => r.row === 6).errors.join(' | '), /same fare: row 4 says KES 100/);
   assert.match(errors, /Starts from differs from row 4/);
   assert.match(errors, /Juja is already a stop/);
-  assert.equal((await load('routes', ROUTES.concat({ Route: 'X', Stop: 'Y', 'Cash fare': '50' }), true)).body.saved, false, 'a bad row stops everything');
+  assert.equal((await load('routes', ROUTES.concat({ Route: 'X', Stop: 'Y', Fare: '' }), true)).body.saved, false, 'a bad row stops everything');
   assert.equal(await count('routes'), 0);
 
   const ok = await load('routes', ROUTES, true);
   assert.equal(ok.status, 201, JSON.stringify(ok.body));
   assert.equal(ok.body.summary, '2 routes with 3 stops');
   const stops = await db.all("SELECT s.name, s.app_fare FROM route_stops s JOIN routes r ON r.id = s.route_id WHERE r.name = 'Nairobi - Machakos' ORDER BY s.position");
-  assert.deepEqual(stops.map((x) => [x.name, x.app_fare]), [['Mlolongo', 140], ['Machakos', 400]], 'empty app fare = the cash fare');
+  assert.deepEqual(stops.map((x) => [x.name, x.app_fare]), [['Mlolongo', 400], ['Machakos', 400]], 'Mlolongo costs the same as Machakos');
   assert.match((await load('routes', ROUTES)).body.rows[0].errors[0], /already exists/);
 });
 

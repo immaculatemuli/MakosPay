@@ -1,5 +1,7 @@
-// Routes and their drop-off stops. Each stop has ONE fare: what every passenger pays. (The database keeps two
-// columns from an earlier design, cash_fare and app_fare; both now hold the fare, and app_fare is what is charged.)
+// Routes and their drop-off stops. A route has ONE fixed fare: every passenger pays it, wherever they get off
+// (Nairobi to Athi River costs the same as Nairobi to Machakos). Each stop row holds a copy of the route's fare,
+// so every stop on a route always has the same fare. (The database keeps two columns from an earlier design,
+// cash_fare and app_fare; both now hold the fare, and app_fare is what is charged.)
 import { z } from 'zod';
 import { db, NOW, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
@@ -15,19 +17,25 @@ const stopsOf = (routeId) =>
     routeId,
   );
 
+/** A route with its current stops, and `fare`: its one fare (the same on every stop). */
+async function withStops(route) {
+  const stops = await stopsOf(route.id);
+  return { ...route, fare: stops.at(-1)?.fare ?? null, stops };
+}
+
 /** One route with its current stops, or null. */
 export async function getRoute(routeId) {
   const route = await db.get('SELECT * FROM routes WHERE id = ?', routeId);
-  return route ? { ...route, stops: await stopsOf(route.id) } : null;
+  return route ? withStops(route) : null;
 }
 
 /** All routes, or with `activeOnly` just those in use that have stops (what passengers can choose). */
 export async function listRoutes({ activeOnly = false } = {}) {
   await applyDueFareChanges(); // show today's fares, including changes that start today
   const routes = await db.all(`SELECT * FROM routes ${activeOnly ? 'WHERE is_active = TRUE' : ''} ORDER BY is_active DESC, name`);
-  const withStops = [];
-  for (const r of routes) withStops.push({ ...r, stops: await stopsOf(r.id) });
-  return withStops.filter((r) => !activeOnly || r.stops.length > 0);
+  const all = [];
+  for (const r of routes) all.push(await withStops(r));
+  return all.filter((r) => !activeOnly || r.stops.length > 0);
 }
 
 export const getStop = (stopId) => db.get('SELECT * FROM route_stops WHERE id = ?', stopId);
@@ -36,11 +44,13 @@ export const getStop = (stopId) => db.get('SELECT * FROM route_stops WHERE id = 
 export const withOneFare = (value) =>
   value && typeof value === 'object' && 'fare' in value ? { ...value, cash_fare: value.fare, app_fare: value.fare } : value;
 
+// A stop is just a name. Apps installed before the one route fare still send a fare with each stop:
+// then the last stop's fare becomes the route's fare.
 export const stopSchema = z.preprocess(
   withOneFare,
   z
-    .object({ id: id.optional(), name, cash_fare: kes, app_fare: kes })
-    .refine((s) => s.app_fare <= s.cash_fare, { path: ['app_fare'], message: 'App fare cannot be more than the cash fare' }),
+    .object({ id: id.optional(), name, cash_fare: kes.optional(), app_fare: kes.optional() })
+    .refine((s) => !s.app_fare || s.app_fare <= (s.cash_fare ?? s.app_fare), { path: ['app_fare'], message: 'App fare cannot be more than the cash fare' }),
 );
 
 export const stopsSchema = z
@@ -49,38 +59,54 @@ export const stopsSchema = z
   .max(50)
   .refine((stops) => new Set(stops.map((s) => s.name.toLowerCase())).size === stops.length, 'Each stop needs a different name');
 
+/** The route's fare ({ cash_fare, app_fare }) from a route body: its `fare`, or else the fare sent with its last stop. */
+function routeFareOf({ fare, stops }) {
+  if (fare) return { cash_fare: fare, app_fare: fare };
+  const last = stops?.at(-1);
+  return last?.app_fare ? { cash_fare: last.cash_fare ?? last.app_fare, app_fare: last.app_fare } : null;
+}
+
+/** A route's current fare ({ cash_fare, app_fare }), from its last stop. */
+const currentFare = (routeId) =>
+  db.get('SELECT id, cash_fare, app_fare FROM route_stops WHERE route_id = ? AND is_active = TRUE ORDER BY position DESC, id DESC LIMIT 1', routeId);
+
+/** Puts one fare onto every stop of a route. */
+const setRouteFare = (routeId, { cash_fare, app_fare }) =>
+  db.run('UPDATE route_stops SET cash_fare = ?, app_fare = ? WHERE route_id = ? AND is_active = TRUE', cash_fare, app_fare, routeId);
+
+/** A fare history entry (kept against the route's last stop) for a fare changed straight away. */
+async function recordFareNow(routeId, before, fare, changedBy) {
+  const last = await currentFare(routeId);
+  await db.run(
+    `INSERT INTO fare_changes (stop_id, old_cash_fare, old_app_fare, new_cash_fare, new_app_fare, effective_from, applied_at, changed_by)
+     VALUES (?, ?, ?, ?, ?, ${NOW}, ${NOW}, ?)`,
+    last.id,
+    before.cash_fare,
+    before.app_fare,
+    fare.cash_fare,
+    fare.app_fare,
+    changedBy,
+  );
+}
+
 /**
- * Saves the full list of stops for a route, in order. Stops with an id are updated, new ones added,
- * and stops left out are switched off (kept for past trips). Must run inside tx().
+ * Saves the full list of stops for a route, in order, all at the route's one fare. Stops with an id are updated,
+ * new ones added, and stops left out are switched off (kept for past trips). Must run inside tx().
  */
-async function saveStops(routeId, stops, changedBy) {
+async function saveStops(routeId, stops, fare) {
   const keep = new Set();
   for (const [index, stop] of stops.entries()) {
     const position = index + 1;
     if (stop.id) {
-      const before = await db.get('SELECT cash_fare, app_fare FROM route_stops WHERE id = ? AND route_id = ?', stop.id, routeId);
-      if (!before) throw notFound('Stop');
+      if (!(await db.get('SELECT 1 FROM route_stops WHERE id = ? AND route_id = ?', stop.id, routeId))) throw notFound('Stop');
       await db.run(
         'UPDATE route_stops SET name = ?, cash_fare = ?, app_fare = ?, position = ?, is_active = TRUE WHERE id = ?',
         stop.name,
-        stop.cash_fare,
-        stop.app_fare,
+        fare.cash_fare,
+        fare.app_fare,
         position,
         stop.id,
       );
-      // An edit to the fares takes effect now; record it in the fare history.
-      if (before.cash_fare !== stop.cash_fare || before.app_fare !== stop.app_fare) {
-        await db.run(
-          `INSERT INTO fare_changes (stop_id, old_cash_fare, old_app_fare, new_cash_fare, new_app_fare, effective_from, applied_at, changed_by)
-           VALUES (?, ?, ?, ?, ?, ${NOW}, ${NOW}, ?)`,
-          stop.id,
-          before.cash_fare,
-          before.app_fare,
-          stop.cash_fare,
-          stop.app_fare,
-          changedBy,
-        );
-      }
       keep.add(stop.id);
     } else {
       keep.add(
@@ -88,8 +114,8 @@ async function saveStops(routeId, stops, changedBy) {
           'INSERT INTO route_stops (route_id, name, cash_fare, app_fare, position) VALUES (?, ?, ?, ?, ?)',
           routeId,
           stop.name,
-          stop.cash_fare,
-          stop.app_fare,
+          fare.cash_fare,
+          fare.app_fare,
           position,
         ),
       );
@@ -100,15 +126,19 @@ async function saveStops(routeId, stops, changedBy) {
   }
 }
 
-export function createRoute({ name: routeName, origin, stops }, changedBy) {
+/** { fare } is the route's one fare. */
+export function createRoute({ name: routeName, origin, fare, stops }) {
+  const routeFare = routeFareOf({ fare, stops });
+  if (!routeFare) throw new HttpError(400, 'NO_FARE', 'Enter the fare for this route.');
   return tx(async () => {
     const routeId = await db.insert('INSERT INTO routes (name, origin) VALUES (?, ?)', routeName, origin);
-    await saveStops(routeId, stops, changedBy);
+    await saveStops(routeId, stops, routeFare);
     return routeId;
   });
 }
 
-export async function updateRoute(routeId, { name: routeName, origin, is_active, stops }, changedBy) {
+/** A new `fare` takes effect now, on every stop, and goes in the fare history. */
+export async function updateRoute(routeId, { name: routeName, origin, is_active, fare, stops }, changedBy) {
   await tx(async () => {
     const route = await db.get('SELECT * FROM routes WHERE id = ?', routeId);
     if (!route) throw notFound('Route');
@@ -119,7 +149,12 @@ export async function updateRoute(routeId, { name: routeName, origin, is_active,
       is_active === undefined ? Boolean(route.is_active) : is_active,
       routeId,
     );
-    if (stops) await saveStops(routeId, stops, changedBy);
+    const before = await currentFare(routeId);
+    const after = routeFareOf({ fare, stops }) ?? before;
+    if (!after) throw new HttpError(400, 'NO_FARE', 'Enter the fare for this route.');
+    if (stops) await saveStops(routeId, stops, after);
+    else await setRouteFare(routeId, after);
+    if (before && (before.cash_fare !== after.cash_fare || before.app_fare !== after.app_fare)) await recordFareNow(routeId, before, after, changedBy);
   });
 }
 
@@ -149,24 +184,36 @@ export async function applyDueFareChanges(now = new Date().toISOString()) {
       // Applied meanwhile (e.g. by another request at the same moment): nothing to do.
       const still = await db.get('SELECT 1 FROM fare_changes WHERE id = ? AND applied_at IS NULL AND cancelled_at IS NULL', change.id);
       if (!still) continue;
-      const stop = await db.get('SELECT cash_fare, app_fare FROM route_stops WHERE id = ?', change.stop_id);
-      await db.run('UPDATE route_stops SET cash_fare = ?, app_fare = ? WHERE id = ?', change.new_cash_fare, change.new_app_fare, change.stop_id);
+      // A fare change is for the whole route: every stop on it gets the new fare.
+      const stop = await db.get('SELECT route_id, cash_fare, app_fare FROM route_stops WHERE id = ?', change.stop_id);
+      await setRouteFare(stop.route_id, { cash_fare: change.new_cash_fare, app_fare: change.new_app_fare });
       await db.run(`UPDATE fare_changes SET old_cash_fare = ?, old_app_fare = ?, applied_at = ${NOW} WHERE id = ?`, stop.cash_fare, stop.app_fare, change.id);
     }
   });
   return due.length;
 }
 
+/** Sets a new fare for a route from a date; see scheduleFareChange. */
+export async function scheduleRouteFareChange(routeId, change, changedBy) {
+  const last = await currentFare(routeId);
+  if (!last) throw notFound('Route');
+  return scheduleFareChange(last.id, change, changedBy);
+}
+
 /**
- * Sets a new fare for one stop from a date (YYYY-MM-DD, Kenyan time: from midnight that day). Today or an
- * earlier date applies at once. A newer scheduled change replaces any that was still waiting for that stop.
+ * Sets a new fare from a date (YYYY-MM-DD, Kenyan time: from midnight that day) for the whole route of this stop.
+ * Today or an earlier date applies at once. A newer scheduled change replaces any still waiting on the route.
  */
 export async function scheduleFareChange(stopId, { cash_fare, app_fare, effective_date, reason }, changedBy) {
   const stop = await getStop(stopId);
   if (!stop || !stop.is_active) throw notFound('Stop');
   const effectiveFrom = nairobiDayRange(effective_date)[0];
   const id = await tx(async () => {
-    await db.run(`UPDATE fare_changes SET cancelled_at = ${NOW} WHERE stop_id = ? AND applied_at IS NULL AND cancelled_at IS NULL`, stopId);
+    await db.run(
+      `UPDATE fare_changes SET cancelled_at = ${NOW}
+       WHERE applied_at IS NULL AND cancelled_at IS NULL AND stop_id IN (SELECT id FROM route_stops WHERE route_id = ?)`,
+      stop.route_id,
+    );
     return db.insert(
       `INSERT INTO fare_changes (stop_id, old_cash_fare, old_app_fare, new_cash_fare, new_app_fare, effective_from, reason, changed_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -205,7 +252,7 @@ async function notifyFareChange(stop, { cash_fare, app_fare, effective_date }) {
   const when = effective_date <= nairobiToday() ? 'from today' : `from ${prettyDate(effective_date)}`;
   await notify(passengers, {
     kind: 'fare.changed',
-    title: `New fare to ${stop.name} (${route.name})`,
+    title: `New fare on ${route.name}`,
     body: `Fare ${kesText(stop.app_fare)} → ${kesText(app_fare)}, ${when}.`,
     target: 'fare-changes',
   });
@@ -240,4 +287,24 @@ export async function requireActiveStop(routeId, stopId) {
     throw new HttpError(400, 'WRONG_STOP', "That drop-off is not on this vehicle's route. Please choose your drop-off again.");
   }
   return stop;
+}
+
+/**
+ * Gives every route one fare, for routes saved before fares were per route: all its stops take the fare of
+ * its last stop, and only its newest waiting fare change is kept. Run at start-up; once fares agree it changes nothing.
+ */
+export async function oneFarePerRoute() {
+  for (const { route_id: routeId } of await db.all('SELECT DISTINCT route_id FROM route_stops WHERE is_active = TRUE')) {
+    await tx(async () => {
+      await setRouteFare(routeId, await currentFare(routeId));
+      await db.run(
+        `UPDATE fare_changes SET cancelled_at = ${NOW}
+         WHERE applied_at IS NULL AND cancelled_at IS NULL AND stop_id IN (SELECT id FROM route_stops WHERE route_id = ?)
+           AND id < (SELECT MAX(f.id) FROM fare_changes f JOIN route_stops s ON s.id = f.stop_id
+                     WHERE s.route_id = ? AND f.applied_at IS NULL AND f.cancelled_at IS NULL)`,
+        routeId,
+        routeId,
+      );
+    });
+  }
 }
