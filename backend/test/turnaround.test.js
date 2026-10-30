@@ -11,6 +11,7 @@ const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
 const { db } = await import('../src/database.js');
 const { closeStaleTrips } = await import('../src/services/bookings.js');
+const { everyRouteHasWayBack } = await import('../src/services/routes.js');
 
 let server;
 let base;
@@ -69,7 +70,10 @@ test('loading at the far stage without finishing the trip loads for the way back
 test('a route the conductor chose is kept, and a route with no way back stays', async () => {
   await api('POST', '/crew/road/finish', { token: s.crew }); // now Wote - Nairobi
   await api('PUT', '/crew/vehicle/route', { token: s.crew, body: { route_id: s.machakos.id } });
-  await trip(); // Nairobi → Machakos: there is no Machakos - Nairobi route
+  // Machakos - Nairobi was added with Nairobi - Machakos; with it switched off there is no way back.
+  const machakosBack = (await db.get("SELECT id FROM routes WHERE name = 'Machakos - Nairobi'")).id;
+  await api('PATCH', `/admin/routes/${machakosBack}`, { token: s.admin, body: { is_active: false } });
+  await trip(); // Nairobi → Machakos
   await api('POST', '/crew/road/finish', { token: s.crew });
   assert.equal(await routeOfCar(), 'Nairobi - Machakos');
 
@@ -89,4 +93,17 @@ test('at night a car on the road turns around; a car still at the stage does not
   await api('POST', '/crew/loading/start', { token: s.crew }); // loading at Wote, never left
   await closeStaleTrips();
   assert.equal(await routeOfCar(), 'Wote - Nairobi');
+});
+
+test('at start-up every route in use gets a way back, except one the office switched off', async () => {
+  // A route saved before ways back were added automatically.
+  const kitui = await db.insert("INSERT INTO routes (name, origin) VALUES ('Nairobi - Kitui', 'Nairobi')");
+  for (const [i, name] of ['Machakos', 'Masii', 'Kitui'].entries()) {
+    await db.run('INSERT INTO route_stops (route_id, name, cash_fare, app_fare, position) VALUES (?, ?, 600, 600, ?)', kitui, name, i + 1);
+  }
+  assert.equal(await everyRouteHasWayBack(), 1, 'only Kitui needed one');
+  assert.equal(await everyRouteHasWayBack(), 0, 'running it again adds nothing');
+  const back = (await api('GET', '/admin/routes', { token: s.admin })).body.find((r) => r.name === 'Kitui - Nairobi');
+  assert.deepEqual([back.origin, back.fare, back.stops.map((st) => st.name)], ['Kitui', 600, ['Masii', 'Machakos', 'Nairobi']]);
+  assert.equal((await db.get("SELECT is_active FROM routes WHERE name = 'Machakos - Nairobi'")).is_active, 0, 'still off');
 });

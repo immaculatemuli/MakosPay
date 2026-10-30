@@ -40,6 +40,8 @@ before(async () => {
     body: { name: 'Machakos Road', origin: 'Town', fare: 200, stops: [{ name: 'Athi River' }, { name: 'Machakos' }] },
   })).body;
   [s.athi, s.juja] = s.route.stops; // "juja" = the far stop, KES 200
+  // These cars run the same way trip after trip: the way back made for each route is switched off (and stays off).
+  await db.run("UPDATE routes SET is_active = FALSE WHERE name LIKE '% - Town'");
   for (const [n, plate, seats] of [[1, 'KMA 001A', 3], [2, 'KMB 002B', 2]]) {
     const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: `Conductor ${n}`, phone: `071100000${n}`, password: 'Acond123' } })).body;
     const v = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate, owner_name: 'Owner', owner_phone: '0744555666', seats, conductor_id: c.id, route_id: s.route.id } })).body;

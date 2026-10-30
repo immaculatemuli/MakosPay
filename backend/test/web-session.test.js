@@ -69,7 +69,7 @@ test('changes with the cookie need the dashboard header and our own origin (no f
   assert.equal(otherSite.body.error.code, 'WRONG_ORIGIN');
   const ok = await request('POST', '/admin/routes', { headers: { cookie: s.cookie, ...WEB, origin: base }, body: route });
   assert.equal(ok.status, 201, JSON.stringify(ok.body));
-  assert.equal((await request('GET', '/admin/routes', { headers: { cookie: s.cookie } })).body.length, 1, 'nothing was created by the refused requests');
+  assert.equal((await request('GET', '/admin/routes', { headers: { cookie: s.cookie } })).body.length, 2, 'the route and its way back; nothing from the refused requests');
 });
 
 test('the web dashboard is for the office only; passengers and crew use the app', async () => {

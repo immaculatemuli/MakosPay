@@ -16,6 +16,7 @@ import { reconcile } from '../services/reconciliation.js';
 import {
   cancelFareChange,
   createRoute,
+  ensureWayBack,
   getRoute,
   listRoutes,
   routeFareChanges,
@@ -279,7 +280,9 @@ router.get('/routes/:id', async (req, res) => {
 
 router.post('/routes', async (req, res) => {
   const body = parse(z.object({ name, origin: name, fare: kes.optional(), stops: stopsSchema }), req.body);
-  res.status(201).json(await getRoute(await createRoute(body, req.user.id)));
+  const routeId = await createRoute(body, req.user.id);
+  await ensureWayBack(routeId); // so its cars can turn around at the end
+  res.status(201).json(await getRoute(routeId));
 });
 
 // Fare history for a route: changes already in effect, waiting for their date, and cancelled.
@@ -315,6 +318,7 @@ router.patch('/routes/:id', async (req, res) => {
     req.body,
   );
   await updateRoute(routeId, body, req.user.id);
+  await ensureWayBack(routeId);
   res.json(await getRoute(routeId));
 });
 

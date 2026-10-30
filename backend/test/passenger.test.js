@@ -66,7 +66,9 @@ test('the passenger sees routes with their drop-off stops and fares', async () =
   assert.deepEqual(
     routes.map((r) => [r.name, r.stops.map((st) => `${st.name} ${st.app_fare} (save ${st.you_save})`)]),
     [
+      ['Kawangware - Town', ['Town 60 (save 0)']],
       ['Route 46', ['Kawangware 60 (save 10)']],
+      ['Thika - Town', ['Juja 70 (save 0)', 'Ruiru 70 (save 0)', 'Town 70 (save 0)']],
       ['Thika Road', ['Ruiru 70 (save 0)', 'Juja 70 (save 0)', 'Thika 70 (save 0)']],
     ],
   );

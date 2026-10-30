@@ -38,6 +38,8 @@ before(async () => {
   s.route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Machakos Road', origin: 'Town', stops: [{ name: 'Athi River', fare: 100 }, { name: 'Machakos', fare: 200 }] } })).body;
   [s.near, s.far] = s.route.stops;
   s.other = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Other', origin: 'Town', stops: [{ name: 'Elsewhere', fare: 50 }] } })).body;
+  // These cars run the same way trip after trip: the way back made for each route is switched off (and stays off).
+  await db.run("UPDATE routes SET is_active = FALSE WHERE name LIKE '% - Town'");
   const c = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Conductor', phone: '0711000001', password: 'Acond123' } })).body;
   await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KMA 001A', owner_name: 'Owner', owner_phone: '0744555666', seats: 5, conductor_id: c.id, route_id: s.route.id } });
   s.crew = (await api('POST', '/auth/login', { body: { phone: '0711000001', password: 'Acond123' } })).body.token;

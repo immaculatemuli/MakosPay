@@ -7,7 +7,7 @@ import { HttpError } from '../errors.js';
 import { newQrToken, normalizePhone } from '../util.js';
 import { PASSWORD_RULE, passwordOk } from '../validate.js';
 import { findOrCreateOwner, linkVehicle } from './owners.js';
-import { createRoute } from './routes.js';
+import { createRoute, ensureWayBack, getRoute } from './routes.js';
 import { createUser } from './users.js';
 
 export const IMPORT_KINDS = ['routes', 'crew', 'vehicles'];
@@ -115,9 +115,15 @@ async function checkRoutes(rows) {
     summary: `${routes.size} route${routes.size === 1 ? '' : 's'} with ${rows.length} stop${rows.length === 1 ? '' : 's'}`,
     save: async (by) => {
       const made = [];
+      const ids = [];
       for (const route of routes.values()) {
-        await createRoute({ name: route.name, origin: route.origin, fare: route.fare, stops: route.stops }, by);
+        ids.push(await createRoute({ name: route.name, origin: route.origin, fare: route.fare, stops: route.stops }, by));
         made.push({ route: route.name, stops: route.stops.length });
+      }
+      // After all of them, so a way back that is in the file is used rather than made twice.
+      for (const routeId of ids) {
+        const back = await ensureWayBack(routeId);
+        if (back) made.push({ route: (await db.get('SELECT name FROM routes WHERE id = ?', back)).name, stops: (await getRoute(back)).stops.length, way_back: true });
       }
       return made;
     },

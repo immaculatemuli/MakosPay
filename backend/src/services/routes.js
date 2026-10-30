@@ -315,12 +315,48 @@ export async function oneFarePerRoute() {
  */
 export async function returnRouteOf(routeId) {
   const route = await getRoute(routeId);
-  const end = route?.stops.at(-1);
+  return route ? findWayBack(route, { activeOnly: true }) : null;
+}
+
+async function findWayBack(route, { activeOnly }) {
+  const end = route.stops.at(-1);
   if (!end) return null;
-  const candidates = await db.all('SELECT id FROM routes WHERE is_active = TRUE AND id <> ? AND LOWER(origin) = LOWER(?) ORDER BY id', routeId, end.name);
+  const candidates = await db.all(
+    `SELECT id FROM routes WHERE id <> ? AND LOWER(origin) = LOWER(?) ${activeOnly ? 'AND is_active = TRUE' : ''} ORDER BY is_active DESC, id`,
+    route.id,
+    end.name,
+  );
   for (const { id: backId } of candidates) {
     const back = await getRoute(backId);
     if (back.stops.at(-1)?.name.toLowerCase() === route.origin.toLowerCase()) return back;
   }
   return null;
+}
+
+/**
+ * Makes sure a route in use has a way back, so its cars can turn around at the end of it. When there is none, one is
+ * added: "End - Start", the same fare, the same stops in reverse, ending at the start. A way back the office switched
+ * off stays off. Returns the id of the route added, or null.
+ */
+export async function ensureWayBack(routeId) {
+  const route = await getRoute(routeId);
+  const end = route?.stops.at(-1);
+  if (!route?.is_active || !end || end.name.toLowerCase() === route.origin.toLowerCase()) return null;
+  if (await findWayBack(route, { activeOnly: false })) return null;
+  const between = route.stops.slice(0, -1).reverse().filter((s) => s.name.toLowerCase() !== route.origin.toLowerCase());
+  return createRoute({
+    name: `${end.name} - ${route.origin}`,
+    origin: end.name,
+    fare: route.fare,
+    stops: [...between.map((s) => ({ name: s.name })), { name: route.origin }],
+  });
+}
+
+/** Gives every route in use a way back (see ensureWayBack). Run at start-up. Returns how many were added. */
+export async function everyRouteHasWayBack() {
+  let added = 0;
+  for (const { id: routeId } of await db.all('SELECT id FROM routes WHERE is_active = TRUE ORDER BY id')) {
+    if (await ensureWayBack(routeId)) added++;
+  }
+  return added;
 }
