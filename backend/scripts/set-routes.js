@@ -10,9 +10,13 @@ import { createRoute, getRoute, updateRoute } from '../src/services/routes.js';
 const ROUTES = [
   { name: 'Nairobi - Machakos', origin: 'Nairobi', fare: 250, stops: ['Mlolongo', 'Athi River', 'Kyumbi', 'Machakos'] },
   { name: 'Nairobi - Wote', origin: 'Nairobi', fare: 500, stops: ['Mlolongo', 'Athi River', 'Machakos', 'Kola', 'Wote'] },
-  { name: 'Wote - Nairobi', origin: 'Wote', fare: 500, stops: ['Kola', 'Machakos', 'Athi River', 'Mlolongo', 'Nairobi'] },
   { name: 'Nairobi - Kikima', origin: 'Nairobi', fare: 400, stops: ['Mlolongo', 'Athi River', 'Machakos', 'Tawa', 'Kikima'] },
   { name: 'Nairobi - Kitui', origin: 'Nairobi', fare: 600, stops: ['Mlolongo', 'Athi River', 'Machakos', 'Masii', 'Kitui'] },
+  // The way back: the conductor switches the car to one of these (Change route) before it loads for Nairobi.
+  { name: 'Machakos - Nairobi', origin: 'Machakos', fare: 250, stops: ['Kyumbi', 'Athi River', 'Mlolongo', 'Nairobi'] },
+  { name: 'Wote - Nairobi', origin: 'Wote', fare: 500, stops: ['Kola', 'Machakos', 'Athi River', 'Mlolongo', 'Nairobi'] },
+  { name: 'Kikima - Nairobi', origin: 'Kikima', fare: 400, stops: ['Tawa', 'Machakos', 'Athi River', 'Mlolongo', 'Nairobi'] },
+  { name: 'Kitui - Nairobi', origin: 'Kitui', fare: 600, stops: ['Masii', 'Machakos', 'Athi River', 'Mlolongo', 'Nairobi'] },
 ];
 
 const { values } = parseArgs({ options: { apply: { type: 'boolean', default: false } } });

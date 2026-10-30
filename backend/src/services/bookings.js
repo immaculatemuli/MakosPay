@@ -10,7 +10,8 @@ import { maskPhone, randomCode } from '../util.js';
 import { passengerFor } from './noapp.js';
 import { arriveAtStop } from './parcels.js';
 import { getPayment, refreshPayment, requireMpesa, sendPrompt } from './payments.js';
-import { applyDueFareChanges, getRoute, listRoutes, requireActiveStop } from './routes.js';
+import { applyDueFareChanges, getRoute, listRoutes, requireActiveStop, returnRouteOf } from './routes.js';
+import { notify } from './notifications.js';
 import { fillRoute, onDeparted, onTripFinished, seatsTaken } from './seats.js';
 import { runDaily } from './jobs.js';
 import { recordTrip, refundTrip } from './trips.js';
@@ -474,16 +475,18 @@ export async function crewLoad(vehicle) {
 /** The car is at the stage: start taking bookings for its route. */
 export async function startLoading(vehicle, userId) {
   if (!vehicle.route_id) throw new HttpError(409, 'NO_ROUTE', 'This vehicle has no route set yet. Ask the SACCO office.');
-  const route = await getRoute(vehicle.route_id);
-  if (!route?.is_active || route.stops.length === 0) throw new HttpError(409, 'NO_ROUTE', 'This vehicle has no route in use. Ask the SACCO office.');
-  const ended = await tx(async () => {
+  const { ended, turned, route } = await tx(async () => {
     if (await openLoad(vehicle.id)) throw new HttpError(409, 'ALREADY_LOADING', 'This car is already taking bookings.');
-    // Back at a stage: the last trip is over, even if nobody marked it.
+    // Back at a stage: the last trip is over, even if nobody marked it, and the car turns around for the way back.
     const last = await onRoad(vehicle.id);
     if (last) await db.run(`UPDATE loads SET finished_at = ${NOW} WHERE id = ?`, last.id);
-    await db.insert('INSERT INTO loads (vehicle_id, route_id, seats, started_by) VALUES (?, ?, ?, ?)', vehicle.id, route.id, vehicle.seats, userId);
-    return last;
+    const back = last ? await turnAround(last) : null;
+    const now = await getRoute(back?.id ?? vehicle.route_id);
+    if (!now?.is_active || now.stops.length === 0) throw new HttpError(409, 'NO_ROUTE', 'This vehicle has no route in use. Ask the SACCO office.');
+    await db.insert('INSERT INTO loads (vehicle_id, route_id, seats, started_by) VALUES (?, ?, ?, ?)', vehicle.id, now.id, vehicle.seats, userId);
+    return { ended: last, turned: back, route: now };
   });
+  if (turned) await tellCrewTurned(vehicle, turned);
   if (ended) await onTripFinished(ended);
   // Passengers waiting in the stage queue get on this car first.
   await fillRoute(route.id);
@@ -528,8 +531,32 @@ export async function finishTrip(vehicle) {
   const road = await onRoad(vehicle.id);
   const done = road && (await db.run(`UPDATE loads SET finished_at = ${NOW} WHERE id = ? AND finished_at IS NULL`, road.id));
   if (!done?.changes) throw new HttpError(409, 'NOT_ON_ROAD', 'There is no trip on the road to finish.');
+  const back = await turnAround(road);
+  if (back) await tellCrewTurned(vehicle, back);
   await onTripFinished(road);
   return crewLoad(vehicle);
+}
+
+/**
+ * At the end of a trip the car turns around: if it is still on that trip's route, it moves to the way back
+ * (Nairobi - Wote → Wote - Nairobi), so passengers who scan or book next pay the right route. A route the
+ * conductor or marshal already changed to is kept. Returns the new route, or null.
+ */
+async function turnAround(trip) {
+  const back = await returnRouteOf(trip.route_id);
+  if (!back) return null;
+  const done = await db.run('UPDATE vehicles SET route_id = ? WHERE id = ? AND route_id = ?', back.id, trip.vehicle_id, trip.route_id);
+  return done.changes ? back : null;
+}
+
+/** Tells the car's conductor and driver that it is now on the way back. */
+async function tellCrewTurned(vehicle, route) {
+  const car = await db.get('SELECT plate, conductor_id, driver_id FROM vehicles WHERE id = ?', vehicle.id);
+  await notify([car.conductor_id, car.driver_id].filter(Boolean), {
+    kind: 'crew.route_changed',
+    title: `${car.plate} is now on ${route.name}`,
+    body: `The trip is over, so the car is on the way back. Fare KES ${route.fare}. Wrong route? Change it in the app.`,
+  });
 }
 
 /**
@@ -544,6 +571,11 @@ export async function closeStaleTrips() {
       `UPDATE loads SET status = 'departed', departed_at = COALESCE(departed_at, ${NOW}), finished_at = ${NOW} WHERE id = ? AND finished_at IS NULL`,
       l.id,
     );
+    // A car that left is at the far end by now: it starts the morning on the way back. One still at the stage stays.
+    if (l.status === 'departed') {
+      const back = await turnAround(l);
+      if (back) await tellCrewTurned({ id: l.vehicle_id }, back);
+    }
     await onTripFinished(l);
   }
   return stale.length;

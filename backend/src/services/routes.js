@@ -308,3 +308,19 @@ export async function oneFarePerRoute() {
     });
   }
 }
+
+/**
+ * The way back of a route: the route in use that starts where it ends and ends where it starts (Nairobi - Wote →
+ * Wote - Nairobi), or null when there is none.
+ */
+export async function returnRouteOf(routeId) {
+  const route = await getRoute(routeId);
+  const end = route?.stops.at(-1);
+  if (!end) return null;
+  const candidates = await db.all('SELECT id FROM routes WHERE is_active = TRUE AND id <> ? AND LOWER(origin) = LOWER(?) ORDER BY id', routeId, end.name);
+  for (const { id: backId } of candidates) {
+    const back = await getRoute(backId);
+    if (back.stops.at(-1)?.name.toLowerCase() === route.origin.toLowerCase()) return back;
+  }
+  return null;
+}
