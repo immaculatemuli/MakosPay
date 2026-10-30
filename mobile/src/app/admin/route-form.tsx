@@ -13,25 +13,21 @@ interface StopDraft {
   key: string;
   id?: number;
   name: string;
-  fare: string;
 }
 
 let nextKey = 1;
-const blankStop = (): StopDraft => ({ key: `new-${nextKey++}`, name: '', fare: '' });
+const blankStop = (): StopDraft => ({ key: `new-${nextKey++}`, name: '' });
 
-const stopProblem = (s: StopDraft) => {
-  if (s.name.trim().length < 2) return 'Enter the stop name';
-  if (!(Number(s.fare) > 0)) return 'Enter the fare';
-  return null;
-};
+const stopProblem = (s: StopDraft) => (s.name.trim().length < 2 ? 'Enter the stop name' : null);
 
-/** Add a route (no id), or edit one (?id=): its name, starting point and drop-off stops with their fares. */
+/** Add a route (no id), or edit one (?id=): its name, starting point, its one fare and its drop-off stops. */
 export default function RouteForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const route = useApi<Route>(id ? `/admin/routes/${id}` : null);
   const existing = route.data;
   const [name, setName] = useState('');
   const [origin, setOrigin] = useState('');
+  const [fare, setFare] = useState('');
   const [stops, setStops] = useState<StopDraft[]>([blankStop()]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +38,8 @@ export default function RouteForm() {
     prefilled.current = true;
     setName(existing.name);
     setOrigin(existing.origin);
-    setStops(existing.stops.map((s) => ({ key: `id-${s.id}`, id: s.id, name: s.name, fare: String(s.app_fare) })));
+    setFare(existing.fare ? String(existing.fare) : '');
+    setStops(existing.stops.map((s) => ({ key: `id-${s.id}`, id: s.id, name: s.name })));
   }, [existing]);
 
   if (id && route.loading && !existing) return <Loading />;
@@ -59,7 +56,7 @@ export default function RouteForm() {
 
   const names = stops.map((s) => s.name.trim().toLowerCase());
   const duplicate = names.some((n, i) => n && names.indexOf(n) !== i);
-  const valid = name.trim().length >= 2 && origin.trim().length >= 2 && stops.length > 0 && stops.every((s) => !stopProblem(s)) && !duplicate;
+  const valid = name.trim().length >= 2 && origin.trim().length >= 2 && Number(fare) > 0 && stops.length > 0 && stops.every((s) => !stopProblem(s)) && !duplicate;
 
   const save = async (extra: { is_active?: boolean } = {}) => {
     setBusy(true);
@@ -68,7 +65,8 @@ export default function RouteForm() {
       const body = {
         name: name.trim(),
         origin: origin.trim(),
-        stops: stops.map((s) => ({ ...(s.id && { id: s.id }), name: s.name.trim(), fare: Number(s.fare) })),
+        fare: Number(fare),
+        stops: stops.map((s) => ({ ...(s.id && { id: s.id }), name: s.name.trim() })),
         ...extra,
       };
       await api(id ? `/admin/routes/${id}` : '/admin/routes', { method: id ? 'PATCH' : 'POST', body });
@@ -86,12 +84,14 @@ export default function RouteForm() {
       {existing && !existing.is_active && <Notice>This route is not in use. Passengers can’t pay on it.</Notice>}
       <Field label="Route name" placeholder="e.g. Thika Road" value={name} onChangeText={setName} />
       <Field label="Starts from" placeholder="e.g. Town" value={origin} onChangeText={setOrigin} />
-
-      <SectionTitle>Drop-off stops and fares</SectionTitle>
+      <Field label="Fare (KES)" placeholder="e.g. 200" keyboardType="number-pad" value={fare} onChangeText={(t) => setFare(digits(t))} />
       <Muted>
-        Add each place passengers can get off, in order along the route, with the fare to it.
-        {id ? ' Fare changes made here start straight away; to start a new fare on a later day, use Fare history.' : ''}
+        One fixed fare for the whole route: passengers pay it wherever they get off.
+        {id ? ' A fare changed here starts straight away; to start a new fare on a later day, use Fare history.' : ''}
       </Muted>
+
+      <SectionTitle>Drop-off stops</SectionTitle>
+      <Muted>Add each place passengers can get off, in order along the route.</Muted>
       {id && (
         <Button
           title="Fare history and future fares"
@@ -103,7 +103,7 @@ export default function RouteForm() {
       <View style={{ height: 10 }} />
 
       {stops.map((s, index) => {
-        const problem = (s.name || s.fare) && stopProblem(s);
+        const problem = s.name && stopProblem(s);
         return (
           <Card key={s.key}>
             <View style={styles.stopHeader}>
@@ -126,9 +126,7 @@ export default function RouteForm() {
                 )}
               </View>
             </View>
-            <TextInput style={styles.input} placeholder="Stop name, e.g. Juja" placeholderTextColor="#9CA3AF" value={s.name} onChangeText={(t) => update(s.key, { name: t })} />
-            <Text style={styles.small}>Fare</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" placeholder="KES" placeholderTextColor="#9CA3AF" value={s.fare} onChangeText={(t) => update(s.key, { fare: digits(t) })} />
+            <TextInput style={styles.input} placeholder="Stop name, e.g. Athi River" placeholderTextColor="#9CA3AF" value={s.name} onChangeText={(t) => update(s.key, { name: t })} />
             {problem ? <Text style={{ color: colors.danger, fontSize: 13 }}>{problem}</Text> : null}
           </Card>
         );
@@ -153,7 +151,6 @@ export default function RouteForm() {
 const styles = StyleSheet.create({
   stopHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   stopNumber: { fontWeight: '700', color: colors.text },
-  small: { fontSize: 13, color: colors.muted, marginBottom: 4 },
   input: {
     backgroundColor: colors.bg,
     borderWidth: 1,

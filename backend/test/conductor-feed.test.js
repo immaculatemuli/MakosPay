@@ -38,7 +38,7 @@ before(async () => {
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   s.route = (await api('POST', '/admin/routes', {
     token: s.admin,
-    body: { name: 'Machakos Road', origin: 'Machakos', stops: [{ name: 'Athi River', fare: 60 }, { name: 'Nairobi', fare: 100 }] },
+    body: { name: 'Machakos Road', origin: 'Machakos', fare: 100, stops: [{ name: 'Athi River' }, { name: 'Nairobi' }] },
   })).body;
   const ian = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'Acond123' } })).body;
   s.vehicle = (await api('POST', '/admin/vehicles', {
@@ -85,19 +85,19 @@ test('the trip total counts what was paid from loading at the stage until the tr
   let day = (await api('GET', '/crew/payments', { token: s.conductor })).body;
   assert.equal(day.trip.route_name, 'Machakos Road');
   assert.equal(day.trip.finished_at, null);
-  assert.deepEqual([day.trip.payments, day.trip.total], [2, 160], 'only this trip: earlier payments today are not in it');
-  assert.deepEqual([day.summary.payments, day.summary.total], [3, 260], 'the day total keeps everything (not the refund)');
+  assert.deepEqual([day.trip.payments, day.trip.total], [2, 200], 'only this trip: earlier payments today are not in it');
+  assert.deepEqual([day.summary.payments, day.summary.total], [3, 300], 'the day total keeps everything (not the refund)');
 
   await api('POST', '/crew/loading/depart', { token: s.conductor });
   await pay(s.route.stops[1]); // paid on the road
   await api('POST', '/crew/road/finish', { token: s.conductor });
   day = (await api('GET', '/crew/payments', { token: s.conductor })).body;
   assert.ok(day.trip.finished_at);
-  assert.deepEqual([day.trip.payments, day.trip.total], [3, 260]);
+  assert.deepEqual([day.trip.payments, day.trip.total], [3, 300]);
 
   await pay(s.route.stops[0]); // after the trip finished: not in it
   day = (await api('GET', '/crew/payments', { token: s.conductor })).body;
-  assert.deepEqual([day.trip.payments, day.trip.total], [3, 260]);
+  assert.deepEqual([day.trip.payments, day.trip.total], [3, 300]);
 });
 
 test('another day: no trip total, and only crew can look', async () => {

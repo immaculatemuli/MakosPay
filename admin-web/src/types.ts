@@ -22,6 +22,8 @@ export interface Route {
   name: string;
   origin: string;
   is_active: number;
+  /** The route's one fare: the same wherever the passenger gets off. */
+  fare?: number | null;
   stops: Stop[];
 }
 

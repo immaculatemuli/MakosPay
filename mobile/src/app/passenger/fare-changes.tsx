@@ -22,7 +22,7 @@ export default function FareChanges() {
         return (
           <Card key={c.id}>
             <Text style={{ fontWeight: '700', color: colors.text, fontSize: 16 }}>
-              {c.route_name} · {t('to {place}', { place: c.stop_name })}
+              {c.route_name}
             </Text>
             <Badge text={coming ? t('Starts {when}', { when: dateTime(c.effective_from) }) : t('Since {when}', { when: dateTime(c.applied_at!) })} tone={coming ? 'warning' : 'neutral'} />
             <Text style={{ color: colors.text, marginTop: 6 }}>

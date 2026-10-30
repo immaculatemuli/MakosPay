@@ -20,6 +20,7 @@ import {
   listRoutes,
   routeFareChanges,
   scheduleFareChange,
+  scheduleRouteFareChange,
   stopsSchema,
   updateRoute,
   withOneFare,
@@ -264,7 +265,7 @@ router.post('/statement-check', async (req, res) => {
 
 // ---------- Routes & fares ----------
 
-// A route has a name, a starting point, and drop-off stops along the way, each with its own fares.
+// A route has a name, a starting point, ONE fixed fare (the same wherever the passenger gets off), and drop-off stops.
 
 router.get('/routes', async (_req, res) => {
   res.json(await listRoutes());
@@ -277,7 +278,7 @@ router.get('/routes/:id', async (req, res) => {
 });
 
 router.post('/routes', async (req, res) => {
-  const body = parse(z.object({ name, origin: name, stops: stopsSchema }), req.body);
+  const body = parse(z.object({ name, origin: name, fare: kes.optional(), stops: stopsSchema }), req.body);
   res.status(201).json(await getRoute(await createRoute(body, req.user.id)));
 });
 
@@ -286,16 +287,19 @@ router.get('/routes/:id/fare-changes', async (req, res) => {
   res.json(await routeFareChanges(parse(id, req.params.id)));
 });
 
-// Set a stop's fare ({ fare }) from a date (YYYY-MM-DD, Kenyan time). Today or earlier applies at once; past payments keep their fares.
+const fareChangeSchema = z
+  .preprocess(withOneFare, z.object({ cash_fare: kes, app_fare: kes, effective_date: z.string().date(), reason: z.string().trim().max(200).optional() }))
+  .refine((f) => f.app_fare <= f.cash_fare, { path: ['app_fare'], message: 'App fare cannot be more than the cash fare' })
+  .refine((f) => f.effective_date <= nairobiDate(366), { path: ['effective_date'], message: 'Choose a date within the next year' });
+
+// Set a route's fare ({ fare }) from a date (YYYY-MM-DD, Kenyan time). Today or earlier applies at once; past payments keep their fares.
+router.post('/routes/:id/fare-change', async (req, res) => {
+  res.status(201).json(await scheduleRouteFareChange(parse(id, req.params.id), parse(fareChangeSchema, req.body), req.user.id));
+});
+
+// The same, given one of the route's stops (apps installed before fares were per route). It changes the whole route.
 router.post('/stops/:id/fare-change', async (req, res) => {
-  const body = parse(
-    z
-      .preprocess(withOneFare, z.object({ cash_fare: kes, app_fare: kes, effective_date: z.string().date(), reason: z.string().trim().max(200).optional() }))
-      .refine((f) => f.app_fare <= f.cash_fare, { path: ['app_fare'], message: 'App fare cannot be more than the cash fare' })
-      .refine((f) => f.effective_date <= nairobiDate(366), { path: ['effective_date'], message: 'Choose a date within the next year' }),
-    req.body,
-  );
-  res.status(201).json(await scheduleFareChange(parse(id, req.params.id), body, req.user.id));
+  res.status(201).json(await scheduleFareChange(parse(id, req.params.id), parse(fareChangeSchema, req.body), req.user.id));
 });
 
 router.post('/fare-changes/:id/cancel', async (req, res) => {
@@ -307,7 +311,7 @@ router.post('/fare-changes/:id/cancel', async (req, res) => {
 router.patch('/routes/:id', async (req, res) => {
   const routeId = parse(id, req.params.id);
   const body = parse(
-    z.object({ name: name.optional(), origin: name.optional(), is_active: z.boolean().optional(), stops: stopsSchema.optional() }),
+    z.object({ name: name.optional(), origin: name.optional(), is_active: z.boolean().optional(), fare: kes.optional(), stops: stopsSchema.optional() }),
     req.body,
   );
   await updateRoute(routeId, body, req.user.id);

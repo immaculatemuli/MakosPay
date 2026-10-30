@@ -60,11 +60,8 @@ before(async () => {
     body: {
       name: 'Nairobi - Machakos',
       origin: 'Town',
-      stops: [
-        { name: 'Juja', cash_fare: 150, app_fare: 150 },
-        { name: 'Kyumbi', cash_fare: 300, app_fare: 300 },
-        { name: 'Machakos', cash_fare: 400, app_fare: 400 },
-      ],
+      fare: 400, // the same to every stop
+      stops: [{ name: 'Juja' }, { name: 'Kyumbi' }, { name: 'Machakos' }],
     },
   })).body;
   [s.juja, s.kyumbi, s.machakos] = s.route.stops;
@@ -87,7 +84,7 @@ test('the price is the fare table × seats, checked against what the passenger w
   const changed = await book(s.p1, { expected_fare: 350 });
   assert.equal(changed.status, 409);
   assert.equal(changed.body.error.code, 'FARE_CHANGED');
-  const backwards = await book(s.p1, { pickup_stop_id: s.machakos.id, stop_id: s.juja.id, expected_fare: 150 });
+  const backwards = await book(s.p1, { pickup_stop_id: s.machakos.id, stop_id: s.juja.id, expected_fare: 400 });
   assert.equal(backwards.body.error.code, 'PICKUP_AFTER_DROPOFF');
   assert.equal(await balance(s.p1), 2000, 'nothing taken');
 });
@@ -104,8 +101,8 @@ test('a paid booking joins the stage queue in order, its money held', async () =
   const second = await book(s.p2, { seats: 2 });
   assert.equal(second.body.place_in_queue, 1);
   s.b2 = second.body.id;
-  const third = await book(s.p3, { seats: 1, stop_id: s.kyumbi.id, expected_fare: 300 });
-  assert.equal(third.body.amount, 300);
+  const third = await book(s.p3, { seats: 1, stop_id: s.kyumbi.id, expected_fare: 400 });
+  assert.equal(third.body.amount, 400, 'Kyumbi costs the same as Machakos');
   s.b3 = third.body.id;
 
   const q = await queues();
@@ -114,10 +111,10 @@ test('a paid booking joins the stage queue in order, its money held', async () =
 });
 
 test('M-Pesa: the PIN prompt asks for exactly fare × seats, and the paid booking joins the queue', async () => {
-  const r = await book(s.p1, { pay_with: 'mpesa', seats: 3, stop_id: s.juja.id, expected_fare: 150 });
+  const r = await book(s.p1, { pay_with: 'mpesa', seats: 3, stop_id: s.juja.id, expected_fare: 400 });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   const payment = await db.get('SELECT * FROM mpesa_payments WHERE id = (SELECT mpesa_payment_id FROM seat_bookings WHERE id = ?)', r.body.id);
-  assert.equal(payment.amount, 450);
+  assert.equal(payment.amount, 1200);
   assert.equal(payment.purpose, 'seat');
   assert.equal(payment.status, 'completed');
   assert.equal(r.body.status, 'queued');
@@ -203,7 +200,7 @@ test('cancelling refunds exactly: M-Pesa bookings to M-Pesa, wallet bookings to 
   assert.equal(r.body.status, 'cancelled');
   assert.equal(r.body.refund_to, 'mpesa');
   const w = await db.get('SELECT * FROM withdrawals WHERE id = (SELECT refund_withdrawal_id FROM seat_bookings WHERE id = ?)', s.bMpesa);
-  assert.equal(w.amount, 450);
+  assert.equal(w.amount, 1200);
   assert.equal(w.status, 'completed', 'sent back by M-Pesa (test mode)');
   assert.equal(await balance(s.p1), before, 'released and sent out: the wallet is unchanged');
 
@@ -322,7 +319,7 @@ test("the car's position is shared only while it is on a trip, shown to the pass
 
 test('on board, the passenger follows the ride: the stops after their pickup, ticked as the crew reach them', async () => {
   // KDA 111A is on the road (from the test above). Pam is picked at Juja and gets off at Kyumbi.
-  const r = await book(s.p2, { pickup_stop_id: s.juja.id, stop_id: s.kyumbi.id, expected_fare: 300 });
+  const r = await book(s.p2, { pickup_stop_id: s.juja.id, stop_id: s.kyumbi.id, expected_fare: 400 });
   const car = (await queues()).cars.find((c) => c.plate === 'KDA 111A');
   await api('POST', `/marshal/seats/${r.body.id}/assign`, { token: s.marshal, body: { load_id: car.load_id } });
   assert.equal((await seat(s.p2, r.body.id)).car.stops, undefined, 'not before boarding');

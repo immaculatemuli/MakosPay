@@ -69,7 +69,7 @@ before(async () => {
 
   const route = (await api('POST', '/admin/routes', {
     token: s.admin,
-    body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 70 }, { name: 'Thika', cash_fare: 100, app_fare: 90 }] },
+    body: { name: 'Thika Road', origin: 'Town', fare: 80, stops: [{ name: 'Juja' }, { name: 'Thika' }] },
   })).body;
   [s.juja, s.thika] = route.stops;
   s.car = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary Owner', owner_phone: '0744555666', route_id: route.id } })).body;
@@ -82,8 +82,8 @@ before(async () => {
   s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'Apass123' })).body.token;
   const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
   await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
-  await pay(s.car, s.juja); // 70
-  await pay(s.car, s.thika); // 90
+  await pay(s.car, s.juja); // 80, the route's one fare
+  await pay(s.car, s.thika); // 80
 });
 after(() => {
   server.close();
@@ -132,6 +132,6 @@ test('the driver sees what is waiting and sends it: the owner is paid at once', 
 
 test('a fare paid after the send waits for the next one', async () => {
   await pay(s.car, s.juja);
-  assert.deepEqual((await owed()).waiting_for_drivers, { cars: 1, fares: 1, total: 70 });
+  assert.deepEqual((await owed()).waiting_for_drivers, { cars: 1, fares: 1, total: 80 });
   assert.deepEqual((await owed()).owners, []);
 });

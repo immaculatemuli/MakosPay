@@ -12,7 +12,7 @@ const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
 const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
-const { applyDueFareChanges } = await import('../src/services/routes.js');
+const { applyDueFareChanges, oneFarePerRoute } = await import('../src/services/routes.js');
 
 let server;
 let base;
@@ -142,4 +142,32 @@ test('reconciliation: everything adds up, and a tampered balance is caught', asy
 test('passengers and crew cannot see the audit log or reconciliation', async () => {
   assert.equal((await api('GET', '/admin/audit', { token: s.passenger })).status, 403);
   assert.equal((await api('GET', '/admin/reconciliation', { token: s.passenger })).status, 403);
+});
+
+test('routes saved before one fare per route get their last stop fare on every stop, once', async () => {
+  const route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Machakos Road', origin: 'Town', fare: 200, stops: [{ name: 'Athi River' }, { name: 'Machakos' }] } })).body;
+  const [athi, machakos] = route.stops;
+  // As it was saved before: Athi River cheaper, and a waiting change on each stop.
+  await db.run('UPDATE route_stops SET cash_fare = 100, app_fare = 100 WHERE id = ?', athi.id);
+  const add = (stopId, fare) =>
+    db.insert(
+      "INSERT INTO fare_changes (stop_id, old_cash_fare, old_app_fare, new_cash_fare, new_app_fare, effective_from, changed_by) VALUES (?, 100, 100, ?, ?, '2099-01-01T00:00:00.000Z', 1)",
+      stopId,
+      fare,
+      fare,
+    );
+  const older = await add(athi.id, 120);
+  const newer = await add(machakos.id, 250);
+
+  await oneFarePerRoute();
+  await oneFarePerRoute();
+  const stops = (await api('GET', `/admin/routes/${route.id}`, { token: s.admin })).body.stops;
+  assert.deepEqual(stops.map((x) => [x.name, x.cash_fare, x.app_fare]), [['Athi River', 200, 200], ['Machakos', 200, 200]]);
+  assert.ok((await db.get('SELECT cancelled_at FROM fare_changes WHERE id = ?', older)).cancelled_at, 'the older waiting change is cancelled');
+  assert.equal((await db.get('SELECT cancelled_at FROM fare_changes WHERE id = ?', newer)).cancelled_at, null, 'the newest is kept');
+
+  // When it comes, it is for the whole route.
+  await applyDueFareChanges('2099-01-02T00:00:00.000Z');
+  const later = (await api('GET', `/admin/routes/${route.id}`, { token: s.admin })).body;
+  assert.deepEqual([later.fare, ...later.stops.map((x) => x.fare)], [250, 250, 250]);
 });

@@ -33,7 +33,7 @@ before(async () => {
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   s.route = (await api('POST', '/admin/routes', {
     token: s.admin,
-    body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 70 }, { name: 'Thika', cash_fare: 100, app_fare: 90 }] },
+    body: { name: 'Thika Road', origin: 'Town', fare: 90, stops: [{ name: 'Juja' }, { name: 'Thika' }] },
   })).body;
   s.other = (await api('POST', '/admin/routes', {
     token: s.admin,
@@ -65,13 +65,13 @@ test("the conductor sees their vehicle, route and today's totals", async () => {
   const { body } = await api('GET', '/conductor/vehicle', { token: s.conductor });
   assert.equal(body.vehicle.plate, 'KDA 123A');
   assert.equal(body.route.name, 'Thika Road');
-  assert.deepEqual(body.today, { payments: 2, total: 160 });
+  assert.deepEqual(body.today, { payments: 2, total: 180 });
 });
 
 test("today's payments: who paid, where they're going, phone partly hidden, no owner details", async () => {
   const { body } = await api('GET', '/conductor/payments', { token: s.conductor });
-  assert.deepEqual(body.summary, { payments: 2, total: 160 });
-  assert.deepEqual(body.payments.map((p) => [p.stop_name, p.fare]), [['Thika', 90], ['Juja', 70]]);
+  assert.deepEqual(body.summary, { payments: 2, total: 180 });
+  assert.deepEqual(body.payments.map((p) => [p.stop_name, p.fare]), [['Thika', 90], ['Juja', 90]], 'one fare, wherever you get off');
   assert.equal(body.payments[0].passenger_name, 'Pat Passenger');
   assert.equal(body.payments[0].passenger_phone, '0722***444');
   assert.equal(body.payments[0].owner_phone, undefined);

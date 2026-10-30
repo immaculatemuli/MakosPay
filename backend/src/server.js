@@ -10,7 +10,7 @@ import { startCashReminders } from './services/cash.js';
 import { startNightlyMoneyCheck } from './services/reconciliation.js';
 import { nextSeatTimerAt, runSeatTimers, startNightlySeatRefunds } from './services/seats.js';
 import { nextWithdrawalRetryAt, reconcileProcessingWithdrawals, retryUnsentWithdrawals } from './services/withdrawals.js';
-import { applyDueFareChanges } from './services/routes.js';
+import { applyDueFareChanges, oneFarePerRoute } from './services/routes.js';
 import { flushPush } from './services/push.js';
 import { flushSms } from './services/sms.js';
 import { shouldRun } from './services/quiet.js';
@@ -78,6 +78,8 @@ createApp().listen(config.port, () => {
   console.log(`  Database backed up every night at ${config.backupDailyAt} into ${config.backupDir}`);
   // Fare changes scheduled for a date take effect on their own (they are also applied before any fare is charged).
   every(60_000, 'fare changes', () => applyDueFareChanges());
+  // Each route has one fare: routes saved before that get their last stop's fare on every stop.
+  oneFarePerRoute().catch((err) => console.error('[one fare per route] failed:', err.message));
   // Seats booked for later: reminders before the time, and joining the queue when it comes.
   every(60_000, 'seat timers', () => runSeatTimers(), { nextAt: nextSeatTimerAt });
   // GPS trackers in the cars: their positions are read from the tracking system every few seconds.
