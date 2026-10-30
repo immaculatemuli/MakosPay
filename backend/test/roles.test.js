@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -9,7 +10,7 @@ process.env.MPESA_MODE = 'mock';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -38,18 +39,18 @@ before(async () => {
   const route = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 70 }] } })).body;
   s.other = (await api('POST', '/admin/routes', { token: s.admin, body: { name: 'Route 46', origin: 'Town', stops: [{ name: 'Kawangware', cash_fare: 70, app_fare: 60 }] } })).body;
   s.stop = route.stops[0];
-  s.conductorUser = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'cond123' } })).body;
-  s.driverUser = (await api('POST', '/admin/drivers', { token: s.admin, body: { name: 'Dan Driver', phone: '0711111112', password: 'drive123' } })).body;
+  s.conductorUser = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'Acond123' } })).body;
+  s.driverUser = (await api('POST', '/admin/drivers', { token: s.admin, body: { name: 'Dan Driver', phone: '0711111112', password: 'Adrive123' } })).body;
   s.vehicle = (await api('POST', '/admin/vehicles', {
     token: s.admin,
     body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', conductor_id: s.conductorUser.id, driver_id: s.driverUser.id, route_id: route.id },
   })).body;
-  s.conductor = await login('0711111111', 'cond123');
-  s.driver = await login('0711111112', 'drive123');
+  s.conductor = await login('0711111111', 'Acond123');
+  s.driver = await login('0711111112', 'Adrive123');
 
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0722333444', password: 'pass123' } })).body.token;
-  const pid = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 500 }));
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body.token;
+  const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 500 }));
   s.ticket = (await api('POST', '/passenger/pay', { token: s.passenger, body: { qr: s.vehicle.qr_token, stop_id: s.stop.id, expected_fare: 70, idempotency_key: randomUUID() } })).body.trip.ticket_code;
 });
 after(() => server.close());
@@ -58,9 +59,9 @@ test('every role signs in and gets its role', async () => {
   for (const [phone, password, role] of [
     ['0700000009', 'plat123', 'platform_admin'],
     ['0700000001', 'admin123', 'admin'],
-    ['0711111111', 'cond123', 'conductor'],
-    ['0711111112', 'drive123', 'driver'],
-    ['0722333444', 'pass123', 'passenger'],
+    ['0711111111', 'Acond123', 'conductor'],
+    ['0711111112', 'Adrive123', 'driver'],
+    ['0722333444', 'Apass123', 'passenger'],
   ]) {
     assert.equal((await api('POST', '/auth/login', { body: { phone, password } })).body.user.role, role);
   }
@@ -103,7 +104,7 @@ test('switching a driver off signs them out and frees the vehicle', async () => 
   assert.equal((await api('GET', '/crew/vehicle', { token: s.driver })).status, 401);
   assert.equal((await api('GET', `/admin/vehicles/${s.vehicle.id}`, { token: s.admin })).body.driver_id, null);
   await api('PATCH', `/admin/drivers/${s.driverUser.id}`, { token: s.admin, body: { is_active: true } });
-  s.driver = await login('0711111112', 'drive123');
+  s.driver = await login('0711111112', 'Adrive123');
 });
 
 test('the platform admin can use the SACCO office screens and the platform screens', async () => {
@@ -112,7 +113,7 @@ test('the platform admin can use the SACCO office screens and the platform scree
   assert.equal(sys.live, false, 'mock mode is not real money');
   assert.equal(sys.counts.crew, 2);
 
-  const added = await api('POST', '/platform/admins', { token: s.platform, body: { name: 'Second Boss', phone: '0700000008', password: 'plat456' } });
+  const added = await api('POST', '/platform/admins', { token: s.platform, body: { name: 'Second Boss', phone: '0700000008', password: 'Aplat456' } });
   assert.equal(added.status, 201);
   assert.equal((await api('PATCH', `/platform/admins/${s.platformUser.id}`, { token: s.platform, body: { is_active: false } })).status, 400, 'cannot switch off yourself');
 });
@@ -136,6 +137,34 @@ test('crew and passengers are refused office, platform and each other’s screen
 });
 
 test('the office can reset a driver password', async () => {
-  assert.equal((await api('POST', `/admin/users/${s.driverUser.id}/password`, { token: s.admin, body: { new_password: 'newdrive1' } })).status, 200);
-  assert.equal((await api('POST', '/auth/login', { body: { phone: '0711111112', password: 'newdrive1' } })).status, 200);
+  assert.equal((await api('POST', `/admin/users/${s.driverUser.id}/password`, { token: s.admin, body: { new_password: 'Anewdrive1' } })).status, 200);
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0711111112', password: 'Anewdrive1' } })).status, 200);
+});
+
+test('deleting a conductor who worked wipes their name and number, frees the vehicle, and keeps the trips', async () => {
+  const id = s.conductorUser.id;
+  assert.equal((await api('POST', `/admin/conductors/${id}/delete`, { token: s.admin })).status, 200);
+  assert.equal((await api('GET', '/crew/vehicle', { token: s.conductor })).status, 401, 'signed out');
+  assert.equal((await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'Acond123' } })).status, 401, "can't sign in");
+  assert.equal((await api('GET', `/admin/vehicles/${s.vehicle.id}`, { token: s.admin })).body.conductor_id, null, 'vehicle freed');
+  assert.ok(!(await api('GET', '/admin/conductors', { token: s.admin })).body.some((c) => c.id === id), 'no longer listed');
+  const left = await db.get('SELECT name, phone FROM users WHERE id = ?', id);
+  assert.deepEqual({ ...left }, { name: 'Deleted conductor', phone: `deleted-${id}` }, 'no name or phone left');
+  assert.ok((await db.get('SELECT COUNT(*) AS n FROM trips WHERE vehicle_id = ?', s.vehicle.id)).n > 0, 'trips kept');
+
+  assert.equal((await api('POST', `/admin/conductors/${id}/delete`, { token: s.admin })).status, 404, 'already deleted');
+  assert.equal((await api('PATCH', `/admin/conductors/${id}`, { token: s.admin, body: { is_active: true } })).status, 404, "can't be switched back on");
+  assert.equal((await api('POST', `/admin/drivers/${id}/delete`, { token: s.admin })).status, 404, 'only the matching role');
+  assert.equal((await api('POST', `/admin/conductors/${id}/delete`, { token: s.conductor })).status, 401);
+
+  const again = await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'New Conductor', phone: '0711111111', password: 'Acond456' } });
+  assert.equal(again.status, 201, 'the phone number can be used again');
+});
+
+test('deleting a driver who never worked removes the account completely', async () => {
+  const driver = (await api('POST', '/admin/drivers', { token: s.admin, body: { name: 'Temp Driver', phone: '0711111199', password: 'Atemp123' } })).body;
+  await login('0711111199', 'Atemp123');
+  assert.equal((await api('POST', `/admin/drivers/${driver.id}/delete`, { token: s.admin })).status, 200);
+  assert.equal(await db.get('SELECT id FROM users WHERE id = ?', driver.id), undefined, 'the account is gone');
+  assert.equal((await api('POST', `/admin/drivers/${driver.id}/delete`, { token: s.admin })).status, 404);
 });

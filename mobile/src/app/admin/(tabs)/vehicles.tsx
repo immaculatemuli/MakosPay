@@ -1,15 +1,31 @@
-import { router } from 'expo-router';
-import { Badge, Button, Empty, ErrorBox, List, ListRow, Loading, Screen } from '@/components/ui';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Badge, Button, Empty, ErrorBox, List, ListRow, Loading, Notice, Screen } from '@/components/ui';
 import type { Vehicle } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
+// Filters from the office's Needs attention list.
+const FILTER_TEXT: Record<string, string> = {
+  no_route: 'Cars with no route',
+  no_driver: 'Cars with no driver set',
+  idle: 'Cars with no FarePay payments today',
+};
+
 export default function Vehicles() {
-  const { data, error, loading, refreshing, refresh, reload } = useApi<Vehicle[]>('/admin/vehicles');
+  const { filter } = useLocalSearchParams<{ filter?: string }>();
+  const shown = filter && FILTER_TEXT[filter] ? filter : null;
+  const { data, error, loading, refreshing, refresh, reload } = useApi<Vehicle[]>(`/admin/vehicles${shown ? `?filter=${shown}` : ''}`);
   if (loading && !data) return <Loading />;
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
-      <Button title="Add vehicle" icon="add" onPress={() => router.push('/admin/vehicle-form')} />
+      {shown ? (
+        <>
+          <Notice>{`${FILTER_TEXT[shown]}: ${data?.length ?? 0}`}</Notice>
+          <Button title="Show all vehicles" variant="secondary" onPress={() => router.setParams({ filter: '' })} />
+        </>
+      ) : (
+        <Button title="Add vehicle" icon="add" onPress={() => router.push('/admin/vehicle-form')} />
+      )}
       {error && <ErrorBox message={error} onRetry={reload} />}
       {data?.length === 0 && <Empty text="No vehicles yet. Add a route first, then the vehicle." />}
       {!!data?.length && (

@@ -2,13 +2,14 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -32,24 +33,24 @@ before(async () => {
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   s.route = (await api('POST', '/admin/routes', {
     token: s.admin,
-    body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 70 }, { name: 'Thika', cash_fare: 100, app_fare: 90 }] },
+    body: { name: 'Thika Road', origin: 'Town', fare: 90, stops: [{ name: 'Juja' }, { name: 'Thika' }] },
   })).body;
   s.other = (await api('POST', '/admin/routes', {
     token: s.admin,
     body: { name: 'Route 46', origin: 'Town', stops: [{ name: 'Kawangware', cash_fare: 70, app_fare: 60 }] },
   })).body;
-  const ian = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'cond123' } })).body;
-  await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Free Conductor', phone: '0711111112', password: 'cond123' } });
+  const ian = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian', phone: '0711111111', password: 'Acond123' } })).body;
+  await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Free Conductor', phone: '0711111112', password: 'Acond123' } });
   s.vehicle = (await api('POST', '/admin/vehicles', {
     token: s.admin,
     body: { plate: 'KDA 123A', owner_name: 'Mary Owner', owner_phone: '0744555666', conductor_id: ian.id, route_id: s.route.id },
   })).body;
-  s.conductor = (await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'cond123' } })).body.token;
-  s.free = (await api('POST', '/auth/login', { body: { phone: '0711111112', password: 'cond123' } })).body.token;
+  s.conductor = (await api('POST', '/auth/login', { body: { phone: '0711111111', password: 'Acond123' } })).body.token;
+  s.free = (await api('POST', '/auth/login', { body: { phone: '0711111112', password: 'Acond123' } })).body.token;
 
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' } })).body.token;
-  const pid = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 500 }));
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'Apass123' })).body.token;
+  const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 500 }));
   for (const stop of s.route.stops) {
     const r = await api('POST', '/passenger/pay', {
       token: s.passenger,
@@ -64,13 +65,13 @@ test("the conductor sees their vehicle, route and today's totals", async () => {
   const { body } = await api('GET', '/conductor/vehicle', { token: s.conductor });
   assert.equal(body.vehicle.plate, 'KDA 123A');
   assert.equal(body.route.name, 'Thika Road');
-  assert.deepEqual(body.today, { payments: 2, total: 160 });
+  assert.deepEqual(body.today, { payments: 2, total: 180 });
 });
 
 test("today's payments: who paid, where they're going, phone partly hidden, no owner details", async () => {
   const { body } = await api('GET', '/conductor/payments', { token: s.conductor });
-  assert.deepEqual(body.summary, { payments: 2, total: 160 });
-  assert.deepEqual(body.payments.map((p) => [p.stop_name, p.fare]), [['Thika', 90], ['Juja', 70]]);
+  assert.deepEqual(body.summary, { payments: 2, total: 180 });
+  assert.deepEqual(body.payments.map((p) => [p.stop_name, p.fare]), [['Thika', 90], ['Juja', 90]], 'one fare, wherever you get off');
   assert.equal(body.payments[0].passenger_name, 'Pat Passenger');
   assert.equal(body.payments[0].passenger_phone, '0722***444');
   assert.equal(body.payments[0].owner_phone, undefined);
@@ -100,7 +101,7 @@ test('a conductor not on any vehicle is told to ask the SACCO office', async () 
 
 test('changing route: passengers who scan afterwards see the new route', async () => {
   const routes = (await api('GET', '/conductor/routes', { token: s.conductor })).body;
-  assert.deepEqual(routes.map((r) => r.name), ['Route 46', 'Thika Road']);
+  assert.deepEqual(routes.map((r) => r.name), ['Kawangware - Town', 'Route 46', 'Thika - Town', 'Thika Road'], 'each route and its way back');
   const changed = await api('PUT', '/conductor/vehicle/route', { token: s.conductor, body: { route_id: s.other.id } });
   assert.equal(changed.body.route.name, 'Route 46');
   const scan = (await api('GET', `/passenger/scan?qr=${s.vehicle.qr_token}`, { token: s.passenger })).body;

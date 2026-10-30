@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 const SHORTCODE = '174379';
 const PASSKEY = 'test-passkey';
@@ -53,10 +54,12 @@ process.env.MPESA_SHORTCODE = SHORTCODE;
 process.env.MPESA_PASSKEY = PASSKEY;
 process.env.MPESA_CALLBACK_SECRET = 'cbsecret';
 process.env.MPESA_QUERY_INTERVAL_MS = '0';
+process.env.SEAT_BOOKING_CUTOFF = '23:59';
+process.env.SEAT_BOOKING_OPENS = '00:00';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db } = await import('../src/db.js');
+const { db } = await import('../src/database.js');
 const { reconcilePendingPayments } = await import('../src/services/payments.js');
 
 let server;
@@ -70,7 +73,7 @@ const api = async (method, path, { token, body } = {}) => {
   return { status: res.status, body: await res.json() };
 };
 const s = {};
-const status = (id) => db.prepare('SELECT status FROM mpesa_payments WHERE id = ?').get(id).status;
+const status = async (id) => (await db.get('SELECT status FROM mpesa_payments WHERE id = ?', id)).status;
 const balance = async () => (await api('GET', '/passenger/wallet', { token: s.passenger })).body.balance;
 /** Checks the payment like the app does, until it is no longer pending. */
 async function waitForOutcome(id) {
@@ -90,15 +93,16 @@ before(async () => {
   const admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   const route = (await api('POST', '/admin/routes', {
     token: admin,
-    body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 70 }, { name: 'Thika', cash_fare: 100, app_fare: 90 }] },
+    body: { name: 'Thika Road', origin: 'Town', fare: 70, stops: [{ name: 'Juja' }, { name: 'Thika' }] },
   })).body;
   s.juja = route.stops[0];
+  s.routeId = route.id;
   const vehicle = (await api('POST', '/admin/vehicles', {
     token: admin,
     body: { plate: 'KDA 123A', owner_name: 'Mary Owner', owner_phone: '0744555666', route_id: route.id },
   })).body;
   s.qr = `farepay://pay?v=${vehicle.qr_token}`;
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0712345678', password: 'secret1' } })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0712345678', password: 'Asecret1' })).body.token;
 });
 after(() => {
   server.close();
@@ -212,8 +216,8 @@ test('wallet too low: the fare is paid by M-Pesa and the ticket is issued when M
 
 test('a payment is confirmed in the background even if the app was closed', async () => {
   const start = await api('POST', '/passenger/wallet/topup', { token: s.passenger, body: { amount: 100 } });
-  for (let i = 0; i < 5 && status(start.body.payment.id) === 'pending'; i++) await reconcilePendingPayments();
-  assert.equal(status(start.body.payment.id), 'completed');
+  for (let i = 0; i < 5 && await status(start.body.payment.id) === 'pending'; i++) await reconcilePendingPayments();
+  assert.equal(await status(start.body.payment.id), 'completed');
   assert.equal(await balance(), 100);
 });
 
@@ -221,8 +225,36 @@ test('a prompt M-Pesa never answers expires without crediting anything', async (
   fake.defaultAnswers = ['unknown'];
   const start = await api('POST', '/passenger/wallet/topup', { token: s.passenger, body: { amount: 30 } });
   await reconcilePendingPayments();
-  assert.equal(status(start.body.payment.id), 'pending', 'not expired yet');
+  assert.equal(await status(start.body.payment.id), 'pending', 'not expired yet');
   await reconcilePendingPayments({ expireAfterMs: 0 });
-  assert.equal(status(start.body.payment.id), 'failed');
+  assert.equal(await status(start.body.payment.id), 'failed');
   assert.equal(await balance(), 100);
+});
+
+test('a prompt M-Pesa has no record of fails once past its PIN time, not after 15 minutes', async () => {
+  fake.defaultAnswers = ['unknown'];
+  const start = await api('POST', '/passenger/wallet/topup', { token: s.passenger, body: { amount: 30 } });
+  const id = start.body.payment.id;
+  assert.equal((await api('GET', `/passenger/mpesa/${id}`, { token: s.passenger })).body.payment.status, 'pending', 'still in its PIN time');
+  await db.run('UPDATE mpesa_payments SET created_at = ? WHERE id = ?', new Date(Date.now() - 2 * 60_000).toISOString(), id);
+  const seen = (await api('GET', `/passenger/mpesa/${id}`, { token: s.passenger })).body.payment;
+  assert.equal(seen.status, 'failed', 'the app is told straight away');
+  assert.match(seen.result_desc, /No answer from M-Pesa/);
+  assert.equal(await balance(), 100);
+  fake.defaultAnswers = ['processing', 'paid'];
+});
+
+test('a seat booking whose prompt M-Pesa never answers is released when the payment expires', async () => {
+  fake.defaultAnswers = ['unknown'];
+  const booked = await api('POST', '/book-api/seats', {
+    body: { route_id: s.routeId, stop_id: s.juja.id, seats: 2, expected_fare: 70, phone: '0733444555', idempotency_key: randomUUID() },
+  });
+  assert.equal(booked.body.status, 'paying');
+  await reconcilePendingPayments({ expireAfterMs: 0 });
+  // Nobody opened the booking again: the background check alone must free it and tell the passenger.
+  const row = await db.get("SELECT b.status, u.id AS user_id FROM seat_bookings b JOIN users u ON u.id = b.passenger_id WHERE b.code = ?", booked.body.code);
+  assert.equal(row.status, 'failed');
+  const told = await db.get("SELECT title, body FROM notifications WHERE user_id = ? AND kind = 'seat.failed'", row.user_id);
+  assert.match(told.body, /No answer from M-Pesa\. No money was taken/);
+  fake.defaultAnswers = ['processing', 'paid'];
 });

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { saveChosenStop, type ChosenStop } from '@/lib/chosenRoute';
 import { kes } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import type { StopChoice } from '@/lib/types';
 import { colors } from './ui';
 
@@ -21,6 +22,7 @@ export function WhereGoing({
   frequent: StopChoice[];
   onChosen: () => void;
 }) {
+  const { t } = useT();
   // Saved first, then frequent ones not already saved.
   const quick = [...saved, ...frequent.filter((f) => !saved.some((s) => s.stop_id === f.stop_id))];
 
@@ -34,8 +36,8 @@ export function WhereGoing({
       <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.7 }]} onPress={() => router.push('/passenger/choose-route')}>
         <Ionicons name="map-outline" size={24} color={colors.primary} />
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.title}>{chosen ? `Get off at ${chosen.stop_name}` : 'Choose your route and drop-off'}</Text>
-          <Text style={styles.hint}>{chosen ? `${chosen.route_name} · tap to change` : 'Your Member Fare depends on where you get off'}</Text>
+          <Text style={styles.title}>{chosen ? t('Get off at {stop}', { stop: chosen.stop_name }) : t('Choose your route and drop-off')}</Text>
+          <Text style={styles.hint}>{chosen ? `${chosen.route_name} · ${t('tap to change')}` : t('Your fare depends on where you get off')}</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
       </Pressable>

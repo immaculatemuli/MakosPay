@@ -27,7 +27,11 @@ export const phone = z.string().transform((value, ctx) => {
 /** Whole Kenyan shillings. */
 export const kes = z.number().int().positive();
 export const id = z.coerce.number().int().positive();
-export const password = z.string().min(6).max(100);
+/** The rule for every new password: at least 8 characters, with a capital letter, a small letter and a number. */
+export const PASSWORD_RULE = 'Password needs at least 8 characters, with a capital letter, a small letter and a number';
+export const passwordOk = (value) =>
+  typeof value === 'string' && value.length >= 8 && value.length <= 100 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value);
+export const password = z.string().refine(passwordOk, PASSWORD_RULE);
 export const name = z.string().trim().min(2).max(100);
 
 export const pagination = z.object({

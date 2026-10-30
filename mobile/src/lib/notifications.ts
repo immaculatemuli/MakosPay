@@ -58,9 +58,16 @@ export function targetHref(role: Role, target: string | null): Href | null {
     if (kind === 'reports') return '/passenger/reports';
     if (kind === 'fare-changes') return '/passenger/fare-changes';
     if (kind === 'withdrawals') return '/passenger/withdraw';
+    if (kind === 'seat' && id) return `/passenger/booking?id=${id}`;
+    if (kind === 'seats') return '/passenger/book';
   }
   if (home === '/conductor' || home === '/driver') {
     if (kind === 'reports') return `${home}/reports`;
+    if (kind === 'seats') return `${home}/bookings`;
+    if (kind === 'cash' || kind === 'payments') return home;
+  }
+  if (home === '/marshal') {
+    if (kind === 'queue') return '/marshal';
   }
   if (home === '/admin') {
     if (kind === 'reports') return '/admin/reports';
@@ -68,6 +75,8 @@ export function targetHref(role: Role, target: string | null): Href | null {
     if (kind === 'payout' && id) return `/admin/payout/${id}`;
     if (kind === 'money-check') return '/admin/reconciliation';
     if (kind === 'withdrawals') return '/admin/withdrawals';
+    if (kind === 'refund-requests') return '/admin/refund-requests';
+    if (kind === 'ratings') return '/admin/ratings';
   }
   return null;
 }

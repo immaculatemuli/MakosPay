@@ -31,6 +31,8 @@ export function useChosenStop(refreshKey = 0) {
           setChoice(parsed?.stop_id ? parsed : null); // ignore the older route-only format
         })
         .catch(() => setChoice(null));
+      // refreshKey is not read inside: changing it is how a screen asks to read the choice again.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [refreshKey]),
   );
   return choice;

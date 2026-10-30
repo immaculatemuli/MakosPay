@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 const fake = { b2c: [], reject: false };
 const daraja = createServer(async (req, res) => {
@@ -22,6 +23,7 @@ const daraja = createServer(async (req, res) => {
 await new Promise((resolve) => daraja.listen(0, resolve));
 
 process.env.DB_PATH = ':memory:';
+process.env.PAYOUTS_NEED_DRIVER = 'false'; // these tests pay owners without the driver's "Send to owner"
 process.env.JWT_SECRET = 'test';
 process.env.MPESA_MODE = 'sandbox';
 process.env.MPESA_BASE_URL = `http://127.0.0.1:${daraja.address().port}`;
@@ -35,7 +37,7 @@ process.env.MPESA_B2C_SECURITY_CREDENTIAL = 'cred';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -70,7 +72,7 @@ before(async () => {
   s.admin = (await api('POST', '/auth/login', { body: { phone: '0700000001', password: 'admin123' } })).body.token;
   const route = (await api('POST', '/admin/routes', {
     token: s.admin,
-    body: { name: 'Thika Road', origin: 'Town', stops: [{ name: 'Juja', cash_fare: 80, app_fare: 70 }, { name: 'Thika', cash_fare: 100, app_fare: 90 }] },
+    body: { name: 'Thika Road', origin: 'Town', fare: 90, stops: [{ name: 'Juja' }, { name: 'Thika' }] },
   })).body;
   [s.juja, s.thika] = route.stops;
   // Mary owns two vehicles; John owns one.
@@ -80,12 +82,12 @@ before(async () => {
   s.kdb = await add('KDB 456B', 'Mary Owner', '0744555666');
   s.kdc = await add('KDC 789C', 'John Owner', '0755666777');
 
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722333444', password: 'pass123' } })).body.token;
-  const pid = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
-  await pay(s.kda, s.juja); // 70 Mary
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722333444', password: 'Apass123' })).body.token;
+  const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
+  await pay(s.kda, s.juja); // 90 (the route's one fare) Mary
   await pay(s.kda, s.thika); // 90 Mary
-  await pay(s.kdb, s.juja); // 70 Mary
+  await pay(s.kdb, s.juja); // 90 Mary
   await pay(s.kdc, s.thika); // 90 John
 });
 after(() => {
@@ -97,16 +99,16 @@ test("the office sees today's payments, totals and each vehicle's takings", asyn
   const { body } = await api('GET', '/admin/payments', { token: s.admin });
   assert.equal(body.payments.length, 4);
   assert.equal(body.summary.payments, 4);
-  assert.equal(body.summary.total, 320);
-  assert.deepEqual(body.summary.by_vehicle.map((v) => [v.plate, v.payments, v.total]), [['KDA 123A', 2, 160], ['KDC 789C', 1, 90], ['KDB 456B', 1, 70]]);
+  assert.equal(body.summary.total, 360);
+  assert.deepEqual(body.summary.by_vehicle.map((v) => [v.plate, v.payments, v.total]), [['KDA 123A', 2, 180], ['KDB 456B', 1, 90], ['KDC 789C', 1, 90]]);
   assert.equal(body.payments[0].passenger_name, 'Pat Passenger');
 
   const one = (await api('GET', `/admin/payments?vehicle_id=${s.kdc.id}`, { token: s.admin })).body;
   assert.deepEqual(one.payments.map((p) => p.plate), ['KDC 789C']);
 
   const home = (await api('GET', '/admin/summary', { token: s.admin })).body;
-  assert.equal(home.today.total, 320);
-  assert.equal(home.owed_to_owners, 320);
+  assert.equal(home.today.total, 360);
+  assert.equal(home.owed_to_owners, 360);
 });
 
 test('what each owner is owed, across all their vehicles', async () => {
@@ -115,7 +117,7 @@ test('what each owner is owed, across all their vehicles', async () => {
   assert.deepEqual(
     o.owners.map((x) => [x.owner_name, x.owner_phone, x.amount, x.trip_count, x.plates.sort()]),
     [
-      ['Mary Owner', '254744555666', 230, 3, ['KDA 123A', 'KDB 456B']],
+      ['Mary Owner', '254744555666', 270, 3, ['KDA 123A', 'KDB 456B']],
       ['John Owner', '254755666777', 90, 1, ['KDC 789C']],
     ],
   );
@@ -125,10 +127,10 @@ test('pay now: one M-Pesa payment to the owner for everything owed, confirmed by
   const p = await api('POST', '/admin/payouts', { token: s.admin, body: { owner_phone: '0744555666' } });
   assert.equal(p.status, 201, JSON.stringify(p.body));
   assert.equal(p.body.status, 'processing');
-  assert.equal(p.body.amount, 230);
+  assert.equal(p.body.amount, 270);
   const sent = fake.b2c.at(-1);
   assert.equal(sent.PartyB, '254744555666');
-  assert.equal(sent.Amount, 230);
+  assert.equal(sent.Amount, 270);
   assert.match(sent.Remarks, /KDA 123A/);
   assert.match(sent.ResultURL, /\/hooks\/cbsecret\/b2c\/result$/);
 
@@ -178,7 +180,7 @@ test('pay everyone now pays every owner who is owed, once', async () => {
   await pay(s.kda, s.juja);
   await pay(s.kdc, s.juja);
   const paid = (await api('POST', '/admin/payouts/run', { token: s.admin })).body;
-  assert.deepEqual(paid.map((x) => [x.owner_name, x.amount]).sort(), [['John Owner', 70], ['Mary Owner', 70]]);
+  assert.deepEqual(paid.map((x) => [x.owner_name, x.amount]).sort(), [['John Owner', 90], ['Mary Owner', 90]]);
   assert.deepEqual((await api('POST', '/admin/payouts/run', { token: s.admin })).body, []);
   const list = (await api('GET', '/admin/payouts', { token: s.admin })).body;
   assert.equal(list.length, 6);

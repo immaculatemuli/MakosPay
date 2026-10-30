@@ -56,3 +56,14 @@ export function safeEqual(a, b) {
   const y = Buffer.from(String(b));
   return x.length === y.length && timingSafeEqual(x, y);
 }
+
+/** True when an app version ("1.0.0") is older than another ("1.1.0"), compared part by part. */
+export function appTooOld(version, minimum) {
+  const a = version.split('.').map(Number);
+  const b = minimum.split('.').map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] || 0) - (b[i] || 0);
+    if (d) return d < 0;
+  }
+  return false;
+}

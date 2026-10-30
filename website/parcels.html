@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Track a parcel · FarePay · Makos Sacco</title>
+  <meta name="description" content="Follow a parcel sent with Makos Sacco using its tracking code.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/site.css">
+  <script src="/site.js" defer></script>
+  <script src="/parcels.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <a class="logo" href="/"><b>FarePay</b><small>Makos Sacco</small></a>
+      <nav class="links" aria-label="Main">
+        <a href="/">Home</a>
+        <a href="/book.html">Book a seat</a>
+        <a href="/parcels.html" aria-current="page">Track a parcel</a>
+      </nav>
+      <a class="cta" href="/app">Get the app</a>
+    </div>
+  </header>
+
+  <main class="wrap booking">
+    <h1>Track a parcel</h1>
+    <p class="lead">Enter the tracking code from the parcel receipt. The receiver collects the parcel at the destination with the 6-digit collection code the sender gives them.</p>
+
+    <form class="panel" id="find">
+      <label class="field">
+        <span class="field-label">Tracking code</span>
+        <input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="8" placeholder="8 letters and numbers">
+      </label>
+      <p class="error" id="find-error" hidden></p>
+      <button type="submit" id="track">Track</button>
+    </form>
+
+    <div class="panel" id="result" hidden>
+      <div class="ticket">
+        <div class="ticket-status" id="r-status"></div>
+        <div class="ticket-code" id="r-code"></div>
+        <div id="r-trip"></div>
+        <div class="muted" id="r-people"></div>
+      </div>
+      <p class="car-line" id="r-line"></p>
+      <ol class="trip" id="r-events" aria-label="Parcel history"></ol>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>© <span data-year>2026</span> FarePay for Makos Sacco.</span>
+      <span><a href="/privacy.html">Privacy policy</a></span>
+    </div>
+  </footer>
+</body>
+</html>

@@ -14,10 +14,26 @@ db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeou
 // The kinds of user. Only passengers sign up themselves. The SACCO office (admin) creates conductors and
 // drivers; the platform admin (whoever runs FarePay itself) is above the SACCO office and is created from
 // the computer. Vehicle owners don't log in: the admin records their payout details on the vehicle.
-export const ROLES = ['admin', 'passenger', 'conductor', 'driver', 'platform_admin'];
+// Stage marshals manage the queue of booked passengers at a stage and put them on the cars that arrive.
+export const ROLES = ['admin', 'passenger', 'conductor', 'driver', 'platform_admin', 'marshal'];
 
-// Kinds of wallet entry. withdrawal: sent back to the passenger's M-Pesa; withdrawal_reversal: it couldn't be sent.
-const WALLET_TYPES = ['topup', 'fare', 'refund', 'test_credit', 'withdrawal', 'withdrawal_reversal'].map((t) => `'${t}'`).join(', ');
+// Kinds of wallet entry. withdrawal: sent back to the passenger's M-Pesa; withdrawal_reversal: it couldn't be sent;
+// booking_hold / booking_release: a paid seat booking's money, held until the passenger boards or it is cancelled.
+// free_ride / free_ride_reversal: the SACCO paying a passenger's free (50th) ride, and taking it back if refunded.
+const WALLET_TYPE_LIST = [
+  'topup',
+  'fare',
+  'refund',
+  'test_credit',
+  'withdrawal',
+  'withdrawal_reversal',
+  'booking_hold',
+  'booking_release',
+  'free_ride',
+  'free_ride_reversal',
+];
+const WALLET_TYPES = WALLET_TYPE_LIST.map((t) => `'${t}'`).join(', ');
+const MPESA_PURPOSES = ['wallet', 'fare', 'seat'];
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -113,7 +129,7 @@ CREATE TABLE IF NOT EXISTS mpesa_payments (
   user_id             INTEGER NOT NULL REFERENCES users(id),
   phone               TEXT NOT NULL,
   amount              INTEGER NOT NULL CHECK (amount > 0),
-  purpose             TEXT NOT NULL CHECK (purpose IN ('wallet', 'fare')),
+  purpose             TEXT NOT NULL CHECK (purpose IN (${MPESA_PURPOSES.map((x) => `'${x}'`).join(', ')})),
   status              TEXT NOT NULL CHECK (status IN ('initiating', 'pending', 'completed', 'failed')),
   checkout_request_id TEXT UNIQUE,
   merchant_request_id TEXT,
@@ -380,6 +396,376 @@ if (!hasColumn('payouts', 'method')) db.exec("ALTER TABLE payouts ADD COLUMN met
 for (const column of ['bank_name', 'bank_paybill', 'bank_account']) {
   if (!hasColumn('payouts', column)) db.exec(`ALTER TABLE payouts ADD COLUMN ${column} TEXT`);
 }
+
+// Seat booking (the same as migrations/002_seat_booking.sql for PostgreSQL).
+if (!hasColumn('vehicles', 'seats')) db.exec('ALTER TABLE vehicles ADD COLUMN seats INTEGER NOT NULL DEFAULT 14 CHECK (seats BETWEEN 1 AND 80)');
+db.exec(`
+CREATE TABLE IF NOT EXISTS loads (
+  id          INTEGER PRIMARY KEY,
+  vehicle_id  INTEGER NOT NULL REFERENCES vehicles(id),
+  route_id    INTEGER NOT NULL REFERENCES routes(id),
+  seats       INTEGER NOT NULL CHECK (seats > 0),
+  status      TEXT NOT NULL DEFAULT 'loading' CHECK (status IN ('loading', 'departed')),
+  started_by  INTEGER REFERENCES users(id),
+  started_at  TEXT NOT NULL DEFAULT (${NOW}),
+  departed_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_loads_one_loading_per_vehicle ON loads(vehicle_id) WHERE status = 'loading';
+CREATE INDEX IF NOT EXISTS idx_loads_route_status ON loads(route_id, status, started_at);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id               INTEGER PRIMARY KEY,
+  code             TEXT NOT NULL UNIQUE,
+  load_id          INTEGER NOT NULL REFERENCES loads(id),
+  passenger_id     INTEGER NOT NULL REFERENCES users(id),
+  stop_id          INTEGER NOT NULL REFERENCES route_stops(id),
+  seats            INTEGER NOT NULL CHECK (seats BETWEEN 1 AND 10),
+  fare_each        INTEGER NOT NULL CHECK (fare_each > 0),
+  amount           INTEGER NOT NULL CHECK (amount > 0),
+  mpesa_payment_id INTEGER REFERENCES mpesa_payments(id),
+  idempotency_key  TEXT NOT NULL,
+  boarded_at       TEXT,
+  created_at       TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE (passenger_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_bookings_load ON bookings(load_id);
+`);
+
+// SMS, push notifications and "forgot password" (the same as migrations/006_sms_push_reset.sql).
+db.exec(`
+CREATE TABLE IF NOT EXISTS sms_outbox (
+  id                  INTEGER PRIMARY KEY,
+  phone               TEXT NOT NULL,
+  kind                TEXT NOT NULL,
+  message             TEXT,
+  status              TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent', 'failed', 'logged')),
+  provider_message_id TEXT,
+  error               TEXT,
+  attempts            INTEGER NOT NULL DEFAULT 0,
+  created_at          TEXT NOT NULL DEFAULT (${NOW}),
+  sent_at             TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sms_outbox_status ON sms_outbox(status, created_at);
+
+CREATE TABLE IF NOT EXISTS push_tokens (
+  id           INTEGER PRIMARY KEY,
+  user_id      INTEGER NOT NULL REFERENCES users(id),
+  token        TEXT NOT NULL UNIQUE,
+  created_at   TEXT NOT NULL DEFAULT (${NOW}),
+  last_seen_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  id         INTEGER PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id),
+  code_hash  TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  attempts   INTEGER NOT NULL DEFAULT 0,
+  used_at    TEXT,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id, created_at);
+`);
+if (!hasColumn('notifications', 'pushed_at')) db.exec('ALTER TABLE notifications ADD COLUMN pushed_at TEXT');
+
+// Bookings paid from the wallet point straight at their fare (migrations/005_wallet_bookings.sql).
+if (!hasColumn('bookings', 'trip_id')) db.exec('ALTER TABLE bookings ADD COLUMN trip_id INTEGER REFERENCES trips(id)');
+
+// Arrival updates (the same as migrations/003_arrival_updates.sql for PostgreSQL).
+if (!hasColumn('loads', 'finished_at')) db.exec('ALTER TABLE loads ADD COLUMN finished_at TEXT');
+db.exec(`
+CREATE TABLE IF NOT EXISTS load_stops (
+  id         INTEGER PRIMARY KEY,
+  load_id    INTEGER NOT NULL REFERENCES loads(id),
+  stop_id    INTEGER NOT NULL REFERENCES route_stops(id),
+  reached_at TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE (load_id, stop_id)
+);
+CREATE INDEX IF NOT EXISTS idx_load_stops_stop ON load_stops(stop_id, reached_at);
+`);
+
+// Parcels (the same as migrations/004_parcels.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS parcels (
+  id                INTEGER PRIMARY KEY,
+  tracking_code     TEXT NOT NULL UNIQUE,
+  collection_code   TEXT NOT NULL,
+  sender_name       TEXT NOT NULL,
+  sender_phone      TEXT NOT NULL,
+  receiver_name     TEXT NOT NULL,
+  receiver_phone    TEXT NOT NULL,
+  route_id          INTEGER NOT NULL REFERENCES routes(id),
+  stop_id           INTEGER NOT NULL REFERENCES route_stops(id),
+  description       TEXT,
+  fee               INTEGER NOT NULL CHECK (fee > 0),
+  status            TEXT NOT NULL DEFAULT 'awaiting_payment'
+                    CHECK (status IN ('awaiting_payment', 'received', 'on_the_way', 'arrived', 'collected', 'cancelled')),
+  payment_method    TEXT CHECK (payment_method IN ('mpesa_prompt', 'mpesa_code', 'cash')),
+  payment_reference TEXT,
+  paid_at           TEXT,
+  vehicle_id        INTEGER REFERENCES vehicles(id),
+  load_id           INTEGER REFERENCES loads(id),
+  created_by        INTEGER NOT NULL REFERENCES users(id),
+  collected_by      INTEGER REFERENCES users(id),
+  cancel_reason     TEXT,
+  created_at        TEXT NOT NULL DEFAULT (${NOW}),
+  loaded_at         TEXT,
+  arrived_at        TEXT,
+  collected_at      TEXT,
+  cancelled_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_parcels_status_route ON parcels(status, route_id);
+CREATE INDEX IF NOT EXISTS idx_parcels_vehicle ON parcels(vehicle_id, status);
+
+CREATE TABLE IF NOT EXISTS parcel_payments (
+  id                  INTEGER PRIMARY KEY,
+  parcel_id           INTEGER NOT NULL REFERENCES parcels(id),
+  phone               TEXT NOT NULL,
+  amount              INTEGER NOT NULL CHECK (amount > 0),
+  status              TEXT NOT NULL CHECK (status IN ('initiating', 'pending', 'completed', 'failed')),
+  checkout_request_id TEXT UNIQUE,
+  merchant_request_id TEXT,
+  mpesa_receipt       TEXT UNIQUE,
+  result_desc         TEXT,
+  last_queried_at     TEXT,
+  created_at          TEXT NOT NULL DEFAULT (${NOW}),
+  completed_at        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_parcel_payments_status ON parcel_payments(status);
+`);
+
+// Problem report conversations (the same as migrations/007_report_messages.sql for PostgreSQL).
+if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'report_messages'").get()) {
+  db.exec(`
+CREATE TABLE report_messages (
+  id          INTEGER PRIMARY KEY,
+  report_id   INTEGER NOT NULL REFERENCES reports(id),
+  sender_id   INTEGER REFERENCES users(id),
+  from_office INTEGER NOT NULL,
+  message     TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX idx_report_messages_report ON report_messages(report_id, id);
+INSERT INTO report_messages (report_id, sender_id, from_office, message, created_at)
+SELECT id, handled_by, 1, office_note, updated_at FROM reports WHERE office_note IS NOT NULL;
+`);
+}
+
+// When each side last looked at a report (the same as migrations/008_report_seen.sql for PostgreSQL).
+if (!hasColumn('reports', 'office_seen_at')) {
+  db.exec(`
+ALTER TABLE reports ADD COLUMN reporter_seen_at TEXT;
+ALTER TABLE reports ADD COLUMN office_seen_at TEXT;
+UPDATE reports SET reporter_seen_at = ${NOW}, office_seen_at = ${NOW};
+`);
+}
+
+// Photos on problem reports (the same as migrations/009_report_photos.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS report_photos (
+  id          INTEGER PRIMARY KEY,
+  report_id   INTEGER NOT NULL REFERENCES reports(id),
+  message_id  INTEGER REFERENCES report_messages(id),
+  mime_type   TEXT NOT NULL CHECK (mime_type IN ('image/jpeg', 'image/png', 'image/webp')),
+  data        BLOB NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_report_photos_report ON report_photos(report_id);
+`);
+
+/**
+ * Lets a column's CHECK (x IN (...)) list accept more values: SQLite can't change a CHECK, so the table is rebuilt
+ * from its own definition with the longer list (same columns, ids and data; its indexes and triggers made again).
+ */
+function widenCheck(table, oldList, newList) {
+  const quote = (list) => list.map((v) => `'${v}'`).join(', ');
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table).sql;
+  if (!sql.includes(`(${quote(oldList)})`)) return; // already widened (or a new database)
+  const extras = db.prepare("SELECT sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL").all(table);
+  db.exec('PRAGMA foreign_keys = OFF');
+  tx(() => {
+    db.exec(sql.replace(`(${quote(oldList)})`, `(${quote(newList)})`).replace(/^CREATE TABLE "?\w+"?/, `CREATE TABLE ${table}_new`));
+    db.exec(`INSERT INTO ${table}_new SELECT * FROM ${table}; DROP TABLE ${table}; ALTER TABLE ${table}_new RENAME TO ${table};`);
+    for (const e of extras) db.exec(e.sql);
+  });
+  db.exec('PRAGMA foreign_keys = ON');
+}
+
+// Seat booking from anywhere (the same as migrations/010_seat_queue.sql for PostgreSQL).
+widenCheck('users', ROLES.slice(0, 5), ROLES);
+widenCheck('wallet_transactions', WALLET_TYPE_LIST.slice(0, 6), WALLET_TYPE_LIST.slice(0, 8));
+widenCheck('mpesa_payments', MPESA_PURPOSES.slice(0, 2), MPESA_PURPOSES);
+db.exec(`
+CREATE TABLE IF NOT EXISTS seat_bookings (
+  id                 INTEGER PRIMARY KEY,
+  code               TEXT NOT NULL UNIQUE,
+  passenger_id       INTEGER NOT NULL REFERENCES users(id),
+  route_id           INTEGER NOT NULL REFERENCES routes(id),
+  pickup_stop_id     INTEGER REFERENCES route_stops(id),
+  stop_id            INTEGER NOT NULL REFERENCES route_stops(id),
+  seats              INTEGER NOT NULL CHECK (seats BETWEEN 1 AND 10),
+  fare_each          INTEGER NOT NULL CHECK (fare_each > 0),
+  amount             INTEGER NOT NULL CHECK (amount > 0),
+  pay_with           TEXT NOT NULL CHECK (pay_with IN ('mpesa', 'wallet')),
+  mpesa_payment_id   INTEGER REFERENCES mpesa_payments(id),
+  status             TEXT NOT NULL CHECK (status IN ('paying', 'queued', 'assigned', 'boarded', 'cancelled', 'failed')),
+  queued_at          TEXT,
+  load_id            INTEGER REFERENCES loads(id),
+  assigned_at        TEXT,
+  passenger_here_at  TEXT,
+  boarded_at         TEXT,
+  trip_id            INTEGER REFERENCES trips(id),
+  cancelled_at       TEXT,
+  cancel_reason      TEXT,
+  refund_to          TEXT CHECK (refund_to IN ('mpesa', 'wallet')),
+  refund_withdrawal_id INTEGER REFERENCES withdrawals(id),
+  idempotency_key    TEXT NOT NULL,
+  created_at         TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE (passenger_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_seat_bookings_queue ON seat_bookings(route_id, status, queued_at, id);
+CREATE INDEX IF NOT EXISTS idx_seat_bookings_load ON seat_bookings(load_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_seat_bookings_payment ON seat_bookings(mpesa_payment_id) WHERE mpesa_payment_id IS NOT NULL;
+`);
+
+// Free rides (the same as migrations/012_free_rides.sql for PostgreSQL).
+widenCheck('wallet_transactions', WALLET_TYPE_LIST.slice(0, 8), WALLET_TYPE_LIST);
+if (!hasColumn('trips', 'free_ride')) db.exec('ALTER TABLE trips ADD COLUMN free_ride INTEGER NOT NULL DEFAULT 0');
+if (!hasColumn('seat_bookings', 'free_ride')) db.exec('ALTER TABLE seat_bookings ADD COLUMN free_ride INTEGER NOT NULL DEFAULT 0');
+db.exec("CREATE INDEX IF NOT EXISTS idx_trips_passenger_paid ON trips(passenger_id, created_at) WHERE status = 'paid'");
+
+// Vehicle owners set up once (the same as migrations/013_owners.sql for PostgreSQL).
+if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'owners'").get()) {
+  db.exec(`
+CREATE TABLE owners (
+  id             INTEGER PRIMARY KEY,
+  name           TEXT NOT NULL,
+  phone          TEXT NOT NULL UNIQUE,
+  id_number      TEXT,
+  payout_method  TEXT NOT NULL DEFAULT 'mpesa' CHECK (payout_method IN ('mpesa', 'bank')),
+  bank_name      TEXT,
+  bank_paybill   TEXT,
+  bank_account   TEXT,
+  created_at     TEXT NOT NULL DEFAULT (${NOW})
+);
+`);
+  if (!hasColumn('vehicles', 'owner_id')) db.exec('ALTER TABLE vehicles ADD COLUMN owner_id INTEGER REFERENCES owners(id)');
+  if (!hasColumn('payouts', 'owner_id')) db.exec('ALTER TABLE payouts ADD COLUMN owner_id INTEGER REFERENCES owners(id)');
+  db.exec(`
+CREATE INDEX IF NOT EXISTS idx_vehicles_owner ON vehicles(owner_id);
+CREATE INDEX IF NOT EXISTS idx_trips_owner_unpaid ON trips(owner_phone) WHERE payout_id IS NULL;
+INSERT INTO owners (name, phone, payout_method, bank_name, bank_paybill, bank_account)
+SELECT v.owner_name, v.owner_phone, v.owner_payout_method, v.owner_bank_name, v.owner_bank_paybill, v.owner_bank_account
+FROM vehicles v WHERE v.id = (SELECT MAX(v2.id) FROM vehicles v2 WHERE v2.owner_phone = v.owner_phone);
+UPDATE vehicles SET owner_id = (SELECT o.id FROM owners o WHERE o.phone = vehicles.owner_phone);
+UPDATE payouts SET owner_id = (SELECT o.id FROM owners o WHERE o.phone = payouts.owner_phone);
+`);
+}
+
+// Car numbers and USSD payments (the same as migrations/014_car_numbers_ussd.sql for PostgreSQL).
+if (!hasColumn('vehicles', 'car_number')) {
+  db.exec(`
+ALTER TABLE vehicles ADD COLUMN car_number INTEGER;
+UPDATE vehicles SET car_number = 100 + (SELECT COUNT(*) FROM vehicles v2 WHERE v2.id <= vehicles.id);
+CREATE UNIQUE INDEX idx_vehicles_car_number ON vehicles(car_number);
+`);
+}
+if (!hasColumn('mpesa_payments', 'channel')) db.exec("ALTER TABLE mpesa_payments ADD COLUMN channel TEXT CHECK (channel IN ('ussd'))");
+
+// Sign-up codes by SMS (the same as migrations/015_signup_codes.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS signup_codes (
+  id         INTEGER PRIMARY KEY,
+  phone      TEXT NOT NULL,
+  code_hash  TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  attempts   INTEGER NOT NULL DEFAULT 0,
+  used_at    TEXT,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_signup_codes_phone ON signup_codes(phone, created_at);
+`);
+
+// Seats booked for later (the same as migrations/016_later_seat_bookings.sql for PostgreSQL).
+for (const column of ['ready_at', 'reminded_at', 'marshals_told_at']) {
+  if (!hasColumn('seat_bookings', column)) db.exec(`ALTER TABLE seat_bookings ADD COLUMN ${column} TEXT`);
+}
+
+// Retrying withdrawals that could not reach M-Pesa (the same as migrations/017_withdrawal_retries.sql for PostgreSQL).
+if (!hasColumn('withdrawals', 'send_attempts')) db.exec('ALTER TABLE withdrawals ADD COLUMN send_attempts INTEGER NOT NULL DEFAULT 0');
+if (!hasColumn('withdrawals', 'next_try_at')) db.exec('ALTER TABLE withdrawals ADD COLUMN next_try_at TEXT');
+
+// "The car is full" (the same as migrations/020_car_full.sql for PostgreSQL).
+if (!hasColumn('loads', 'full_at')) db.exec('ALTER TABLE loads ADD COLUMN full_at TEXT');
+
+// The driver releases the car's fares to the owner (the same as migrations/021_driver_releases_fares.sql for PostgreSQL).
+if (!hasColumn('trips', 'released_at')) {
+  db.exec('ALTER TABLE trips ADD COLUMN released_at TEXT');
+  db.exec('UPDATE trips SET released_at = created_at');
+}
+if (!hasColumn('trips', 'released_by')) db.exec('ALTER TABLE trips ADD COLUMN released_by INTEGER REFERENCES users(id)');
+
+// Cash the crew declare per car and day (the same as migrations/018_cash_declarations.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS cash_declarations (
+  id          INTEGER PRIMARY KEY,
+  vehicle_id  INTEGER NOT NULL REFERENCES vehicles(id),
+  day         TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  amount      INTEGER NOT NULL CHECK (amount >= 0),
+  declared_by INTEGER NOT NULL REFERENCES users(id),
+  created_at  TEXT NOT NULL DEFAULT (${NOW}),
+  updated_at  TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE (vehicle_id, day)
+);
+`);
+
+// Crew asking the office to refund a fare paid by mistake (the same as migrations/019_refund_requests.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS refund_requests (
+  id           INTEGER PRIMARY KEY,
+  trip_id      INTEGER NOT NULL REFERENCES trips(id),
+  requested_by INTEGER NOT NULL REFERENCES users(id),
+  reason       TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'refunded', 'declined')),
+  office_note  TEXT,
+  decided_by   INTEGER REFERENCES users(id),
+  decided_at   TEXT,
+  created_at   TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE UNIQUE INDEX IF NOT EXISTS refund_requests_one_waiting ON refund_requests (trip_id) WHERE status = 'waiting';
+CREATE INDEX IF NOT EXISTS refund_requests_status ON refund_requests (status, id);
+`);
+
+// Where each car is (the same as migrations/011_vehicle_locations.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS vehicle_locations (
+  vehicle_id  INTEGER PRIMARY KEY REFERENCES vehicles(id),
+  lat         REAL NOT NULL CHECK (lat BETWEEN -90 AND 90),
+  lng         REAL NOT NULL CHECK (lng BETWEEN -180 AND 180),
+  heading     REAL,
+  speed       REAL,
+  accuracy    REAL,
+  recorded_at TEXT NOT NULL DEFAULT (${NOW})
+);
+`);
+
+// Passengers rating their trips (the same as migrations/022_trip_ratings.sql for PostgreSQL).
+db.exec(`
+CREATE TABLE IF NOT EXISTS trip_ratings (
+  id           INTEGER PRIMARY KEY,
+  trip_id      INTEGER NOT NULL UNIQUE REFERENCES trips(id),
+  passenger_id INTEGER NOT NULL REFERENCES users(id),
+  vehicle_id   INTEGER NOT NULL REFERENCES vehicles(id),
+  driver_id    INTEGER REFERENCES users(id),
+  conductor_id INTEGER REFERENCES users(id),
+  stars        INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+  comment      TEXT,
+  created_at   TEXT NOT NULL DEFAULT (${NOW}),
+  updated_at   TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS trip_ratings_vehicle ON trip_ratings (vehicle_id, id);
+`);
 
 /**
  * Runs fn inside a write transaction. fn must be synchronous (no await inside),
