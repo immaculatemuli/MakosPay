@@ -65,6 +65,11 @@ test('routes: one fixed fare for the whole route, whichever stop the passenger g
   assert.equal(route.body.fare, 90);
   assert.deepEqual(route.body.stops.map((st) => [st.name, st.fare]), [['Ruiru', 90], ['Juja', 90], ['Thika', 90]]);
   s.route = route.body;
+
+  // Its way back is added too, so cars turn around at Thika: same fare, the stops in reverse, ending in Town.
+  const back = (await api('GET', '/admin/routes', { token: s.admin })).body.find((r) => r.name === 'Thika - Town');
+  assert.deepEqual([back.origin, back.fare, back.stops.map((st) => st.name)], ['Thika', 90, ['Juja', 'Ruiru', 'Town']]);
+  s.wayBack = back;
 });
 
 test('routes: change the fare, add a stop and remove one', async () => {
@@ -90,7 +95,12 @@ test('routes: change the fare, add a stop and remove one', async () => {
     body: { stops: [{ name: 'Ruiru' }, { name: 'ruiru' }] },
   });
   assert.equal(dupes.status, 400, 'two stops with the same name are refused');
-  assert.equal((await api('GET', '/admin/routes', { token: s.admin })).body.length, 1);
+  assert.deepEqual((await api('GET', '/admin/routes', { token: s.admin })).body.map((r) => r.name), ['Thika - Town', 'Thika Road'], 'editing did not add a second way back');
+
+  // A way back the office switches off stays off.
+  await api('PATCH', `/admin/routes/${s.wayBack.id}`, { token: s.admin, body: { is_active: false } });
+  await api('PATCH', `/admin/routes/${s.route.id}`, { token: s.admin, body: { name: 'Thika Road' } });
+  assert.deepEqual((await api('GET', '/admin/routes', { token: s.admin })).body.map((r) => [r.name, r.is_active]), [['Thika Road', 1], ['Thika - Town', 0]]);
 });
 
 test('conductors: the office creates the account and the conductor can sign in', async () => {

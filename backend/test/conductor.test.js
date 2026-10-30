@@ -101,7 +101,7 @@ test('a conductor not on any vehicle is told to ask the SACCO office', async () 
 
 test('changing route: passengers who scan afterwards see the new route', async () => {
   const routes = (await api('GET', '/conductor/routes', { token: s.conductor })).body;
-  assert.deepEqual(routes.map((r) => r.name), ['Route 46', 'Thika Road']);
+  assert.deepEqual(routes.map((r) => r.name), ['Kawangware - Town', 'Route 46', 'Thika - Town', 'Thika Road'], 'each route and its way back');
   const changed = await api('PUT', '/conductor/vehicle/route', { token: s.conductor, body: { route_id: s.other.id } });
   assert.equal(changed.body.route.name, 'Route 46');
   const scan = (await api('GET', `/passenger/scan?qr=${s.vehicle.qr_token}`, { token: s.passenger })).body;
