@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
@@ -10,7 +11,7 @@ process.env.SACCO_NAME = 'Super Thika SACCO';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -40,10 +41,10 @@ before(async () => {
   })).body;
   [s.ruiru, s.juja] = s.route.stops;
   s.vehicle = (await api('POST', '/admin/vehicles', { token: s.admin, body: { plate: 'KDA 123A', owner_name: 'Mary', owner_phone: '0744555666', route_id: s.route.id } })).body;
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat', phone: '0722333444', password: 'pass123' } })).body.token;
-  s.other = (await api('POST', '/auth/register', { body: { name: 'Other', phone: '0722333555', password: 'pass123' } })).body.token;
-  const pid = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
+  s.passenger = (await signUp(api, { name: 'Pat', phone: '0722333444', password: 'Apass123' })).body.token;
+  s.other = (await signUp(api, { name: 'Other', phone: '0722333555', password: 'Apass123' })).body.token;
+  const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  await tx(() => postWalletEntry(pid, { type: 'test_credit', amount: 1000 }));
 });
 after(() => server.close());
 
@@ -69,8 +70,8 @@ test('savings and trips come from verified payments; refunded fares do not count
 });
 
 test('older savings count since joining but not this month', async () => {
-  const pid = db.prepare("SELECT id FROM users WHERE phone = '254722333444'").get().id;
-  db.prepare("UPDATE trips SET created_at = '2020-01-15T08:00:00.000Z' WHERE id = (SELECT MIN(id) FROM trips WHERE passenger_id = ?)").run(pid);
+  const pid = (await db.get("SELECT id FROM users WHERE phone = '254722333444'")).id;
+  (await db.run("UPDATE trips SET created_at = '2020-01-15T08:00:00.000Z' WHERE id = (SELECT MIN(id) FROM trips WHERE passenger_id = ?)", pid));
   const h = await summary();
   assert.equal(h.this_month.saved, 20);
   assert.equal(h.since_joining.saved, 40);

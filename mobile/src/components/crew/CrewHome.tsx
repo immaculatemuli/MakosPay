@@ -3,13 +3,16 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hero } from '@/components/Hero';
-import { Badge, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Notice, Screen, SectionTitle } from '@/components/ui';
+import { Badge, Button, Chips, colors, Empty, ErrorBox, List, ListRow, Loading, Muted, Notice, Screen, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { kes, nairobiDate, prettyDate, time } from '@/lib/format';
-import { ROLE_LABEL, type ConductorDay, type ConductorVehicle } from '@/lib/types';
+import { useT } from '@/lib/i18n';
+import { ROLE_LABEL, type ConductorDay, type ConductorVehicle, type CrewLoad } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
-
-const REFRESH_EVERY_MS = 10_000;
+import { useKeepAwakeWhile } from '@/lib/keepAwake';
+import { CashCard } from './CashCard';
+import { OwnerMoneyCard } from './OwnerMoneyCard';
+import { usePaymentFeed } from './usePaymentFeed';
 
 const DAYS = [
   { value: 0, label: 'Today' },
@@ -24,29 +27,40 @@ const DAYS = [
  */
 export function CrewHome() {
   const { user } = useAuth();
+  const { t } = useT();
   const isConductor = user?.role === 'conductor';
-  const roleLabel = user ? ROLE_LABEL[user.role] : '';
+  const roleLabel = user ? t(ROLE_LABEL[user.role]) : '';
   const [day, setDay] = useState(0);
   const vehicle = useApi<ConductorVehicle>('/crew/vehicle');
   const date = nairobiDate(day);
   const payments = useApi<ConductorDay>(`/crew/payments?date=${date}`);
 
-  // New payments appear on their own: check every 10 seconds while this screen is open.
-  const reloadPayments = payments.reload;
+  // New payments appear within seconds, with a sound, a vibration and a big alert.
+  const feed = usePaymentFeed(payments.data, day === 0 && payments.data?.date === date, payments.reload);
+  // The feed only rings while the app is open: the screen stays on while today's payments are showing.
+  useKeepAwakeWhile(day === 0, 'crew-payments');
+  // What the car is doing now (loading at the stage, or on the road) leads the screen.
+  const load = useApi<CrewLoad>('/crew/loading');
+  const reloadLoad = load.reload;
   useFocusEffect(
     useCallback(() => {
-      const timer = setInterval(() => void reloadPayments(), REFRESH_EVERY_MS);
+      const timer = setInterval(() => void reloadLoad(), 15_000);
       return () => clearInterval(timer);
-    }, [reloadPayments]),
+    }, [reloadLoad]),
   );
 
   if (vehicle.loading && !vehicle.data) return <Loading />;
+
+  // Crew choose their car by scanning its sticker (they switch cars and cover for each other).
+  const scanCarHref = isConductor ? '/conductor/scan-car' : '/driver/scan-car';
+  const bookingsHref = isConductor ? '/conductor/bookings' : '/driver/bookings';
 
   if (!vehicle.data) {
     return (
       <Screen refreshing={vehicle.refreshing} onRefresh={vehicle.refresh}>
         <Hero name={user?.name} subtitle={roleLabel} />
-        <Notice>{vehicle.error ?? 'You are not on a vehicle yet.'}</Notice>
+        <Notice>{vehicle.error ?? t('You are not on a vehicle yet.')}</Notice>
+        <Button title={t('Scan the QR sticker in your car')} icon="qr-code-outline" onPress={() => router.push(scanCarHref)} />
       </Screen>
     );
   }
@@ -58,20 +72,69 @@ export function CrewHome() {
     payments.refresh();
   };
 
+  const trip = payments.data?.trip;
+  const latest = feed.fresh[0];
+
   return (
+    <View style={{ flex: 1 }}>
     <Screen refreshing={payments.refreshing || vehicle.refreshing} onRefresh={refresh}>
       <Hero name={user?.name} subtitle={`${roleLabel} · ${v.vehicle.plate}`}>
         <View style={styles.totals}>
           <View>
-            <Text style={styles.totalLabel}>{day === 0 ? 'Collected today' : `Collected ${prettyDate(date)}`}</Text>
+            <Text style={styles.totalLabel}>{day === 0 ? t('Collected today') : t('Collected {when}', { when: prettyDate(date) })}</Text>
             <Text style={styles.total}>{summary ? kes(summary.total) : '—'}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.totalLabel}>Payments</Text>
+            <Text style={styles.totalLabel}>{t('Payments')}</Text>
             <Text style={styles.total}>{summary?.payments ?? '—'}</Text>
           </View>
         </View>
       </Hero>
+
+      {day === 0 && load.data?.loading && (
+        <Pressable style={({ pressed }) => [styles.nowCard, pressed && { opacity: 0.8 }]} onPress={() => router.push(bookingsHref)}>
+          <Text style={styles.nowLabel}>{t('Loading at the stage')}</Text>
+          <Text style={styles.nowBig}>
+            {t('{booked} of {seats} seats taken', { booked: load.data.loading.seats_booked, seats: load.data.loading.seats })}
+          </Text>
+          <Text style={styles.nowLabel}>
+            {load.data.loading.full || !load.data.loading.seats_left ? t('Full') : t('{n} left', { n: load.data.loading.seats_left })} · {t('Tap for booked passengers')}
+          </Text>
+        </Pressable>
+      )}
+      {day === 0 && !load.data?.loading && load.data?.on_road && (
+        <Pressable style={({ pressed }) => [styles.nowCard, pressed && { opacity: 0.8 }]} onPress={() => router.push(bookingsHref)}>
+          <Text style={styles.nowLabel}>{t('On the road since {time}', { time: time(load.data.on_road.departed_at) })}</Text>
+          <Text style={styles.nowBig}>
+            {(() => {
+              const next = load.data.on_road.stops.find((st) => !st.reached_at);
+              return next ? t('Next stop: {stop}', { stop: next.name }) : t('All stops reached');
+            })()}
+          </Text>
+          <Text style={styles.nowLabel}>{t('Tap to tick stops and see pickups')}</Text>
+        </Pressable>
+      )}
+
+      {day === 0 && trip && (
+        <View style={styles.tripCard}>
+          <Text style={styles.tripLabel}>
+            {trip.finished_at
+              ? t('Last trip · finished {time}', { time: time(trip.finished_at) })
+              : t('This trip · since {time}', { time: time(trip.started_at) })}
+          </Text>
+          <Text style={styles.tripTotal}>
+            {t('{n} paid', { n: trip.payments })} · {kes(trip.total)}
+          </Text>
+          <Text style={styles.tripSub}>{trip.route_name}</Text>
+        </View>
+      )}
+
+      {/* Only the driver sends the owner's money; it refetches whenever a new payment changes today's total. */}
+      {!isConductor && day === 0 && <OwnerMoneyCard key={summary?.total ?? 0} />}
+
+      {day >= -1 && payments.data?.date === date && (
+        <CashCard day={date} isToday={day === 0} cash={payments.data.cash} farepayTotal={payments.data.summary.total} onSaved={() => void payments.reload()} />
+      )}
 
       <Pressable
         style={({ pressed }) => [styles.routeCard, pressed && isConductor && { opacity: 0.7 }]}
@@ -80,46 +143,105 @@ export function CrewHome() {
       >
         <Ionicons name="map-outline" size={22} color={colors.primary} />
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.routeName}>{v.route ? v.route.name : 'No route set'}</Text>
+          <Text style={styles.routeName}>{v.route ? v.route.name : t('No route set')}</Text>
           <Text style={styles.routeSub}>
             {!isConductor
               ? v.route
-                ? `From ${v.route.origin} · the conductor changes the route`
-                : 'Ask the conductor or SACCO office to set the route'
+                ? `${t('From {place}', { place: v.route.origin })} · ${t('the conductor changes the route')}`
+                : t('Ask the conductor or SACCO office to set the route')
               : v.route
-                ? `From ${v.route.origin} · tap to change route`
-                : 'Tap to choose the route you are on'}
+                ? `${t('From {place}', { place: v.route.origin })} · ${t('tap to change route')}`
+                : t('Tap to choose the route you are on')}
           </Text>
         </View>
         {isConductor && <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />}
       </Pressable>
-      {!v.route && <Notice>Passengers can't pay until the vehicle has a route.</Notice>}
+      {!v.route && <Notice>{t('Passengers can’t pay until the vehicle has a route.')}</Notice>}
+      <List>
+        <ListRow
+          icon={feed.speak ? 'volume-high-outline' : 'volume-mute-outline'}
+          title={feed.speak ? t('Payments are read aloud') : t('Payments are not read aloud')}
+          subtitle={feed.speak ? t('Tap to turn off') : t('Tap to turn on: useful when driving alone')}
+          onPress={feed.toggleSpeak}
+        />
+        <ListRow icon="swap-horizontal-outline" title={t('Working on another car today?')} subtitle={t('Scan the QR sticker inside it')} onPress={() => router.push(scanCarHref)} />
+      </List>
 
-      <SectionTitle>Payments</SectionTitle>
-      <Chips options={DAYS} value={day} onChange={setDay} />
+      <SectionTitle>{t('Payments')}</SectionTitle>
+      <Chips options={DAYS.map((d) => ({ ...d, label: t(d.label) }))} value={day} onChange={setDay} />
       {payments.error && <ErrorBox message={payments.error} onRetry={payments.reload} />}
-      {payments.data?.payments.length === 0 && <Empty text={day === 0 ? 'No payments yet today.' : 'No payments that day.'} />}
+      {payments.data?.payments.length === 0 && <Empty text={day === 0 ? t('No payments yet today.') : t('No payments that day.')} />}
       {!!payments.data?.payments.length && (
         <List>
-          {payments.data.payments.map((p) => (
-            <ListRow
-              key={p.id}
-              icon="person-circle-outline"
-              title={p.passenger_name ?? 'Passenger'}
-              subtitle={`${time(p.created_at)} · to ${p.stop_name ?? p.route_name} · ${p.ticket_code}`}
-              right={kes(p.fare)}
-              rightSub={p.status === 'refunded' ? <Badge text="Refunded" tone="danger" /> : undefined}
-            />
-          ))}
+          {payments.data.payments.map((p) => {
+            const ask = p.refund_request;
+            // "Paid by mistake": tap a payment to ask the office for a refund (not while one is waiting).
+            const canAsk = p.status === 'paid' && ask?.status !== 'waiting';
+            return (
+              <ListRow
+                key={p.id}
+                icon="person-circle-outline"
+                title={p.passenger_name ?? t('Passenger')}
+                subtitle={[
+                  time(p.created_at),
+                  p.passenger_phone,
+                  t('to {place}', { place: p.stop_name ?? p.route_name }),
+                  p.ticket_code,
+                  ask?.status === 'declined' && ask.office_note ? t('Office: {note}', { note: ask.office_note }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                right={kes(p.fare)}
+                rightSub={
+                  p.status === 'refunded' ? (
+                    <Badge text={t('Refunded')} tone="danger" />
+                  ) : ask?.status === 'waiting' ? (
+                    <Badge text={t('Refund asked')} tone="warning" />
+                  ) : ask?.status === 'declined' ? (
+                    <Badge text={t('Refund refused')} tone="neutral" />
+                  ) : p.free_ride ? (
+                    // Loyalty: the passenger paid nothing; the SACCO pays the owner this fare.
+                    <Badge text={t('Free ride')} tone="success" />
+                  ) : undefined
+                }
+                onPress={
+                  canAsk
+                    ? () =>
+                        router.push({
+                          pathname: isConductor ? '/conductor/refund' : '/driver/refund',
+                          params: { id: p.id, ticket: p.ticket_code, fare: p.fare, who: p.passenger_name ?? '', at: p.created_at, stop: p.stop_name ?? '' },
+                        })
+                    : undefined
+                }
+              />
+            );
+          })}
         </List>
       )}
+      {!!payments.data?.payments.length && <Muted center>{t('Passenger paid by mistake? Tap the payment to ask the office for a refund.')}</Muted>}
     </Screen>
+      {latest && (
+        <Pressable style={styles.alert} onPress={feed.dismiss} accessibilityRole="alert">
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Ionicons name="checkmark-circle" size={40} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.alertAmount}>{t('{amount} paid', { amount: kes(latest.fare) })}</Text>
+              <Text style={styles.alertLine}>
+                {[latest.passenger_phone, t('to {place}', { place: latest.stop_name ?? latest.route_name })].filter(Boolean).join(' · ')}
+              </Text>
+              {latest.passenger_name && <Text style={styles.alertLine}>{latest.passenger_name}</Text>}
+              {feed.fresh.length > 1 && <Text style={styles.alertMore}>{t('+{n} more just paid', { n: feed.fresh.length - 1 })}</Text>}
+            </View>
+          </View>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   totals: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
-  totalLabel: { color: '#D1FAE5', fontSize: 13 },
+  totalLabel: { color: colors.primarySoft, fontSize: 13 },
   total: { color: '#fff', fontSize: 30, fontWeight: '800' },
   routeCard: {
     flexDirection: 'row',
@@ -131,6 +253,37 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  nowCard: { backgroundColor: colors.primary, borderRadius: 14, padding: 16, marginBottom: 10 },
+  nowLabel: { color: '#fff', fontSize: 13, fontWeight: '600', opacity: 0.9 },
+  nowBig: { color: '#fff', fontSize: 24, fontWeight: '800', marginVertical: 2 },
+  tripCard: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  tripLabel: { fontSize: 13, color: colors.muted, fontWeight: '600' },
+  tripTotal: { fontSize: 26, fontWeight: '800', color: colors.text, marginTop: 2 },
+  tripSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  alert: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    backgroundColor: '#15803D',
+    borderRadius: 16,
+    padding: 16,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  alertAmount: { color: '#fff', fontSize: 28, fontWeight: '800' },
+  alertLine: { color: '#fff', fontSize: 17, fontWeight: '600', marginTop: 2 },
+  alertMore: { color: '#DCFCE7', fontSize: 14, marginTop: 4 },
   routeName: { fontSize: 17, fontWeight: '700', color: colors.text },
   routeSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
 });

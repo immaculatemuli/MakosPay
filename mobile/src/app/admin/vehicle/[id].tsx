@@ -73,7 +73,11 @@ export default function VehicleDetails() {
         <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text }}>{v.plate}</Text>
         {!v.is_active && <Badge text="Not in use" tone="danger" />}
         {v.description && <Muted>{v.description}</Muted>}
+        {v.car_number !== null && <KeyValue label="Car number (USSD)" value={String(v.car_number)} />}
         <KeyValue label="Owner" value={v.owner_name} />
+        {!!v.owner_id && (
+          <Button title={`All of ${v.owner_name}’s cars`} variant="secondary" icon="people-outline" onPress={() => router.push(`/admin/owner/${v.owner_id}`)} />
+        )}
         <KeyValue label="Owner's phone" value={displayPhone(v.owner_phone)} />
         <KeyValue
           label="Owner is paid to"

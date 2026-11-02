@@ -2,8 +2,8 @@
 # ever stops. Copy to /etc/systemd/system/farepay.service (see deploy/README.md).
 [Unit]
 Description=FarePay API
-After=network-online.target
-Wants=network-online.target
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
 
 [Service]
 User=farepay

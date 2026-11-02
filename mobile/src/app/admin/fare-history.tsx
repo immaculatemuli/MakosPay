@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Text } from 'react-native';
 import { Badge, Button, Card, Chips, colors, Empty, ErrorBox, Field, Loading, Muted, Screen, SectionTitle } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { dateTime, kes, nairobiDate, prettyDate } from '@/lib/format';
@@ -15,31 +15,27 @@ const WHEN = [
 
 const digits = (t: string) => t.replace(/\D/g, '');
 
-/** A route's fare history, and setting a new fare for a stop from a chosen day (?route_id=). */
+/** A route's fare history, and setting the route's new fare from a chosen day (?route_id=). */
 export default function FareHistory() {
   const { route_id } = useLocalSearchParams<{ route_id: string }>();
   const route = useApi<Route>(`/admin/routes/${route_id}`);
   const history = useApi<FareChange[]>(`/admin/routes/${route_id}/fare-changes`);
-  const [stopId, setStopId] = useState<number | null>(null);
-  const [cash, setCash] = useState('');
-  const [app, setApp] = useState('');
+  const [fareText, setFareText] = useState('');
   const [days, setDays] = useState(1);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if ((route.loading && !route.data) || (history.loading && !history.data)) return <Loading />;
-  const stops = route.data?.stops ?? [];
-  const stop = stops.find((s) => s.id === stopId);
-  const cashFare = Number(cash);
-  const appFare = Number(app);
-  const valid = stop && cashFare > 0 && appFare > 0 && appFare <= cashFare;
+  const current = route.data?.fare ?? null;
+  const fare = Number(fareText);
+  const valid = current !== null && fare > 0;
   const date = nairobiDate(days);
 
   const save = () =>
     Alert.alert(
-      `New fare for ${stop?.name}`,
-      `Cash ${kes(cashFare)}, Member Fare ${kes(appFare)}, ${days === 0 ? 'starting now' : `from ${prettyDate(date)}`}. Payments already made keep their fares.`,
+      `New fare for ${route.data?.name}`,
+      `Fare ${kes(fare)}, ${days === 0 ? 'starting now' : `from ${prettyDate(date)}`}. Payments already made keep their fares.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -48,12 +44,11 @@ export default function FareHistory() {
             setBusy(true);
             setError(null);
             try {
-              await api(`/admin/stops/${stopId}/fare-change`, {
+              await api(`/admin/routes/${route_id}/fare-change`, {
                 method: 'POST',
-                body: { cash_fare: cashFare, app_fare: appFare, effective_date: date, ...(reason.trim() && { reason: reason.trim() }) },
+                body: { fare, effective_date: date, ...(reason.trim() && { reason: reason.trim() }) },
               });
-              setCash('');
-              setApp('');
+              setFareText('');
               setReason('');
               await Promise.all([route.reload(), history.reload()]);
             } catch (err) {
@@ -67,7 +62,7 @@ export default function FareHistory() {
     );
 
   const cancel = (c: FareChange) =>
-    Alert.alert('Cancel this fare change?', `${c.stop_name}: ${kes(c.new_app_fare)} from ${dateTime(c.effective_from)}`, [
+    Alert.alert('Cancel this fare change?', `${kes(c.new_app_fare)} from ${dateTime(c.effective_from)}`, [
       { text: 'Keep it', style: 'cancel' },
       {
         text: 'Cancel change',
@@ -87,33 +82,13 @@ export default function FareHistory() {
     <Screen refreshing={history.refreshing} onRefresh={() => void Promise.all([route.reload(), history.reload()])}>
       {(route.error || history.error) && <ErrorBox message={(route.error ?? history.error)!} />}
       <SectionTitle>Set a new fare</SectionTitle>
-      <Chips
-        label="Drop-off"
-        options={stops.map((s) => ({ value: s.id as number | null, label: `${s.name} (${kes(s.app_fare)})` }))}
-        value={stopId}
-        onChange={(v) => {
-          setStopId(v);
-          const s = stops.find((x) => x.id === v);
-          if (s) {
-            setCash(String(s.cash_fare));
-            setApp(String(s.app_fare));
-          }
-        }}
-      />
-      {stop && (
+      {current !== null && (
         <>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Cash fare" keyboardType="number-pad" value={cash} onChangeText={(t) => setCash(digits(t))} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Member Fare" keyboardType="number-pad" value={app} onChangeText={(t) => setApp(digits(t))} />
-            </View>
-          </View>
+          <Muted>Now {kes(current)} to every stop. The new fare is for the whole route too.</Muted>
+          <Field label="New fare" keyboardType="number-pad" value={fareText} onChangeText={(t) => setFareText(digits(t))} />
           <Chips label="Starts" options={WHEN} value={days} onChange={setDays} />
           <Muted>{days === 0 ? 'Starts straight away.' : `Starts at midnight on ${prettyDate(date)}. Passengers can see it coming.`}</Muted>
           <Field label="Reason (optional)" placeholder="e.g. Fuel price rise" value={reason} onChangeText={setReason} />
-          {appFare > cashFare && <ErrorBox message="Member Fare cannot be more than the cash fare." />}
           {error && <ErrorBox message={error} />}
           <Button title="Set new fare" icon="pricetag-outline" onPress={save} loading={busy} disabled={!valid} />
         </>
@@ -125,7 +100,6 @@ export default function FareHistory() {
         const waiting = !c.applied_at && !c.cancelled_at;
         return (
           <Card key={c.id}>
-            <Text style={{ fontWeight: '700', color: colors.text }}>{c.stop_name}</Text>
             {c.cancelled_at ? (
               <Badge text="Cancelled" tone="neutral" />
             ) : waiting ? (
@@ -134,7 +108,7 @@ export default function FareHistory() {
               <Badge text={`In effect since ${dateTime(c.applied_at!)}`} tone="success" />
             )}
             <Text style={{ color: colors.text, marginTop: 6 }}>
-              Cash {kes(c.old_cash_fare)} → {kes(c.new_cash_fare)} · Member {kes(c.old_app_fare)} → {kes(c.new_app_fare)}
+              Fare {kes(c.old_app_fare)} → {kes(c.new_app_fare)}
             </Text>
             <Muted>
               By {c.changed_by_name ?? '—'}

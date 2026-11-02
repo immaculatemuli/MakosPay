@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Alert, Text, TextInput, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
+import { Conversation } from '@/components/reports/Conversation';
 import { Badge, Button, Card, Chips, colors, Empty, ErrorBox, Loading, Muted, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { dateTime, displayPhone, kes } from '@/lib/format';
@@ -13,19 +14,16 @@ const FILTERS = [
   { value: 'resolved' as const, label: 'Resolved' },
 ];
 
-/** Problem reports from passengers: reply and mark them in progress or resolved. */
+/** Problem reports from passengers and crew: write back and forth with them, mark them in progress or resolved. */
 export default function OfficeReports() {
   const [filter, setFilter] = useState<'open' | 'in_progress' | 'resolved'>('open');
   const reports = useApi<ProblemReport[]>(`/admin/reports?status=${filter}`);
-  const [notes, setNotes] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState<number | null>(null);
 
   const update = async (r: ProblemReport, status: ProblemReport['status']) => {
     setBusy(r.id);
     try {
-      const note = notes[r.id]?.trim();
-      await api(`/admin/reports/${r.id}`, { method: 'PATCH', body: { status, ...(note && { office_note: note }) } });
-      setNotes((n) => ({ ...n, [r.id]: '' }));
+      await api(`/admin/reports/${r.id}`, { method: 'PATCH', body: { status } });
       await reports.reload();
     } catch (err) {
       Alert.alert('Could not update', errorMessage(err));
@@ -43,7 +41,10 @@ export default function OfficeReports() {
       {reports.data?.map((r) => (
         <Card key={r.id}>
           <Text style={{ fontWeight: '700', fontSize: 16, color: colors.text }}>{REPORT_CATEGORY_LABEL[r.category]}</Text>
-          <Badge text={REPORT_STATUS_BADGE[r.status].text} tone={REPORT_STATUS_BADGE[r.status].tone} />
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <Badge text={REPORT_STATUS_BADGE[r.status].text} tone={REPORT_STATUS_BADGE[r.status].tone} />
+            {!!r.has_new && <Badge text={r.messages.length ? 'New reply' : 'New'} tone="danger" />}
+          </View>
           <Muted>
             {r.reporter_name}
             {r.reporter_role ? ` (${ROLE_LABEL[r.reporter_role]})` : ''} · {displayPhone(r.reporter_phone ?? null)} · {dateTime(r.created_at)}
@@ -55,23 +56,18 @@ export default function OfficeReports() {
               {r.fare != null ? `, ${kes(r.fare)}` : ''}
             </Muted>
           )}
-          <Text style={{ color: colors.text, marginVertical: 8 }}>{r.message}</Text>
-          {r.office_note && (
-            <Text style={{ color: colors.primaryDark, marginBottom: 8 }}>
-              <Text style={{ fontWeight: '700' }}>Reply{r.handled_by_name ? ` (${r.handled_by_name})` : ''}: </Text>
-              {r.office_note}
-            </Text>
-          )}
+          <Conversation
+            report={r}
+            side="office"
+            photosAt="/admin/reports"
+            placeholder={`Write to ${r.reporter_name}`}
+            onSend={async (message) => {
+              await api(`/admin/reports/${r.id}/messages`, { method: 'POST', body: { message } });
+              await reports.reload();
+            }}
+          />
           {r.status !== 'resolved' && (
             <View>
-              <TextInput
-                placeholder="Reply to the passenger (optional)"
-                placeholderTextColor="#9CA3AF"
-                value={notes[r.id] ?? ''}
-                onChangeText={(t) => setNotes((n) => ({ ...n, [r.id]: t }))}
-                multiline
-                style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, minHeight: 60, color: colors.text, marginBottom: 10, textAlignVertical: 'top' }}
-              />
               {r.status === 'open' && (
                 <Button title="Mark as being looked at" variant="secondary" onPress={() => update(r, 'in_progress')} loading={busy === r.id} />
               )}

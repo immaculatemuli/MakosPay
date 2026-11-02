@@ -5,6 +5,7 @@ import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { displayPhone, kes } from '@/lib/format';
 import type { Staff } from '@/lib/types';
+import { passwordHint, passwordOk } from '@/lib/password';
 import { useApi } from '@/lib/useApi';
 
 interface SystemStatus {
@@ -113,9 +114,9 @@ export default function Platform() {
       <SectionTitle>Add a platform admin</SectionTitle>
       <Field label="Full name" value={name} onChangeText={setName} />
       <Field label="Phone number" placeholder="07XX XXX XXX" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-      <Field label="Password" secureTextEntry value={password} onChangeText={setPassword} hint="At least 6 characters" />
+      <Field label="Password" secureTextEntry value={password} onChangeText={setPassword} hint={passwordHint(password)} />
       {error && <ErrorBox message={error} />}
-      <Button title="Add platform admin" icon="person-add-outline" onPress={add} loading={busy} disabled={name.trim().length < 2 || !phone.trim() || password.length < 6} />
+      <Button title="Add platform admin" icon="person-add-outline" onPress={add} loading={busy} disabled={name.trim().length < 2 || !phone.trim() || !passwordOk(password)} />
     </Screen>
   );
 }

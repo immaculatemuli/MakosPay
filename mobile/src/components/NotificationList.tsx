@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { dateTime } from '@/lib/format';
 import { setUnread, targetHref } from '@/lib/notifications';
 import type { AppNotification } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 import { usePaged } from '@/lib/usePaged';
 import { colors, Empty, ErrorBox, Loading } from './ui';
 
@@ -26,6 +27,7 @@ function iconFor(kind: string): IconName {
 /** Everyone's notifications, newest first. Opening the list marks them read; new ones keep a dot until then. */
 export function NotificationList() {
   const { user } = useAuth();
+  const { t } = useT();
   const list = usePaged<AppNotification>('/notifications');
   const marked = useRef<number | null>(null);
 
@@ -51,7 +53,7 @@ export function NotificationList() {
       onRefresh={list.refresh}
       onEndReached={list.loadMore}
       ListHeaderComponent={list.error ? <ErrorBox message={list.error} onRetry={list.reload} /> : null}
-      ListEmptyComponent={<Empty text="No notifications yet. Top-ups, refunds, fare changes and replies will show here." />}
+      ListEmptyComponent={<Empty text={t('No notifications yet. Top-ups, refunds, fare changes and replies will show here.')} />}
       renderItem={({ item }) => {
         const href = user ? targetHref(user.role, item.target) : null;
         return (
@@ -68,7 +70,7 @@ export function NotificationList() {
               {item.body && <Text style={styles.body}>{item.body}</Text>}
               <Text style={styles.time}>{dateTime(item.created_at)}</Text>
             </View>
-            {!item.read_at && <View style={styles.dot} accessibilityLabel="Unread" />}
+            {!item.read_at && <View style={styles.dot} accessibilityLabel={t('Unread')} />}
           </Pressable>
         );
       }}

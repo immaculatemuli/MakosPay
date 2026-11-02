@@ -1,12 +1,15 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
+import { RateTrip } from '@/components/RateTrip';
 import { Button, Card, colors, KeyValue, Screen } from '@/components/ui';
 import { dateTime, kes } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import type { TicketParams } from '@/lib/ticket';
 
 /** The ticket the passenger shows to the conductor. */
 export default function Ticket() {
+  const { t } = useT();
   const p = useLocalSearchParams<TicketParams>();
   const refunded = p.refunded === '1';
   const done = () => (router.canGoBack() ? router.back() : router.replace('/passenger'));
@@ -16,10 +19,10 @@ export default function Ticket() {
       <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
         <Ionicons name={refunded ? 'return-down-back' : 'checkmark-circle'} size={64} color={refunded ? colors.danger : colors.primary} />
         <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 8 }}>
-          {refunded ? 'Refunded to your wallet' : 'Paid'}
+          {refunded ? t('Refunded to your wallet') : p.free === '1' ? t('Free ride') : t('Paid')}
         </Text>
         {refunded && !!p.reason && <Text style={{ color: colors.muted, marginTop: 4 }}>{p.reason}</Text>}
-        <Text style={{ color: colors.muted, marginTop: 16 }}>Ticket code</Text>
+        <Text style={{ color: colors.muted, marginTop: 16 }}>{t('Ticket code')}</Text>
         <Text
           selectable
           style={{
@@ -32,23 +35,23 @@ export default function Ticket() {
         >
           {p.code}
         </Text>
-        {!refunded && <Text style={{ color: colors.muted, marginTop: 4 }}>Show this code to the conductor</Text>}
+        {!refunded && <Text style={{ color: colors.muted, marginTop: 4 }}>{t('Show this code to the conductor')}</Text>}
       </Card>
 
       <Card>
-        <KeyValue label="Vehicle" value={p.plate} />
-        <KeyValue label="Route" value={p.route} />
-        {!!p.stop && <KeyValue label="Getting off at" value={p.stop} />}
-        <KeyValue label="Fare" value={kes(Number(p.fare))} />
-        {Number(p.saved) > 0 && <KeyValue label="You saved" value={`${kes(Number(p.saved))} vs cash`} />}
-        <KeyValue label="Time" value={p.at ? dateTime(p.at) : ''} />
-        {p.balance !== undefined && <KeyValue label="Wallet balance" value={kes(Number(p.balance))} />}
+        <KeyValue label={t('Vehicle')} value={p.plate} />
+        <KeyValue label={t('Route')} value={p.route} />
+        {!!p.stop && <KeyValue label={t('Getting off at')} value={p.stop} />}
+        <KeyValue label={t('Fare')} value={p.free === '1' ? t('{amount} · free, paid by the SACCO', { amount: kes(Number(p.fare)) }) : kes(Number(p.fare))} />
+        <KeyValue label={t('Time')} value={p.at ? dateTime(p.at) : ''} />
+        {p.balance !== undefined && <KeyValue label={t('Wallet balance')} value={kes(Number(p.balance))} />}
       </Card>
+      {!!p.id && !refunded && <RateTrip tripId={Number(p.id)} rated={p.rating ? Number(p.rating) : null} />}
       <View style={{ height: 8 }} />
-      <Button title="Done" onPress={done} />
+      <Button title={t('Done')} onPress={done} />
       {!!p.id && (
         <Button
-          title="Report a problem with this payment"
+          title={t('Report a problem with this payment')}
           variant="secondary"
           icon="chatbox-ellipses-outline"
           onPress={() => router.push({ pathname: '/passenger/report', params: { trip_id: p.id, ticket: p.code, plate: p.plate } })}

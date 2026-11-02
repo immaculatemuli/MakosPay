@@ -64,6 +64,11 @@ export const signUpByIp = limiter({ windowMs: 60 * 60_000, max: 20, message: (m)
 // M-Pesa PIN prompts (top-ups and fares): each one rings a phone, so they are limited per passenger.
 export const pinPromptsByUser = limiter({ windowMs: 10 * 60_000, max: 10, message: (m) => `Too many M-Pesa requests. Try again in ${minutes(m)}.` });
 
+// The pay page for passengers without the app: anyone can open it, so prompts are limited per phone number
+// rung and per network address asking.
+export const noAppPromptsByPhone = limiter({ windowMs: 10 * 60_000, max: 5, message: (m) => `Too many M-Pesa requests for this number. Try again in ${minutes(m)}.` });
+export const noAppPromptsByIp = limiter({ windowMs: 10 * 60_000, max: 20, message: (m) => `Too many M-Pesa requests. Try again in ${minutes(m)}.` });
+
 // Asking for the current password (change password, delete account).
 export const passwordChecksByUser = limiter({ windowMs: 60 * 60_000, max: 10, message: (m) => `Too many tries. Try again in ${minutes(m)}.` });
 
