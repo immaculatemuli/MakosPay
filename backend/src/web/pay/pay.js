@@ -136,7 +136,7 @@ function follow(token, state) {
   const render = (s) => {
     if (s.status === 'paid') return showTicket(s.ticket);
     if (s.status === 'paid_late') {
-      $('failed-text').textContent = `M-Pesa confirmed your ${kes(s.amount)} too late for a ticket, so it is kept for you as FarePay credit. Sign up in the FarePay app with this number to use it or take it back to M-Pesa, or ask the SACCO office.`;
+      $('failed-text').textContent = `M-Pesa confirmed your ${kes(s.amount)} too late for a ticket, so it is being sent back to your M-Pesa. Scan the sticker again to pay.`;
       return show('failed');
     }
     if (s.status === 'failed') {

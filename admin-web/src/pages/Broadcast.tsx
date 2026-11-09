@@ -11,13 +11,12 @@ const WHO: { value: Audience; label: string }[] = [
   { value: 'marshals', label: 'Stage marshals' },
 ];
 
-/** One message to many crew at once: under their bell and as a push notification, optionally also by SMS. */
+/** One message to many crew at once: under their bell and as a push notification. */
 export function Broadcast() {
   const routes = useApi<Route[]>('/admin/routes');
   const [audience, setAudience] = useState<Audience>('drivers');
   const [routeId, setRouteId] = useState('');
   const [message, setMessage] = useState('');
-  const [sms, setSms] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
@@ -31,9 +30,9 @@ export function Broadcast() {
     try {
       const r = await api<{ sent_to: number; by_sms: boolean }>('/admin/broadcast', {
         method: 'POST',
-        body: { audience, route_id: onRoute ? Number(routeId) : null, message: message.trim(), sms },
+        body: { audience, route_id: onRoute ? Number(routeId) : null, message: message.trim() },
       });
-      setSent(`Sent to ${r.sent_to} ${r.sent_to === 1 ? 'person' : 'people'}${r.by_sms ? ', also by SMS' : ''}.`);
+      setSent(`Sent to ${r.sent_to} ${r.sent_to === 1 ? 'person' : 'people'}.`);
       setMessage('');
     } catch (err) {
       setError(errorText(err));
@@ -72,10 +71,6 @@ export function Broadcast() {
         <label>
           Message ({message.trim().length}/300)
           <textarea rows={4} maxLength={300} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="e.g. Thika Road closed at Juja, use the bypass." />
-        </label>
-        <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8, display: 'flex' }}>
-          <input type="checkbox" checked={sms} onChange={(e) => setSms(e.target.checked)} />
-          Also send by SMS (costs one text each)
         </label>
         {error && <Banner tone="danger">{error}</Banner>}
         {sent && <Banner tone="success">{sent}</Banner>}

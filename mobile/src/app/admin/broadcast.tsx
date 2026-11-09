@@ -1,19 +1,17 @@
 import { useState } from 'react';
-import { Switch, Text, View } from 'react-native';
-import { Button, Chips, colors, ErrorBox, Field, Muted, Notice, Screen } from '@/components/ui';
+import { Button, Chips, ErrorBox, Field, Muted, Notice, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import type { Route } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
 type Audience = 'drivers' | 'crew' | 'marshals';
 
-/** One message to many crew at once (e.g. a road closure): under their bell and as a notification, optionally by SMS. */
+/** One message to many crew at once (e.g. a road closure): under their bell and as a notification. */
 export default function Broadcast() {
   const routes = useApi<Route[]>('/admin/routes');
   const [audience, setAudience] = useState<Audience>('drivers');
   const [routeId, setRouteId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
-  const [sms, setSms] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
@@ -27,9 +25,9 @@ export default function Broadcast() {
     try {
       const r = await api<{ sent_to: number; by_sms: boolean }>('/admin/broadcast', {
         method: 'POST',
-        body: { audience, route_id: onRoute ? routeId : null, message: message.trim(), sms },
+        body: { audience, route_id: onRoute ? routeId : null, message: message.trim() },
       });
-      setSent(`Sent to ${r.sent_to} ${r.sent_to === 1 ? 'person' : 'people'}${r.by_sms ? ', also by SMS' : ''}.`);
+      setSent(`Sent to ${r.sent_to} ${r.sent_to === 1 ? 'person' : 'people'}.`);
       setMessage('');
     } catch (err) {
       setError(errorMessage(err));
@@ -67,10 +65,6 @@ export default function Broadcast() {
         maxLength={300}
         style={{ minHeight: 100, textAlignVertical: 'top' }}
       />
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <Text style={{ color: colors.text, fontSize: 15, flex: 1 }}>Also send by SMS (costs one text each)</Text>
-        <Switch value={sms} onValueChange={setSms} trackColor={{ true: colors.primary }} />
-      </View>
       {error && <ErrorBox message={error} />}
       {sent && <Notice tone="success">{sent}</Notice>}
       <Button

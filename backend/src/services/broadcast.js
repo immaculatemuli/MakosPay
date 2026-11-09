@@ -1,9 +1,8 @@
 // The office sends one message to many crew at once: all drivers (and conductors) on a route, or everyone, or the
-// stage marshals. It arrives under their bell and as a push notification; optionally also by SMS.
+// stage marshals. It arrives under their bell and as a push notification.
 import { db } from '../database.js';
 import { HttpError } from '../errors.js';
 import { notify } from './notifications.js';
-import { queueSms } from './sms.js';
 
 export const AUDIENCES = ['drivers', 'crew', 'marshals'];
 
@@ -19,7 +18,7 @@ export function recipients(audience, routeId = null) {
   );
 }
 
-export async function sendBroadcast({ audience, routeId = null, message, sms = false }, sender) {
+export async function sendBroadcast({ audience, routeId = null, message }, sender) {
   const people = await recipients(audience, routeId);
   if (people.length === 0) throw new HttpError(409, 'NOBODY', 'Nobody to send this to: no active crew on that route.');
   const route = routeId ? await db.get('SELECT name FROM routes WHERE id = ?', routeId) : null;
@@ -27,6 +26,5 @@ export async function sendBroadcast({ audience, routeId = null, message, sms = f
     people.map((p) => p.id),
     { kind: 'broadcast', title: `Message from the SACCO office${route ? ` (${route.name})` : ''}`, body: message, target: null },
   );
-  if (sms) for (const p of people) await queueSms(p.phone, 'broadcast', `${message} — ${sender.name}, SACCO office`);
-  return { sent_to: people.length, by_sms: sms };
+  return { sent_to: people.length };
 }

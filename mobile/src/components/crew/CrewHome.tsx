@@ -66,6 +66,8 @@ export function CrewHome() {
   }
 
   const v = vehicle.data;
+  // The conductor changes the route; on a car with no conductor, the driver.
+  const canChangeRoute = isConductor || v?.has_conductor === false;
   const summary = payments.data?.summary;
   const refresh = () => {
     vehicle.refresh();
@@ -137,15 +139,15 @@ export function CrewHome() {
       )}
 
       <Pressable
-        style={({ pressed }) => [styles.routeCard, pressed && isConductor && { opacity: 0.7 }]}
-        onPress={isConductor ? () => router.push('/conductor/change-route') : undefined}
-        disabled={!isConductor}
+        style={({ pressed }) => [styles.routeCard, pressed && canChangeRoute && { opacity: 0.7 }]}
+        onPress={canChangeRoute ? () => router.push(isConductor ? '/conductor/change-route' : '/driver/change-route') : undefined}
+        disabled={!canChangeRoute}
       >
         <Ionicons name="map-outline" size={22} color={colors.primary} />
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.routeName}>{v.route ? v.route.name : t('No route set')}</Text>
           <Text style={styles.routeSub}>
-            {!isConductor
+            {!canChangeRoute
               ? v.route
                 ? `${t('From {place}', { place: v.route.origin })} · ${t('the conductor changes the route')}`
                 : t('Ask the conductor or SACCO office to set the route')
@@ -154,7 +156,7 @@ export function CrewHome() {
                 : t('Tap to choose the route you are on')}
           </Text>
         </View>
-        {isConductor && <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />}
+        {canChangeRoute && <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />}
       </Pressable>
       {!v.route && <Notice>{t('Passengers can’t pay until the vehicle has a route.')}</Notice>}
       <List>

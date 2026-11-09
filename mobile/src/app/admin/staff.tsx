@@ -17,6 +17,7 @@ export default function StaffList() {
     if (s.id === user?.id) return Alert.alert('This is you', 'You cannot switch off your own account.');
     Alert.alert(s.name, displayPhone(s.phone), [
       { text: 'Close', style: 'cancel' },
+      { text: 'Set new password', onPress: () => router.push({ pathname: '/admin/set-password', params: { id: s.id, name: s.name } }) },
       {
         text: s.is_active ? 'Switch off account' : 'Switch on account',
         style: s.is_active ? 'destructive' : 'default',

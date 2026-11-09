@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, errorText } from '../api';
 import { dateTime, kes, plural } from '../format';
 import type { OwnerOwed, Payout } from '../types';
 import { Badge, Banner, Dialog, Failed, Loading, PageHead, Stat } from '../ui';
 import { useApi } from '../useApi';
 import { PAYOUT_STATUS, payoutDestination, sendByHandSteps } from '../words';
 
-type Owed = { owners: OwnerOwed[]; automatic: boolean; daily_at: string; waiting_for_drivers: { cars: number; fares: number; total: number } | null };
+type CarWaiting = { vehicle_id: number; plate: string; driver_name: string | null; fares: number; total: number };
+type Owed = { owners: OwnerOwed[]; automatic: boolean; daily_at: string; waiting_for_drivers: { cars: number; fares: number; total: number } | null; cars_waiting: CarWaiting[] };
 type Pending = { kind: 'auto' | 'manual'; owner: OwnerOwed } | { kind: 'all' };
 
 /** What each owner is owed now, paying them (by M-Pesa, or the office sends it itself), and every payout made. */
@@ -16,9 +17,22 @@ export function Payouts() {
   const owed = useApi<Owed>('/admin/payouts/owed');
   const history = useApi<Payout[]>('/admin/payouts');
   const [pending, setPending] = useState<Pending | null>(null);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
   const o = owed.data;
   const total = o?.owners.reduce((sum, x) => sum + x.amount, 0) ?? 0;
   const reload = () => Promise.all([owed.reload(), history.reload()]);
+
+  // The driver is away or has forgotten: the office sends the car's fares on in their place.
+  const release = async (car: CarWaiting) => {
+    if (!window.confirm(`Send ${kes(car.total)} from ${car.plate} on for the driver? This is recorded in the audit log.`)) return;
+    setReleaseError(null);
+    try {
+      await api(`/admin/vehicles/${car.vehicle_id}/release-fares`, { method: 'POST' });
+      await reload();
+    } catch (err) {
+      setReleaseError(errorText(err));
+    }
+  };
 
   const act = async () => {
     if (!pending) return;
@@ -58,6 +72,26 @@ export function Payouts() {
             )}
           </div>
           {!o.automatic && <Banner>Send each payout's amount from the SACCO's M-Pesa, then open the payout and enter the M-Pesa code.</Banner>}
+
+          {o.cars_waiting.length > 0 && (
+            <>
+              <h2>Waiting for drivers</h2>
+              {releaseError && <Banner tone="danger">{releaseError}</Banner>}
+              {o.cars_waiting.map((car) => (
+                <div className="card" key={car.vehicle_id} style={{ marginBottom: 12, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ flex: 1, minWidth: 220 }}>
+                    <strong>{car.plate}</strong>
+                    <div className="muted">
+                      {car.driver_name ?? 'No driver on this car'} · {plural(car.fares, 'fare')} · {kes(car.total)}
+                    </div>
+                  </div>
+                  <button className="secondary" onClick={() => void release(car)}>
+                    Send on for the driver
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
 
           <h2>Owed now</h2>
           {o.owners.length === 0 && <p className="muted">Nothing owed: every fare has been paid to its owner.</p>}

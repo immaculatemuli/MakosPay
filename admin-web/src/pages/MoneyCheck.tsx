@@ -3,7 +3,7 @@ import type { Reconciliation } from '../types';
 import { Banner, Failed, Loading, PageHead, TestMoneyBanner } from '../ui';
 import { useApi } from '../useApi';
 
-/** Do wallets, M-Pesa, fares and owner payouts all add up? (The same check runs every night at 23:00.) */
+/** Do wallets, M-Pesa, fares and owner payouts all add up? (The same check runs every night at 23:30.) */
 export function MoneyCheck() {
   const { data: d, error, loading, reload } = useApi<Reconciliation>('/admin/reconciliation');
   return (

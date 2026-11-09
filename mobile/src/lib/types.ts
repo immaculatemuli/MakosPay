@@ -187,6 +187,7 @@ export interface Staff {
 /** The conductor's vehicle and the route it is on. */
 export interface ConductorVehicle {
   vehicle: { id: number; plate: string; description: string | null };
+  has_conductor?: boolean;
   route: { id: number; name: string; origin: string; stops: Stop[] } | null;
   today: { payments: number; total: number };
 }

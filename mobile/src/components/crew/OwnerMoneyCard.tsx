@@ -7,11 +7,11 @@ import { kes } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { useApi } from '@/lib/useApi';
 
-type OwnerMoney = { needs_driver: boolean; waiting: { fares: number; total: number } };
+type OwnerMoney = { needs_driver: boolean; by_hand: boolean; waiting: { fares: number; total: number } };
 
 /**
- * Drivers only: the car's FarePay fares wait until the driver taps "Send to owner", then the owner is paid by
- * M-Pesa at once. The conductor never sees this (the server refuses them too).
+ * Drivers only: the car's FarePay fares wait until the driver taps "Send to owner". The owner is then paid by M-Pesa
+ * at once, or by the SACCO office with the nightly payments. The conductor never sees this (the server refuses them too).
  */
 export function OwnerMoneyCard() {
   const { t } = useT();
@@ -20,15 +20,16 @@ export function OwnerMoneyCard() {
   const [error, setError] = useState<string | null>(null);
 
   if (!money.data?.needs_driver) return null;
-  const { fares, total } = money.data.waiting;
+  const { by_hand: byHand, waiting: { fares, total } } = money.data;
 
   const send = async () => {
     setBusy(true);
     setError(null);
     try {
-      const done = await api<{ total: number; payouts: { amount: number }[] }>('/crew/owner-money/send', { method: 'POST' });
+      const done = await api<{ total: number; by_hand?: boolean; payouts: { amount: number }[] }>('/crew/owner-money/send', { method: 'POST' });
       const sent = done.payouts.reduce((sum, p) => sum + p.amount, 0);
-      Alert.alert(t('Sent to the owner'), t('{amount} is on its way to the owner by M-Pesa.', { amount: kes(sent || done.total) }));
+      if (done.by_hand) Alert.alert(t('Sent to the SACCO office'), t('The SACCO office will send {amount} to the owner with the nightly payments.', { amount: kes(done.total) }));
+      else Alert.alert(t('Sent to the owner'), t('{amount} is on its way to the owner by M-Pesa.', { amount: kes(sent || done.total) }));
       void money.reload();
     } catch (err) {
       setError(errorMessage(err));
@@ -38,7 +39,7 @@ export function OwnerMoneyCard() {
   };
 
   const confirm = () =>
-    Alert.alert(t('Send to owner?'), t('{amount} from {n} FarePay fares will be sent to the owner now.', { amount: kes(total), n: fares }), [
+    Alert.alert(t('Send to owner?'), t(byHand ? '{amount} from {n} FarePay fares will go to the owner with the nightly payments.' : '{amount} from {n} FarePay fares will be sent to the owner now.', { amount: kes(total), n: fares }), [
       { text: t('Cancel'), style: 'cancel' },
       { text: t('Send'), onPress: () => void send() },
     ]);

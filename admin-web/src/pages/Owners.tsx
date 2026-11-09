@@ -38,7 +38,7 @@ interface OwnerDetailData {
 
 const paidBy = (o: { payout_method: string; bank_name: string | null }) => (o.payout_method === 'bank' ? `Bank (${o.bank_name ?? ''})` : 'M-Pesa');
 
-/** Vehicle owners: each set up once with how they are paid; all their cars' fares are paid to them together every evening. */
+/** Vehicle owners: each set up once with how they are paid; all their cars' fares are paid to them together every night. */
 export function Owners() {
   const navigate = useNavigate();
   const [text, setText] = useState('');
@@ -53,7 +53,7 @@ export function Owners() {
 
   return (
     <>
-      <PageHead title="Vehicle owners" subtitle="One owner can have many cars. Every evening each owner gets one payment for all their cars’ fares.">
+      <PageHead title="Vehicle owners" subtitle="One owner can have many cars. Every night each owner gets one payment for all their cars’ fares.">
         <div style={{ display: 'flex', gap: 10 }}>
           <input type="search" placeholder="Name or phone" aria-label="Search owners" value={text} onChange={(e) => setText(e.target.value)} />
           <button onClick={() => setAdding(true)}>Add owner</button>

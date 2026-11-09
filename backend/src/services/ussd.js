@@ -4,16 +4,17 @@
 // PIN prompt, priced by the server from the fare table, exactly like the app and the QR pay page.
 //
 // A phone can't show the M-Pesa prompt while a USSD screen is open, so the session ends first and the prompt is
-// sent a moment later. If it can't be (e.g. the fare changed in between), the passenger gets an SMS saying why.
+// sent a moment later. Afterwards the passenger dials again and chooses "My ticket or booking" to see their code.
 import { config } from '../config.js';
 import { db } from '../database.js';
 import { passengerFor } from './noapp.js';
 import { kesText } from './notifications.js';
 import { smsTicket, startFarePayment } from './payments.js';
 import { listRoutes } from './routes.js';
-import { bookingClosed, bookSeats, MAX_SEATS } from './seats.js';
+import { bookingClosed, bookSeats, MAX_SEATS, seatView } from './seats.js';
 import { queueSms } from './sms.js';
 import { loadVehicle } from './trips.js';
+import { nairobiDayRange, nairobiToday, normalizePhone } from '../util.js';
 
 // A USSD screen holds about 182 characters; lists longer than that go on several pages ("0. More").
 const SCREEN = 182;
@@ -82,9 +83,10 @@ function choose(tokens, pos, labels, header) {
 export async function ussdReply({ sessionId, phone, text }) {
   try {
     const tokens = text ? String(text).split('*') : [];
-    if (tokens.length === 0) return con(`${config.saccoName}\n1. Pay fare\n2. Book a seat`);
+    if (tokens.length === 0) return con(`${config.saccoName}\n1. Pay fare\n2. Book a seat\n3. My ticket or booking`);
     if (tokens[0] === '1') return await payFare(tokens, { sessionId, phone });
     if (tokens[0] === '2') return await bookSeat(tokens, { sessionId, phone });
+    if (tokens[0] === '3') return await myTicket(phone);
     return end('That is not one of the choices. Please dial again.');
   } catch (err) {
     // Expected problems (no route, staff number, ...) carry a message for the passenger.
@@ -92,6 +94,45 @@ export async function ussdReply({ sessionId, phone, text }) {
     console.error('[ussd]', err);
     return end('Something went wrong. Please try again in a moment.');
   }
+}
+
+// ---------- 3. My ticket or booking ----------
+
+/** The passenger's seat booking still open (or cancelled today), in words. */
+function bookingText(b) {
+  const start = `Booking ${b.code}: ${seatWord(b.seats)} to ${b.stop_name}.`;
+  if (b.status === 'paying') return `${start} Waiting for your M-Pesa PIN.`;
+  if (b.status === 'cancelled') return `Booking ${b.code} was cancelled.${b.free_ride ? ' Your free ride is kept.' : ` ${kesText(b.amount)} is being sent back.`}`;
+  if (b.status === 'assigned') return `${start} Board ${b.car.plate} at ${b.pickup.name}. Show this code.`;
+  if (b.later) return `${start} You join the queue at your chosen time.`;
+  if (b.place_in_queue !== null) return `${start} You are number ${b.place_in_queue + 1} in the queue at ${b.route.origin}.`;
+  return `${start} Waiting for a car to pick you at ${b.pickup.name}.`;
+}
+
+/** Stands in for a text: the passenger's latest seat booking and today's latest ticket, on the screen. */
+async function myTicket(phone) {
+  const user = await db.get('SELECT id FROM users WHERE phone = ?', normalizePhone(phone));
+  const [todayFrom] = nairobiDayRange(nairobiToday());
+  const lines = [];
+  const booking =
+    user &&
+    (await db.get(
+      "SELECT id FROM seat_bookings WHERE passenger_id = ? AND (status IN ('paying', 'queued', 'assigned') OR (status = 'cancelled' AND cancelled_at >= ?)) ORDER BY id DESC LIMIT 1",
+      user.id,
+      todayFrom,
+    ));
+  if (booking) lines.push(bookingText(await seatView(booking.id)));
+  const ticket =
+    user &&
+    (await db.get(
+      `SELECT t.ticket_code, t.fare, t.free_ride, v.plate, v.car_number, s.name AS stop_name FROM trips t
+       JOIN vehicles v ON v.id = t.vehicle_id LEFT JOIN route_stops s ON s.id = t.stop_id
+       WHERE t.passenger_id = ? AND t.status = 'paid' AND t.created_at >= ? ORDER BY t.id DESC LIMIT 1`,
+      user.id,
+      todayFrom,
+    ));
+  if (ticket) lines.push(`Ticket ${ticket.ticket_code}: ${ticket.free_ride ? 'FREE RIDE' : kesText(ticket.fare)}, car ${ticket.car_number ?? ''} (${ticket.plate})${ticket.stop_name ? ` to ${ticket.stop_name}` : ''}.`);
+  return end(lines.join('\n') || 'No ticket or booking today. If you have just paid, wait a minute and dial again.');
 }
 
 // ---------- 1. Pay fare (in the car) ----------
@@ -131,7 +172,7 @@ async function payFare(tokens, { sessionId, phone }) {
     });
     if (started.trip) await smsTicket(phone, started.trip.id); // a free ride: paid at once, no prompt
   });
-  return end(`An M-Pesa prompt for ${kesText(stop.app_fare)} is coming now. Enter your PIN. Your ticket will come by SMS.`);
+  return end(`An M-Pesa prompt for ${kesText(stop.app_fare)} is coming now. Enter your PIN, then dial again and choose 3 to see your ticket.`);
 }
 
 // ---------- 2. Book a seat (from anywhere) ----------
@@ -193,5 +234,5 @@ async function bookSeat(tokens, { sessionId, phone }) {
       payWith: 'mpesa',
     });
   });
-  return end(`An M-Pesa prompt for ${kesText(total)} is coming now. Enter your PIN. Your booking code will come by SMS.`);
+  return end(`An M-Pesa prompt for ${kesText(total)} is coming now. Enter your PIN, then dial again and choose 3 to see your booking code.`);
 }

@@ -60,7 +60,7 @@ export default function Trips() {
           ))}
         </List>
       )}
-      <Muted>Booking money is fares: it goes to the owners with the evening payout.</Muted>
+      <Muted>Booking money is fares: it goes to the owners with the nightly payout.</Muted>
     </Screen>
   );
 }

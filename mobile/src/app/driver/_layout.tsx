@@ -5,7 +5,7 @@ import { useT } from '@/lib/i18n';
 
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
-/** Drivers: their vehicle's payments and ticket checks (no route changes, no money actions). */
+/** Drivers: their vehicle's payments, ticket checks and the owner's money; the route too on a car with no conductor. */
 export default function DriverLayout() {
   const { user } = useAuth();
   const { t } = useT();
@@ -18,6 +18,7 @@ export default function DriverLayout() {
       <Stack.Screen name="report" options={{ title: t('Report a problem') }} />
       <Stack.Screen name="reports" options={{ title: t('My reports') }} />
       <Stack.Screen name="scan-car" options={{ title: t('Scan the car') }} />
+      <Stack.Screen name="change-route" options={{ title: t('Change route') }} />
       <Stack.Screen name="board" options={{ title: t('Scan passengers on board') }} />
       <Stack.Screen name="refund" options={{ title: t('Paid by mistake?') }} />
       <Stack.Screen name="account" options={{ title: t('My account') }} />

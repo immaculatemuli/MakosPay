@@ -43,8 +43,8 @@ export async function verifyCredentials(phone, password) {
 
 /** The SACCO office sets a new password for a passenger, conductor or driver who forgot theirs. */
 export async function resetPassword(userId, newPassword) {
-  const user = await db.get("SELECT id FROM users WHERE id = ? AND role IN ('passenger', 'conductor', 'driver', 'marshal')", userId);
-  if (!user) throw new HttpError(404, 'NOT_FOUND', 'Passenger, conductor or driver not found');
+  const user = await db.get("SELECT id FROM users WHERE id = ? AND role IN ('passenger', 'conductor', 'driver', 'marshal', 'admin')", userId);
+  if (!user) throw new HttpError(404, 'NOT_FOUND', 'Account not found');
   await setPassword(userId, await bcrypt.hash(newPassword, 10));
 }
 

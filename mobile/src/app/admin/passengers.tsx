@@ -1,4 +1,4 @@
-5 import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Empty, ErrorBox, Field, List, ListRow, Loading, Screen } from '@/components/ui';
 import { displayPhone, kes } from '@/lib/format';

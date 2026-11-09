@@ -170,6 +170,22 @@ test('a drop-off at the first stop has no road pickup to ask about', async () =>
   assert.match((await ussd(`2*${n}*1`)).text, /^CON How many seats\?/);
 });
 
+test('dialing again shows the ticket and the booking on the screen', async () => {
+  session++;
+  assert.match((await ussd('')).text, /3. My ticket or booking/);
+  assert.match((await ussd('1*101*2*1')).text, /dial again and choose 3 to see your ticket/);
+  await ussdIdle();
+  const payment = await db.get("SELECT trip_id FROM mpesa_payments WHERE phone = '254733111222' AND trip_id IS NOT NULL ORDER BY id DESC LIMIT 1");
+  const trip = await db.get('SELECT ticket_code FROM trips WHERE id = ?', payment.trip_id);
+  const mine = await ussd('3');
+  assert.ok(mine.text.startsWith(`END Ticket ${trip.ticket_code}: KES 100, car 101 (KDA 123A) to Juja`), mine.text);
+
+  const shown = await ussd('3', { phone: '+254733444555' });
+  assert.match(shown.text, /Booking \w+: 2 seats to Juja\. You are number \d+ in the queue at Town\./);
+  assert.ok(shown.text.length <= 182, 'fits one USSD screen');
+  assert.match((await ussd('3', { phone: '+254799999999' })).text, /^END No ticket or booking today/);
+});
+
 test('only Africa’s Talking (with the secret address) can use it', async () => {
   assert.equal((await ussd('', { secret: 'wrong-secret' })).status, 404);
 });

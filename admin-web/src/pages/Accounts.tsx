@@ -21,6 +21,8 @@ function AccountList({ path, what, intro }: { path: string; what: string; intro:
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', password: '' });
   const [toggle, setToggle] = useState<Account | null>(null);
+  const [resetting, setResetting] = useState<Account | null>(null);
+  const [newPassword, setNewPassword] = useState('');
   return (
     <>
       <PageHead title={`${what[0].toUpperCase()}${what.slice(1)}s`} subtitle={intro}>
@@ -50,6 +52,11 @@ function AccountList({ path, what, intro }: { path: string; what: string; intro:
                   <td>{dateTime(a.created_at)}</td>
                   <td>{a.is_active ? <Badge tone="success">Active</Badge> : <Badge tone="danger">Switched off</Badge>}</td>
                   <td>
+                    {path === '/admin/staff' && a.id !== user?.id && (
+                      <button className="secondary" style={{ marginRight: 8 }} onClick={() => { setNewPassword(''); setResetting(a); }}>
+                        New password
+                      </button>
+                    )}
                     {a.id !== user?.id && (
                       <button className="secondary" onClick={() => setToggle(a)}>
                         {a.is_active ? 'Switch off' : 'Switch on'}
@@ -88,6 +95,25 @@ function AccountList({ path, what, intro }: { path: string; what: string; intro:
             Password
             <PasswordInput value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
             <small className="muted">{passwordHint(form.password)}</small>
+          </label>
+        </Dialog>
+      )}
+      {resetting && (
+        <Dialog
+          title={`New password for ${resetting.name}`}
+          actionLabel="Set new password"
+          disabled={!passwordOk(newPassword)}
+          action={async () => {
+            await api(`/admin/users/${resetting.id}/password`, { method: 'POST', body: { new_password: newPassword } });
+            setResetting(null);
+          }}
+          onClose={() => setResetting(null)}
+        >
+          <p className="muted">Tell them the new password. They can change it after signing in.</p>
+          <label>
+            New password
+            <PasswordInput value={newPassword} onChange={setNewPassword} />
+            <small className="muted">{passwordHint(newPassword)}</small>
           </label>
         </Dialog>
       )}

@@ -1,6 +1,7 @@
 // What the SACCO office needs to deal with now, in one list (most urgent first), and one search across everything.
 // With hundreds of cars the office should only handle exceptions: each item says what is wrong, how many, and where
 // to fix it (`link`, which the app and the web dashboard turn into their own screen).
+import { config } from '../config.js';
 import { db } from '../database.js';
 import { nairobiDayRange, nairobiToday, normalizePhone } from '../util.js';
 
@@ -42,6 +43,16 @@ export async function needsAttention() {
     detail: 'In the last 2 days. Their fares are owed again and go in the next payout; check the owner’s M-Pesa or bank details.',
     link: 'payouts',
   });
+  if (config.payoutsNeedDriver) {
+    add({
+      key: 'fares_waiting',
+      severity: 'high',
+      count: await count("SELECT COUNT(DISTINCT vehicle_id) AS n FROM trips WHERE status = 'paid' AND payout_id IS NULL AND released_at IS NULL AND created_at < ?", todayFrom),
+      title: 'Cars with fares from before today not sent to the owner',
+      detail: 'The driver has not tapped "Send to owner". Remind them, or send the fares on for them from Owner payouts.',
+      link: 'payouts',
+    });
+  }
   add({
     key: 'withdrawals',
     severity: 'high',

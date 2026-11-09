@@ -8,7 +8,7 @@ Written for whoever runs the FarePay server. Commands run in `backend/` (PowerSh
 - The app works on either database; `DB_ENGINE` in `backend/.env` chooses (`sqlite` or `postgres`).
 - **No money may be in flight.** In the app: no M-Pesa top-up waiting, no owner payout or passenger withdrawal
   "processing" or "manual". The copy tool checks this and refuses otherwise.
-- Don't switch between 20:45 and 21:30 Kenyan time (the daily owner payout runs at 21:00).
+- Don't switch between 22:45 and 23:45 Kenyan time (the daily owner payout runs at 23:00).
 
 ## Switch (about 5 minutes)
 
@@ -37,7 +37,7 @@ Written for whoever runs the FarePay server. Commands run in `backend/` (PowerSh
 
 **B. PostgreSQL has been in use (people paid, topped up, were paid out) and must be abandoned:**
 Anything that happened on PostgreSQL after the switch is **not** in SQLite. Simply switching back would lose it,
-and, worse, SQLite would still see those fares as unpaid, so the next 21:00 run would **pay owners twice**.
+and, worse, SQLite would still see those fares as unpaid, so the next 23:00 run would **pay owners twice**.
 1. Stop the server and keep it stopped.
 2. Back up PostgreSQL: `yarn backup` (with `DB_ENGINE=postgres` still set) - a `.pgdump` archive.
 3. Do **not** start on SQLite until the PostgreSQL data has been copied back (a reverse copy tool is not built

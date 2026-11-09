@@ -9,7 +9,7 @@ import { nairobiToday } from '../util.js';
 import { audit } from './audit.js';
 import { runDaily } from './jobs.js';
 import * as mpesa from './mpesa.js';
-import { kesText, notifyOffice } from './notifications.js';
+import { kesText, notify, notifyOffice } from './notifications.js';
 import { queueSms } from './sms.js';
 
 export const getPayout = (id) => db.get('SELECT * FROM payouts WHERE id = ?', id);
@@ -254,9 +254,20 @@ export const carFaresWaiting = (vehicleId) => db.get(`SELECT COUNT(*) AS fares, 
 export const faresWaitingForDrivers = () =>
   db.get("SELECT COUNT(DISTINCT vehicle_id) AS cars, COUNT(*) AS fares, COALESCE(SUM(fare), 0) AS total FROM trips WHERE status = 'paid' AND payout_id IS NULL AND released_at IS NULL");
 
+/** Each car with fares waiting for its driver, for the office. */
+export const carsWaitingForDrivers = () =>
+  db.all(
+    `SELECT v.id AS vehicle_id, v.plate, u.name AS driver_name, COUNT(*) AS fares, COALESCE(SUM(t.fare), 0) AS total
+     FROM trips t JOIN vehicles v ON v.id = t.vehicle_id LEFT JOIN users u ON u.id = v.driver_id
+     WHERE t.status = 'paid' AND t.payout_id IS NULL AND t.released_at IS NULL
+     GROUP BY v.id, v.plate, u.name ORDER BY v.plate`,
+  );
+
 /**
- * "Send to owner": the car's driver (never the conductor) releases the FarePay fares paid on their car, and the
- * owner is paid at once. Returns what was released and the payout(s) made.
+ * "Send to owner": the car's driver (never the conductor) releases the FarePay fares paid on their car; the office can
+ * do it for a driver who is away. With automatic payouts the owner is paid at once. When the office pays by hand, the
+ * fares wait for the evening run, so an owner with many cars gets one payment for them all. Returns what was released
+ * and any payouts made.
  */
 export async function releaseCarFares(vehicleId, driverId) {
   const done = await tx(async () => {
@@ -266,6 +277,7 @@ export async function releaseCarFares(vehicleId, driverId) {
     await db.run(`UPDATE trips SET released_at = ${NOW}, released_by = ? WHERE vehicle_id = ? AND status = 'paid' AND payout_id IS NULL AND released_at IS NULL`, driverId, vehicleId);
     return { ...waiting, owners: owners.map((o) => o.owner_phone) };
   });
+  if (!mpesa.isConfigured.b2c) return { fares: done.fares, total: done.total, by_hand: true, payouts: [] };
   const payouts = [];
   for (const ownerPhone of done.owners) {
     try {
@@ -275,15 +287,7 @@ export async function releaseCarFares(vehicleId, driverId) {
       if (err.code !== 'NOTHING_TO_PAY') throw err;
     }
   }
-  for (const p of payouts.filter((x) => x.status === 'manual')) {
-    await notifyOffice({
-      kind: 'payout.manual',
-      title: `Send ${kesText(p.amount)} to owner ${p.owner_name}`,
-      body: 'The driver sent the car\'s fares to the owner. Send the money by M-Pesa, then record the M-Pesa code.',
-      target: `payout:${p.id}`,
-    });
-  }
-  return { fares: done.fares, total: done.total, payouts: payouts.map((p) => ({ id: p.id, amount: p.amount, status: p.status })) };
+  return { fares: done.fares, total: done.total, by_hand: false, payouts: payouts.map((p) => ({ id: p.id, amount: p.amount, status: p.status })) };
 }
 
 /** Pays every owner who is owed something. Used by the daily run and by "Pay everyone now". */
@@ -302,6 +306,26 @@ export async function payEveryone(adminId = null) {
 /** Runs payEveryone once a day after PAYOUT_DAILY_AT (Kenyan time), remembering the last run across restarts. */
 export function startDailyPayouts() {
   runDaily('daily_payouts', config.payoutDailyAt, dailyPayoutRun);
+  if (config.payoutsNeedDriver) runDaily('driver_send_reminder', config.cashReminderAt, remindDrivers);
+}
+
+/** In the evening: the driver of each car with fares not sent yet is reminded. */
+export async function remindDrivers() {
+  const cars = await db.all(
+    `SELECT v.plate, v.driver_id, COUNT(*) AS fares, COALESCE(SUM(t.fare), 0) AS total
+     FROM trips t JOIN vehicles v ON v.id = t.vehicle_id
+     WHERE t.status = 'paid' AND t.payout_id IS NULL AND t.released_at IS NULL AND v.driver_id IS NOT NULL
+     GROUP BY v.plate, v.driver_id`,
+  );
+  for (const car of cars) {
+    await notify([car.driver_id], {
+      kind: 'owner_money.reminder',
+      title: 'Send the owner\'s money',
+      body: `${kesText(car.total)} from ${car.fares} fare${car.fares === 1 ? '' : 's'} on ${car.plate} has not been sent. Tap "Send to owner" on your home screen.`,
+      target: 'payments',
+    });
+  }
+  return cars.length;
 }
 
 /** The daily run: pay every owner, record it, and tell the office what happened (and what's left for them to do). */

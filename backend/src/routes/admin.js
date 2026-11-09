@@ -6,7 +6,7 @@ import { config } from '../config.js';
 import { db, tx } from '../database.js';
 import { HttpError, notFound } from '../errors.js';
 import * as mpesa from '../services/mpesa.js';
-import { completePayout, createPayout, failPayout, faresWaitingForDrivers, getPayout, owedByOwner, payEveryone } from '../services/payouts.js';
+import { carsWaitingForDrivers, completePayout, createPayout, failPayout, faresWaitingForDrivers, getPayout, owedByOwner, payEveryone, releaseCarFares } from '../services/payouts.js';
 import { audit, listAudit } from '../services/audit.js';
 import { cashAndFares } from '../services/cash.js';
 import { checkStatement } from '../services/statement.js';
@@ -183,7 +183,17 @@ router.get('/payouts/owed', async (_req, res) => {
     daily_at: config.payoutDailyAt,
     // Fares the cars' drivers have not yet sent to the owners (only paid out once they do).
     waiting_for_drivers: config.payoutsNeedDriver ? await faresWaitingForDrivers() : null,
+    cars_waiting: config.payoutsNeedDriver ? await carsWaitingForDrivers() : [],
   });
+});
+
+// The car's driver is away or has forgotten: the office sends the car's fares on in their place.
+router.post('/vehicles/:id/release-fares', async (req, res) => {
+  const vehicleId = parse(id, req.params.id);
+  const result = await releaseCarFares(vehicleId, req.user.id);
+  req.skipAudit = true;
+  await audit(req.user, 'payout.released_by_office', 'vehicles', vehicleId, { fares: result.fares, total: result.total });
+  res.json(result);
 });
 
 router.get('/payouts', async (_req, res) => {
@@ -434,10 +444,13 @@ router.get('/passengers', async (req, res) => {
   res.json(rows);
 });
 
-// A passenger or conductor forgot their password: the office sets a new one and tells them.
+// A passenger, crew member, marshal or office colleague forgot their password: the office sets a new one and tells them.
 router.post('/users/:id/password', async (req, res) => {
   const { new_password } = parse(z.object({ new_password: password }), req.body);
-  await resetPassword(parse(id, req.params.id), new_password);
+  const userId = parse(id, req.params.id);
+  // Your own password is changed in your account, with the old one.
+  if (userId === req.user.id) throw notFound('Account');
+  await resetPassword(userId, new_password);
   res.json({ ok: true });
 });
 
@@ -554,10 +567,10 @@ router.get('/broadcast/count', async (req, res) => {
 
 router.post('/broadcast', async (req, res) => {
   const body = parse(
-    z.object({ audience: z.enum(AUDIENCES), route_id: id.nullable().default(null), message: z.string().trim().min(3).max(300), sms: z.boolean().default(false) }),
+    z.object({ audience: z.enum(AUDIENCES), route_id: id.nullable().default(null), message: z.string().trim().min(3).max(300) }),
     req.body,
   );
-  res.status(201).json(await sendBroadcast({ audience: body.audience, routeId: body.route_id, message: body.message, sms: body.sms }, req.user));
+  res.status(201).json(await sendBroadcast({ audience: body.audience, routeId: body.route_id, message: body.message }, req.user));
 });
 
 // Reports for the accountant as CSV files that open in Excel (?from=&to= Kenyan dates, inclusive).

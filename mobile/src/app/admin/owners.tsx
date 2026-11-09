@@ -15,7 +15,7 @@ interface OwnerRow {
   owed: number;
 }
 
-/** Vehicle owners: one can have many cars; each evening they get one payment for all their cars' fares. */
+/** Vehicle owners: one can have many cars; each night they get one payment for all their cars' fares. */
 export default function Owners() {
   const [text, setText] = useState('');
   const [q, setQ] = useState('');

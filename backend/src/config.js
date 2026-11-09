@@ -68,9 +68,9 @@ export const config = {
   maxWithdrawalsPerDay: num(env.MAX_WITHDRAWALS_PER_DAY, 2),
 
   // Kenyan time (HH:MM) when every owner is sent their unpaid fares.
-  payoutDailyAt: env.PAYOUT_DAILY_AT ?? '21:00',
+  payoutDailyAt: env.PAYOUT_DAILY_AT ?? '23:00',
   // Kenyan time (HH:MM) of the nightly money check; the office is alerted if anything doesn't add up.
-  moneyCheckDailyAt: env.MONEY_CHECK_DAILY_AT ?? '23:00',
+  moneyCheckDailyAt: env.MONEY_CHECK_DAILY_AT ?? '23:30',
   // Seat bookings are for today only: none are taken from SEAT_BOOKING_CUTOFF until SEAT_BOOKING_OPENS (Kenyan
   // time), and any paid booking not yet on a car at the cutoff is refunded.
   seatBookingCutoff: env.SEAT_BOOKING_CUTOFF ?? '22:00',
@@ -185,8 +185,8 @@ if (isRealMoney() && config.env !== 'production') throw new Error('Real money (M
 if (!['sandbox', 'production', 'mock'].includes(config.mpesa.mode)) throw new Error('MPESA_MODE must be sandbox, production or mock');
 if (!['daraja', 'intasend'].includes(config.paymentProvider)) throw new Error('PAYMENT_PROVIDER must be daraja or intasend');
 if (!['sandbox', 'live'].includes(config.intasend.mode)) throw new Error('INTASEND_MODE must be sandbox or live');
-if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.payoutDailyAt)) throw new Error('PAYOUT_DAILY_AT must be HH:MM, e.g. 21:00');
-if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.moneyCheckDailyAt)) throw new Error('MONEY_CHECK_DAILY_AT must be HH:MM, e.g. 23:00');
+if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.payoutDailyAt)) throw new Error('PAYOUT_DAILY_AT must be HH:MM, e.g. 23:00');
+if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config.moneyCheckDailyAt)) throw new Error('MONEY_CHECK_DAILY_AT must be HH:MM, e.g. 23:30');
 for (const key of ['seatBookingCutoff', 'seatBookingOpens', 'cashReminderAt']) {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(config[key])) throw new Error(`${key} must be HH:MM, e.g. 22:00`);
 }

@@ -10,6 +10,7 @@ import { cashFor, declareCash, MAX_CASH } from '../services/cash.js';
 import { config } from '../config.js';
 import { claimVehicle } from '../services/crewCars.js';
 import { carFaresWaiting, releaseCarFares } from '../services/payouts.js';
+import * as mpesa from '../services/mpesa.js';
 import { arriveParcel, collectParcel, crewParcels, loadParcel } from '../services/parcels.js';
 import { askRefund, requestsForTrips } from '../services/refundRequests.js';
 import { boardByCode, setCarFull, boardSeat, crewSeats, saveCarLocation } from '../services/seats.js';
@@ -73,6 +74,7 @@ const vehicleView = async (vehicle) => {
   const route = vehicle.route_id ? await getRoute(vehicle.route_id) : null;
   return {
     vehicle: { id: vehicle.id, plate: vehicle.plate, description: vehicle.description },
+    has_conductor: Boolean(vehicle.conductor_id),
     route: route && { id: route.id, name: route.name, origin: route.origin, stops: route.stops },
   };
 };
@@ -270,7 +272,7 @@ const driverOnly = (user) => {
 router.get('/owner-money', async (req, res) => {
   driverOnly(req.user);
   const vehicle = await myVehicle(req.user);
-  res.json({ needs_driver: config.payoutsNeedDriver, waiting: await carFaresWaiting(vehicle.id) });
+  res.json({ needs_driver: config.payoutsNeedDriver, by_hand: !mpesa.isConfigured.b2c, waiting: await carFaresWaiting(vehicle.id) });
 });
 
 router.post('/owner-money/send', async (req, res) => {
@@ -287,11 +289,12 @@ router.post('/vehicle/claim', async (req, res) => {
   res.json(await claimVehicle(req.user, qr));
 });
 
-// The vehicle is plying a different route today: passengers who scan after this pay that route's fares. Conductor only.
+// The vehicle is plying a different route today: passengers who scan after this pay that route's fares. The conductor
+// changes it; on a car with no conductor, the driver.
 router.put('/vehicle/route', async (req, res) => {
-  if (req.user.role !== 'conductor') throw new HttpError(403, 'FORBIDDEN', 'Only the conductor can change the route');
   const { route_id } = parse(z.object({ route_id: id }), req.body);
   const vehicle = await myVehicle(req.user);
+  if (req.user.role !== 'conductor' && vehicle.conductor_id) throw new HttpError(403, 'FORBIDDEN', 'Only the conductor can change the route');
   if (await isLoading(vehicle.id)) throw new HttpError(409, 'LOADING', 'The car is taking bookings. Mark it as left before changing the route.');
   const route = await getRoute(route_id);
   if (!route || !route.is_active || route.stops.length === 0) throw notFound('Route');

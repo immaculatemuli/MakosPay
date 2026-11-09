@@ -60,7 +60,7 @@ async function noAppPaymentStatus(paymentId) {
   const payment = await refreshPayment(await getPayment(paymentId));
   const trip = payment.trip_id ? await getTrip(payment.trip_id) : null;
   return {
-    // waiting | paid | failed (paid without a ticket only when M-Pesa confirmed too late: the money is in their wallet)
+    // waiting | paid | failed (paid without a ticket only when M-Pesa confirmed too late: the money goes back to their M-Pesa)
     status: trip ? 'paid' : payment.status === 'completed' ? 'paid_late' : payment.status === 'failed' ? 'failed' : 'waiting',
     amount: payment.amount,
     reason: payment.status === 'failed' ? payment.result_desc : null,

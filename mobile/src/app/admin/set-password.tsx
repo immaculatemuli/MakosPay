@@ -6,7 +6,7 @@ import { api, errorMessage } from '@/lib/api';
 import { displayPhone } from '@/lib/format';
 import { passwordHint, passwordOk } from '@/lib/password';
 
-/** For a passenger or conductor who forgot their password: the office sets a new one and tells them. */
+/** For a passenger, crew member or office colleague who forgot their password: the office sets a new one and tells them. */
 export default function SetPassword() {
   const { id, name, phone } = useLocalSearchParams<{ id: string; name: string; phone: string }>();
   const [password, setPassword] = useState('');

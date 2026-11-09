@@ -104,9 +104,9 @@ approves Go Live.
 **Or** move everything from the laptop (accounts, routes, vehicles and their QR stickers, wallets, payments):
 
 1. On the laptop, make sure **no money is in flight**: no M-Pesa top-up waiting, no payout or withdrawal
-   "processing" or "manual". Don't do this between 20:45 and 21:30 (the daily payout runs at 21:00).
+   "processing" or "manual". Don't do this between 22:45 and 23:45 (the daily payout runs at 23:00).
 2. **Stop the laptop server** (Ctrl+C in its window) and **leave it stopped for good**. Two FarePay servers
-   with the same data would both pay the owners at 21:00.
+   with the same data would both pay the owners at 23:00.
 3. On the laptop, in `backend/`: `yarn backup`. It saves `data\backups\farepay-YYYY-MM-DD.pgdump`.
 4. Copy it to the server: `scp data\backups\farepay-YYYY-MM-DD.pgdump ubuntu@<server-ip>:/tmp/`
 5. On the server, before FarePay has ever started:
@@ -205,4 +205,4 @@ before big updates anyway.
 - [ ] Office passwords are strong and not shared; only the people who need it have office accounts.
 - [ ] You can download a backup to your laptop, and you have tried restoring one.
 - [ ] The laptop server is stopped for good (only one FarePay server may ever run).
-- [ ] The first evening, check the payouts and the 23:00 money check (the office is notified if anything is out).
+- [ ] The first night, check the 23:00 payouts and the 23:30 money check (the office is notified if anything is out).

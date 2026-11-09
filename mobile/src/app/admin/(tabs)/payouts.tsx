@@ -9,9 +9,11 @@ import { payoutDestination, sendByHandSteps } from '@/lib/payoutText';
 import type { OwnerOwed, Payout } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
+type CarWaiting = { vehicle_id: number; plate: string; driver_name: string | null; fares: number; total: number };
+
 /** What each owner is owed, paying them, and every payout made. */
 export default function Payouts() {
-  const owed = useApi<{ owners: OwnerOwed[]; automatic: boolean; daily_at: string }>('/admin/payouts/owed');
+  const owed = useApi<{ owners: OwnerOwed[]; automatic: boolean; daily_at: string; cars_waiting: CarWaiting[] }>('/admin/payouts/owed');
   const history = useApi<Payout[]>('/admin/payouts');
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -65,6 +67,13 @@ export default function Payouts() {
       ],
     );
 
+  // The driver is away or has forgotten: the office sends the car's fares on in their place.
+  const release = (car: CarWaiting) =>
+    Alert.alert(`Send ${kes(car.total)} from ${car.plate}?`, 'This sends the fares on for the driver. It is recorded in the audit log.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Send on', onPress: () => run(`car${car.vehicle_id}`, () => api(`/admin/vehicles/${car.vehicle_id}/release-fares`, { method: 'POST' })) },
+    ]);
+
   const payAll = () =>
     Alert.alert(`Pay everyone ${kes(totalOwed)}?`, `Each owner gets everything they are owed now, instead of waiting for ${o?.daily_at}.`, [
       { text: 'Cancel', style: 'cancel' },
@@ -86,6 +95,18 @@ export default function Payouts() {
         </Card>
       )}
       {o && !o.automatic && <Notice>Send each payout’s amount to the owner’s M-Pesa, then open the payout and enter the M-Pesa code.</Notice>}
+
+      {!!o?.cars_waiting?.length && <SectionTitle>Waiting for drivers</SectionTitle>}
+      {o?.cars_waiting?.map((car) => (
+        <Card key={car.vehicle_id}>
+          <Text style={styles.ownerName}>{car.plate}</Text>
+          <Muted>
+            {car.driver_name ?? 'No driver on this car'} · {car.fares} fare{car.fares === 1 ? '' : 's'} · {kes(car.total)}
+          </Muted>
+          <View style={{ height: 10 }} />
+          <Button title="Send on for the driver" variant="secondary" icon="send-outline" onPress={() => release(car)} loading={busy === `car${car.vehicle_id}`} disabled={busy !== null} />
+        </Card>
+      ))}
 
       <SectionTitle>Owed now</SectionTitle>
       {o?.owners.length === 0 && <Empty text="Nothing owed. Every fare has been paid to its owner." />}

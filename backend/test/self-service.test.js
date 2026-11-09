@@ -65,7 +65,7 @@ test('the owner is texted what reached them and from which cars', async () => {
   assert.match(sms.message, /KES 350 sent to your M-Pesa \(\w+\)\. 3 fares from 2 cars: KDA 001A 200, KDB 003B 150\./);
 });
 
-test('the office messages all crew on a route, or the marshals, by notification and optionally SMS', async () => {
+test('the office messages all crew on a route, or the marshals, by notification', async () => {
   const count = (q) => api('GET', `/admin/broadcast/count?${q}`, { token: s.admin }).then((r) => r.body.count);
   assert.equal(await count(`audience=drivers&route_id=${s.thika.id}`), 1);
   assert.equal(await count(`audience=crew&route_id=${s.thika.id}`), 2, 'driver and conductor');
@@ -74,11 +74,10 @@ test('the office messages all crew on a route, or the marshals, by notification 
 
   const sent = await api('POST', '/admin/broadcast', { token: s.admin, body: { audience: 'crew', route_id: s.thika.id, message: 'Thika Road closed at Juja, use the bypass', sms: true } });
   assert.equal(sent.status, 201, JSON.stringify(sent.body));
-  assert.deepEqual(sent.body, { sent_to: 2, by_sms: true });
+  assert.deepEqual(sent.body, { sent_to: 2 });
   const driver = await login('0711000001', 'Acrew123');
   const notes = (await api('GET', '/notifications', { token: driver })).body.items;
   assert.ok(notes.some((n) => n.title === 'Message from the SACCO office (Thika Road)' && n.body === 'Thika Road closed at Juja, use the bypass'));
-  assert.match((await texts('254711000003')).at(-1).message, /use the bypass — Grace Office, SACCO office/);
   const other = await login('0711000002', 'Acrew123');
   assert.ok(!(await api('GET', '/notifications', { token: other })).body.items.some((n) => n.kind === 'broadcast'), 'not the Mombasa Road driver');
 

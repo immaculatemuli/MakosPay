@@ -11,7 +11,9 @@ import { handleParcelStkCallback, reconcileParcelPayments } from './parcels.js';
 import { seatPaymentConfirmed, seatPaymentFailed } from './seats.js';
 import { afterPaidRide, nextRideIsFree } from './rewards.js';
 import { checkFare, findTrip, getTrip, payFare, recordTrip } from './trips.js';
+import { NO_APP_PASSWORD } from './users.js';
 import { getBalance, postWalletEntry } from './wallet.js';
+import { createWithdrawal, dispatchWithdrawal } from './withdrawals.js';
 
 // What an M-Pesa payment that never got an answer is marked with (a late "success" can still complete it).
 const EXPIRED = 'No answer from M-Pesa (expired)';
@@ -148,7 +150,7 @@ export async function handleStkCallback(body) {
   const cb = body?.Body?.stkCallback;
   if (!cb?.CheckoutRequestID) return;
 
-  await tx(async () => {
+  const lateRefund = await tx(async () => {
     const payment = await db.get('SELECT * FROM mpesa_payments WHERE checkout_request_id = ?', cb.CheckoutRequestID);
     if (!payment) {
       // Not a passenger's payment: a parcel fee's, or unknown.
@@ -167,6 +169,7 @@ export async function handleStkCallback(body) {
     }
     // M-Pesa took the money after FarePay had given up waiting ("no answer"): the passenger paid, so the
     // money goes into their wallet. A late fare gets no ticket (they will have paid another way by then).
+    // Someone without the app can't use a wallet, so it goes straight back to their M-Pesa.
     if (payment.status === 'failed' && payment.result_desc === EXPIRED && success) {
       await db.run(
         `UPDATE mpesa_payments SET status = 'completed', mpesa_receipt = ?, result_desc = ?, completed_at = ${NOW} WHERE id = ?`,
@@ -181,6 +184,8 @@ export async function handleStkCallback(body) {
         description:
           payment.purpose === 'wallet' ? 'M-Pesa top-up (confirmed late)' : `M-Pesa ${payment.purpose === 'seat' ? 'seat booking' : 'fare'} payment confirmed late: added to your wallet`,
       });
+      const user = await db.get('SELECT id, phone, password_hash FROM users WHERE id = ?', payment.user_id);
+      if (user.password_hash === NO_APP_PASSWORD) return createWithdrawal(user, payment.amount, 'M-Pesa payment confirmed late, sent back to M-Pesa');
       await notify([payment.user_id], {
         kind: 'topup.completed',
         title: `${kesText(payment.amount)} added to your wallet`,
@@ -226,6 +231,7 @@ export async function handleStkCallback(body) {
       });
     }
   });
+  if (lateRefund) await dispatchWithdrawal(lateRefund);
 }
 
 /** If a payment is still pending, asks M-Pesa for the outcome (at most every few seconds per payment). */
