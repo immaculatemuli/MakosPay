@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Empty, ErrorBox, Field, List, ListRow, Loading, Screen } from '@/components/ui';
 import { displayPhone, kes } from '@/lib/format';
@@ -14,8 +14,10 @@ interface PassengerRow {
 
 /** Find a passenger by name or phone, e.g. to set a new password for them. */
 export default function Passengers() {
-  const [search, setSearch] = useState('');
-  const [query, setQuery] = useState('');
+  // ?q= opens it already searched (e.g. from the office search).
+  const { q } = useLocalSearchParams<{ q?: string }>();
+  const [search, setSearch] = useState(q ? q.replace(/^254/, '0') : '');
+  const [query, setQuery] = useState(q ?? '');
   // Search shortly after the office stops typing.
   useEffect(() => {
     const t = setTimeout(() => setQuery(search.trim()), 400);

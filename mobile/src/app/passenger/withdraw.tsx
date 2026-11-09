@@ -5,6 +5,7 @@ import { api, errorMessage } from '@/lib/api';
 import { dateTime, displayPhone, kes } from '@/lib/format';
 import type { Withdrawal } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
+import { useT } from '@/lib/i18n';
 
 interface Info {
   balance: number;
@@ -23,23 +24,24 @@ const STATUS: Record<Withdrawal['status'], { text: string; tone: 'success' | 'wa
 
 /** Send wallet money back to the passenger's own M-Pesa number (e.g. before deleting the account). */
 export default function Withdraw() {
+  const { t } = useT();
   const info = useApi<Info>('/passenger/withdrawals');
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (info.loading && !info.data) return <Loading />;
   const d = info.data;
-  if (!d) return <Screen><ErrorBox message={info.error ?? 'Could not load your wallet.'} onRetry={info.reload} /></Screen>;
+  if (!d) return <Screen><ErrorBox message={info.error ?? t('Could not load your wallet.')} onRetry={info.reload} /></Screen>;
 
   const value = Number(amount);
   const open = d.withdrawals.find((w) => w.status === 'processing' || w.status === 'manual');
   const valid = Number.isInteger(value) && value >= d.min_amount && value <= d.balance && !open;
 
   const send = () =>
-    Alert.alert(`Withdraw ${kes(value)}?`, `It will be sent to your M-Pesa number ${displayPhone(d.phone)}.`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('Withdraw {amount}?', { amount: kes(value) }), t('It will be sent to your M-Pesa number {phone}.', { phone: displayPhone(d.phone) }), [
+      { text: t('Cancel'), style: 'cancel' },
       {
-        text: 'Withdraw',
+        text: t('Withdraw'),
         onPress: async () => {
           setBusy(true);
           setError(null);
@@ -48,12 +50,12 @@ export default function Withdraw() {
             setAmount('');
             await info.reload();
             Alert.alert(
-              r.withdrawal.status === 'completed' ? 'Sent' : r.withdrawal.status === 'failed' ? 'Not sent' : 'On its way',
+              r.withdrawal.status === 'completed' ? t('Sent') : r.withdrawal.status === 'failed' ? t('Not sent') : t('On its way'),
               r.withdrawal.status === 'completed'
-                ? `${kes(value)} was sent to your M-Pesa. Code ${r.withdrawal.reference}.`
+                ? t('{amount} was sent to your M-Pesa. Code {code}.', { amount: kes(value), code: r.withdrawal.reference ?? '' })
                 : r.withdrawal.status === 'failed'
-                  ? `${r.withdrawal.result_desc ?? 'M-Pesa could not send it'}. The money is back in your wallet.`
-                  : "We'll let you know under the bell when it reaches your M-Pesa.",
+                  ? `${r.withdrawal.result_desc ?? t('M-Pesa could not send it')}. ${t('The money is back in your wallet.')}`
+                  : t('We’ll let you know under the bell when it reaches your M-Pesa.'),
             );
           } catch (err) {
             setError(errorMessage(err));
@@ -67,7 +69,7 @@ export default function Withdraw() {
   return (
     <Screen refreshing={info.refreshing} onRefresh={info.refresh}>
       <Card style={{ alignItems: 'center', paddingVertical: 20 }}>
-        <Text style={{ color: colors.muted }}>You can withdraw</Text>
+        <Text style={{ color: colors.muted }}>{t('You can withdraw')}</Text>
         <Text style={{ fontSize: 32, fontWeight: '800', color: colors.text }}>{kes(d.balance)}</Text>
         <Muted center>To your M-Pesa number {displayPhone(d.phone)}</Muted>
       </Card>
@@ -79,22 +81,22 @@ export default function Withdraw() {
       ) : (
         <>
           <Field
-            label="Amount (KES)"
+            label={t('Amount (KES)')}
             keyboardType="number-pad"
             value={amount}
             onChangeText={(t) => setAmount(t.replace(/\D/g, ''))}
-            hint={`Between ${kes(d.min_amount)} and ${kes(d.balance)}. Up to ${d.per_day} withdrawals a day.`}
+            hint={t('Between {min} and {max}. Up to {n} withdrawals a day.', { min: kes(d.min_amount), max: kes(d.balance), n: d.per_day })}
           />
-          <Button title="Withdraw everything" variant="secondary" onPress={() => setAmount(String(d.balance))} />
+          <Button title={t('Withdraw everything')} variant="secondary" onPress={() => setAmount(String(d.balance))} />
           {error && <ErrorBox message={error} />}
-          <Button title={valid ? `Withdraw ${kes(value)}` : 'Withdraw'} icon="arrow-up-circle-outline" onPress={send} loading={busy} disabled={!valid} />
+          <Button title={valid ? t('Withdraw {amount}', { amount: kes(value) }) : t('Withdraw')} icon="arrow-up-circle-outline" onPress={send} loading={busy} disabled={!valid} />
         </>
       )}
-      <Muted>Money only goes to the number you signed up with. If it can't be sent, it comes straight back into your wallet.</Muted>
+      <Muted>{t('Money only goes to the number you signed up with. If it can’t be sent, it comes straight back into your wallet.')}</Muted>
 
-      <SectionTitle>Your withdrawals</SectionTitle>
+      <SectionTitle>{t('Your withdrawals')}</SectionTitle>
       {d.withdrawals.length === 0 ? (
-        <Empty text="No withdrawals yet." />
+        <Empty text={t('No withdrawals yet.')} />
       ) : (
         <List>
           {d.withdrawals.map((w) => (
@@ -103,7 +105,7 @@ export default function Withdraw() {
               icon="arrow-up-circle-outline"
               title={kes(w.amount)}
               subtitle={`${dateTime(w.created_at)}${w.reference ? ` · M-Pesa ${w.reference}` : ''}${w.status === 'failed' && w.result_desc ? ` · ${w.result_desc}` : ''}`}
-              rightSub={<Badge text={STATUS[w.status].text} tone={STATUS[w.status].tone} />}
+              rightSub={<Badge text={t(STATUS[w.status].text)} tone={STATUS[w.status].tone} />}
             />
           ))}
         </List>

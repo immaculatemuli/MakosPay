@@ -2,13 +2,14 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { signUp } from './signup.js';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test';
 
 const { createApp } = await import('../src/app.js');
 const { createUser } = await import('../src/services/users.js');
-const { db, tx } = await import('../src/db.js');
+const { db, tx } = await import('../src/database.js');
 const { postWalletEntry } = await import('../src/services/wallet.js');
 
 let server;
@@ -39,11 +40,8 @@ before(async () => {
     body: {
       name: 'Thika Road',
       origin: 'Town',
-      stops: [
-        { name: 'Ruiru', cash_fare: 60, app_fare: 50 },
-        { name: 'Juja', cash_fare: 80, app_fare: 70 },
-        { name: 'Thika', cash_fare: 100, app_fare: 90 },
-      ],
+      fare: 70,
+      stops: [{ name: 'Ruiru' }, { name: 'Juja' }, { name: 'Thika' }],
     },
   })).body;
   [s.ruiru, s.juja, s.thika] = s.route.stops;
@@ -51,13 +49,13 @@ before(async () => {
     token: s.admin,
     body: { name: 'Route 46', origin: 'Town', stops: [{ name: 'Kawangware', cash_fare: 70, app_fare: 60 }] },
   })).body;
-  const conductor = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'cond123' } })).body;
+  const conductor = (await api('POST', '/admin/conductors', { token: s.admin, body: { name: 'Ian Conductor', phone: '0711111111', password: 'Acond123' } })).body;
   s.vehicle = (await api('POST', '/admin/vehicles', {
     token: s.admin,
     body: { plate: 'KDA 123A', description: 'White Nissan', owner_name: 'Mary Owner', owner_phone: '0744555666', conductor_id: conductor.id, route_id: s.route.id },
   })).body;
   s.qr = `farepay://pay?v=${s.vehicle.qr_token}`;
-  s.passenger = (await api('POST', '/auth/register', { body: { name: 'Pat Passenger', phone: '0722222222', password: 'pass123' } })).body.token;
+  s.passenger = (await signUp(api, { name: 'Pat Passenger', phone: '0722222222', password: 'Apass123' })).body.token;
 });
 after(() => server.close());
 
@@ -68,8 +66,10 @@ test('the passenger sees routes with their drop-off stops and fares', async () =
   assert.deepEqual(
     routes.map((r) => [r.name, r.stops.map((st) => `${st.name} ${st.app_fare} (save ${st.you_save})`)]),
     [
+      ['Kawangware - Town', ['Town 60 (save 0)']],
       ['Route 46', ['Kawangware 60 (save 10)']],
-      ['Thika Road', ['Ruiru 50 (save 10)', 'Juja 70 (save 10)', 'Thika 90 (save 10)']],
+      ['Thika - Town', ['Juja 70 (save 0)', 'Ruiru 70 (save 0)', 'Town 70 (save 0)']],
+      ['Thika Road', ['Ruiru 70 (save 0)', 'Juja 70 (save 0)', 'Thika 70 (save 0)']],
     ],
   );
 });
@@ -83,7 +83,7 @@ test('scanning shows the vehicle, conductor, route and the fare to the chosen dr
   assert.deepEqual(q.route.stops.map((st) => st.name), ['Ruiru', 'Juja', 'Thika']);
   assert.deepEqual(q.stop, { id: s.juja.id, name: 'Juja' });
   assert.equal(q.fare, 70);
-  assert.equal(q.you_save, 10);
+  assert.equal(q.you_save, 0);
   assert.equal(q.can_pay, false);
   assert.equal(q.shortfall, 70);
   assert.equal(q.chosen_elsewhere, null);
@@ -119,8 +119,8 @@ test('paying to a stop that is not on the vehicle route is refused', async () =>
 });
 
 test('paying from the wallet takes the drop-off fare and gives a ticket', async () => {
-  const userId = db.prepare("SELECT id FROM users WHERE phone = '254722222222'").get().id;
-  tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 500, description: 'Test credit' }));
+  const userId = (await db.get("SELECT id FROM users WHERE phone = '254722222222'")).id;
+  await tx(() => postWalletEntry(userId, { type: 'test_credit', amount: 500, description: 'Test credit' }));
 
   const key = randomUUID();
   const r = await pay(key);
@@ -139,7 +139,7 @@ test('paying from the wallet takes the drop-off fare and gives a ticket', async 
 });
 
 test('the owner of the vehicle at the time is recorded on the trip', async () => {
-  const trip = db.prepare('SELECT owner_name, owner_phone FROM trips WHERE ticket_code = ?').get(s.ticket);
+  const trip = (await db.get('SELECT owner_name, owner_phone FROM trips WHERE ticket_code = ?', s.ticket));
   assert.deepEqual({ ...trip }, { owner_name: 'Mary Owner', owner_phone: '254744555666' });
 });
 
@@ -150,13 +150,7 @@ test('scanning again soon after paying warns about paying twice', async () => {
 test('if the fare changed since the scan, the passenger is asked to confirm again', async () => {
   await api('PATCH', `/admin/routes/${s.route.id}`, {
     token: s.admin,
-    body: {
-      stops: [
-        { id: s.ruiru.id, name: 'Ruiru', cash_fare: 60, app_fare: 50 },
-        { id: s.juja.id, name: 'Juja', cash_fare: 90, app_fare: 80 },
-        { id: s.thika.id, name: 'Thika', cash_fare: 100, app_fare: 90 },
-      ],
-    },
+    body: { fare: 80 },
   });
   const r = await pay(randomUUID(), 70);
   assert.equal(r.status, 409);

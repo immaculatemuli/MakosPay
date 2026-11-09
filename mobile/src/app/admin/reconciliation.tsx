@@ -40,6 +40,7 @@ export default function MoneyCheck() {
             {d.totals.test_credit > 0 && <KeyValue label="Test credit (not real)" value={kes(d.totals.test_credit)} />}
             <KeyValue label="Refunds to wallets" value={kes(d.totals.refunds_to_wallets)} />
             <KeyValue label="Fares paid" value={kes(d.totals.fares_paid)} />
+            {!!d.totals.free_rides_paid_by_sacco && <KeyValue label="Free rides paid by the SACCO" value={kes(d.totals.free_rides_paid_by_sacco)} />}
             <KeyValue label="Left in passenger wallets" value={kes(d.totals.wallet_balances)} />
             <KeyValue label="Paid out to owners" value={kes(d.totals.paid_out_to_owners)} />
             <KeyValue label="Being paid out" value={kes(d.totals.being_paid_out)} />

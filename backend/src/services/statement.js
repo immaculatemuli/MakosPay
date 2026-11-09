@@ -1,9 +1,9 @@
 // Compares an M-Pesa business statement (the CSV downloaded from the M-Pesa org portal) with FarePay's
 // records, so the office can see that every shilling in and out of the Paybill is accounted for:
-//   - money in:  passengers' M-Pesa payments (top-ups and fares), matched by M-Pesa receipt number
+//   - money in:  passengers' M-Pesa payments (top-ups and fares) and parcel fees paid by the PIN prompt, matched by M-Pesa receipt number
 //   - money out: owner payouts and passenger withdrawals, matched by M-Pesa transaction code
 // It only reads. Nothing in the statement changes FarePay's records.
-import { db } from '../db.js';
+import { db } from '../database.js';
 
 /** Splits CSV text into rows of cells (handles quotes, commas and line breaks inside quotes). */
 export function parseCsv(text) {
@@ -95,22 +95,26 @@ export function readStatement(text) {
 const isCharge = (t) => /charge|fee/i.test(`${t.details} ${t.reason}`);
 
 /** Matches the statement against FarePay. Each problem list says exactly which receipt to look at. */
-export function checkStatement(text) {
+export async function checkStatement(text) {
   const rows = readStatement(text);
   if (rows.length === 0) throw new Error('The statement has no completed transactions.');
   const times = rows.map((t) => t.time).filter(Boolean).sort();
   const [from, to] = [times[0] ?? null, times.at(-1) ?? null];
 
   // FarePay's side: confirmed M-Pesa money in, and money sent out with an M-Pesa code.
+  // (Parcel fees paid by the PIN prompt go to the same Paybill, so they are on the statement too.)
   const mpesaIn = new Map(
-    db.prepare("SELECT id, mpesa_receipt AS receipt, amount, purpose, completed_at FROM mpesa_payments WHERE status = 'completed' AND mpesa_receipt IS NOT NULL").all().map((p) => [p.receipt.toUpperCase(), p]),
+    [
+      ...(await db.all("SELECT id, mpesa_receipt AS receipt, amount, purpose, completed_at FROM mpesa_payments WHERE status = 'completed' AND mpesa_receipt IS NOT NULL")),
+      ...(await db.all("SELECT id, mpesa_receipt AS receipt, amount, 'parcel' AS purpose, completed_at FROM parcel_payments WHERE status = 'completed' AND mpesa_receipt IS NOT NULL")),
+    ].map((p) => [p.receipt.toUpperCase(), p]),
   );
   const out = new Map(
     [
-      ...db.prepare("SELECT id, 'payout' AS kind, reference, amount, owner_name AS name, completed_at FROM payouts WHERE status = 'completed' AND reference IS NOT NULL").all(),
-      ...db
-        .prepare("SELECT w.id, 'withdrawal' AS kind, w.reference, w.amount, u.name, w.completed_at FROM withdrawals w JOIN users u ON u.id = w.user_id WHERE w.status = 'completed' AND w.reference IS NOT NULL")
-        .all(),
+      ...(await db.all("SELECT id, 'payout' AS kind, reference, amount, owner_name AS name, completed_at FROM payouts WHERE status = 'completed' AND reference IS NOT NULL")),
+      ...(await db.all(
+        "SELECT w.id, 'withdrawal' AS kind, w.reference, w.amount, u.name, w.completed_at FROM withdrawals w JOIN users u ON u.id = w.user_id WHERE w.status = 'completed' AND w.reference IS NOT NULL",
+      )),
     ].map((o) => [o.reference.toUpperCase(), o]),
   );
 
@@ -156,7 +160,7 @@ export function checkStatement(text) {
   if (from && to) {
     const inPeriod = (iso) => iso && iso >= from && iso <= to;
     for (const [receipt, p] of mpesaIn) {
-      if (inPeriod(p.completed_at) && !seen.has(receipt)) result.not_in_statement.push({ receipt, amount: p.amount, what: p.purpose === 'fare' ? 'fare paid by M-Pesa' : 'wallet top-up' });
+      if (inPeriod(p.completed_at) && !seen.has(receipt)) result.not_in_statement.push({ receipt, amount: p.amount, what: { fare: 'fare paid by M-Pesa', parcel: 'parcel fee' }[p.purpose] ?? 'wallet top-up' });
     }
     for (const [receipt, o] of out) {
       if (inPeriod(o.completed_at) && !seen.has(receipt)) result.not_in_statement.push({ receipt, amount: o.amount, what: `${o.kind} to ${o.name}` });

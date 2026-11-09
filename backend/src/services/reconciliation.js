@@ -1,90 +1,113 @@
 // Reconciliation: checks that the money recorded in FarePay adds up, so mistakes or tampering show.
 // It only reads. "Test" money (test credit, M-Pesa sandbox/mock) is reported separately from real money.
 import { config, isRealMoney } from '../config.js';
-import { db } from '../db.js';
+import { db, tx } from '../database.js';
 import { audit } from './audit.js';
 import { runDaily } from './jobs.js';
 import { notifyOffice } from './notifications.js';
 import { owedByOwner } from './payouts.js';
 
-const one = (sql, ...params) => db.prepare(sql).get(...params).n;
+const one = async (text, ...params) => (await db.get(text, ...params)).n;
 
+/** Every check reads one consistent snapshot (inside a transaction), so a payment landing mid-check can't cause a false alarm. */
 export function reconcile() {
+  return tx(checkEverything);
+}
+
+async function checkEverything() {
   const live = isRealMoney();
 
   // 1. Every wallet balance equals the sum of its history.
-  const walletMismatches = db
-    .prepare(
-      `SELECT w.user_id, u.name, w.balance, COALESCE(SUM(t.amount), 0) AS ledger
-       FROM wallets w JOIN users u ON u.id = w.user_id LEFT JOIN wallet_transactions t ON t.user_id = w.user_id
-       GROUP BY w.user_id HAVING w.balance != COALESCE(SUM(t.amount), 0)`,
-    )
-    .all();
+  const walletMismatches = await db.all(
+    `SELECT w.user_id, u.name, w.balance, COALESCE(SUM(t.amount), 0) AS ledger
+     FROM wallets w JOIN users u ON u.id = w.user_id LEFT JOIN wallet_transactions t ON t.user_id = w.user_id
+     GROUP BY w.user_id, u.name, w.balance HAVING w.balance != COALESCE(SUM(t.amount), 0)`,
+  );
 
   // 2. Each history entry's "balance after" follows from the one before it.
-  const brokenChains = one(
+  const brokenChains = await one(
     `SELECT COUNT(*) AS n FROM wallet_transactions t
      WHERE t.balance_after != t.amount + COALESCE((SELECT p.balance_after FROM wallet_transactions p
                                                   WHERE p.user_id = t.user_id AND p.id < t.id ORDER BY p.id DESC LIMIT 1), 0)`,
   );
 
   // 3. Money in from M-Pesa equals what was credited to wallets for M-Pesa.
-  const mpesaCompleted = one("SELECT COALESCE(SUM(amount), 0) AS n FROM mpesa_payments WHERE status = 'completed'");
-  const mpesaCredited = one("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_transactions WHERE type = 'topup'");
+  const mpesaCompleted = await one("SELECT COALESCE(SUM(amount), 0) AS n FROM mpesa_payments WHERE status = 'completed'");
+  const mpesaCredited = await one("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_transactions WHERE type = 'topup'");
 
   // 4. Every paid fare was taken from a wallet exactly once.
-  const tripsWithoutDebit = one(
+  const tripsWithoutDebit = await one(
     `SELECT COUNT(*) AS n FROM trips t WHERE NOT EXISTS (
        SELECT 1 FROM wallet_transactions w WHERE w.user_id = t.passenger_id AND w.type = 'fare' AND w.reference = t.ticket_code AND w.amount = -t.fare)`,
   );
-  const refundsWithoutCredit = one(
+  const refundsWithoutCredit = await one(
     `SELECT COUNT(*) AS n FROM trips t WHERE t.status = 'refunded' AND NOT EXISTS (
        SELECT 1 FROM wallet_transactions w WHERE w.user_id = t.passenger_id AND w.type = 'refund' AND w.reference = t.ticket_code AND w.amount = t.fare)`,
   );
 
   // 5. Fares owed to owners: paid fares = paid out + being paid out + still owed (refunds after payout are taken back).
-  const faresPaid = one("SELECT COALESCE(SUM(fare), 0) AS n FROM trips WHERE status = 'paid'");
+  const faresPaid = await one("SELECT COALESCE(SUM(fare), 0) AS n FROM trips WHERE status = 'paid'");
   const inPayouts = (statuses) =>
     one(`SELECT COALESCE(SUM(t.fare), 0) AS n FROM trips t JOIN payouts p ON p.id = t.payout_id WHERE t.status = 'paid' AND p.status IN (${statuses})`);
-  const faresPaidOut = inPayouts("'completed'");
-  const faresBeingPaid = inPayouts("'processing', 'manual'");
-  const faresUnpaid = one("SELECT COALESCE(SUM(fare), 0) AS n FROM trips WHERE status = 'paid' AND payout_id IS NULL");
-  const owedNow = owedByOwner().reduce((sum, o) => sum + o.amount, 0);
+  const faresPaidOut = await inPayouts("'completed'");
+  const faresBeingPaid = await inPayouts("'processing', 'manual'");
+  const faresUnpaid = await one("SELECT COALESCE(SUM(fare), 0) AS n FROM trips WHERE status = 'paid' AND payout_id IS NULL");
+  const owedNow = (await owedByOwner()).reduce((sum, o) => sum + o.amount, 0);
 
   // 6. Each payout's amount equals its fares minus the refunds it took back.
-  const payoutMismatches = db
-    .prepare(
+  const payoutMismatches = (
+    await db.all(
       `SELECT p.id, p.owner_name, p.amount,
               COALESCE((SELECT SUM(fare) FROM trips WHERE payout_id = p.id AND status = 'paid'), 0)
                 + COALESCE((SELECT SUM(fare) FROM trips WHERE payout_id = p.id AND status = 'refunded'), 0)
                 - COALESCE((SELECT SUM(amount) FROM owner_deductions WHERE payout_id = p.id), 0) AS expected
        FROM payouts p WHERE p.status != 'failed'`,
     )
-    .all()
-    .filter((p) => p.amount !== p.expected);
+  ).filter((p) => p.amount !== p.expected);
 
   // 7. Every withdrawal took its amount from the wallet once, and a failed one put it back once.
-  const withdrawalMismatches = one(
+  const withdrawalMismatches = await one(
     `SELECT COUNT(*) AS n FROM withdrawals w WHERE
        (SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions t WHERE t.user_id = w.user_id AND t.reference = 'W' || w.id AND t.type = 'withdrawal') != -w.amount
        OR (SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions t WHERE t.user_id = w.user_id AND t.reference = 'W' || w.id AND t.type = 'withdrawal_reversal')
           != CASE WHEN w.status = 'failed' THEN w.amount ELSE 0 END`,
   );
 
+  // 8. Every seat booking's money is held while it waits (paid, not yet boarded) and released exactly once after,
+  // and the held total equals what waiting bookings are worth.
+  const seatMismatches = await one(
+    `SELECT COUNT(*) AS n FROM seat_bookings sb WHERE
+       (SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions t WHERE t.user_id = sb.passenger_id AND t.reference = sb.code
+          AND t.type IN ('booking_hold', 'booking_release'))
+       != CASE WHEN sb.status IN ('queued', 'assigned') THEN -sb.amount ELSE 0 END`,
+  );
+  const seatsHeld = await one("SELECT COALESCE(SUM(amount), 0) AS n FROM seat_bookings WHERE status IN ('queued', 'assigned')");
+  const seatTripMismatches = await one(
+    "SELECT COUNT(*) AS n FROM seat_bookings sb LEFT JOIN trips t ON t.id = sb.trip_id WHERE sb.status = 'boarded' AND (t.id IS NULL OR t.fare != sb.amount)",
+  );
+
+  // 9. Free rides: what the SACCO paid (credits less those taken back) equals the free rides taken and the free
+  // seat bookings still waiting.
+  const freeCredits = await one("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_transactions WHERE type IN ('free_ride', 'free_ride_reversal')");
+  const freeTaken = await one("SELECT COALESCE(SUM(fare), 0) AS n FROM trips WHERE free_ride = TRUE AND status = 'paid'");
+  const freeWaiting = await one("SELECT COALESCE(SUM(amount), 0) AS n FROM seat_bookings WHERE free_ride = TRUE AND status IN ('queued', 'assigned')");
+
   const totals = {
+    free_rides_paid_by_sacco: freeTaken,
+    seat_bookings_held: seatsHeld,
     real_money: live,
     mpesa_collected: mpesaCompleted,
-    test_credit: one("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_transactions WHERE type = 'test_credit'"),
-    refunds_to_wallets: one("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_transactions WHERE type = 'refund'"),
+    test_credit: await one("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_transactions WHERE type = 'test_credit'"),
+    refunds_to_wallets: await one("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_transactions WHERE type = 'refund'"),
     fares_paid: faresPaid,
-    wallet_balances: one('SELECT COALESCE(SUM(balance), 0) AS n FROM wallets'),
-    paid_out_to_owners: one("SELECT COALESCE(SUM(amount), 0) AS n FROM payouts WHERE status = 'completed'"),
-    being_paid_out: one("SELECT COALESCE(SUM(amount), 0) AS n FROM payouts WHERE status IN ('processing', 'manual')"),
+    wallet_balances: await one('SELECT COALESCE(SUM(balance), 0) AS n FROM wallets'),
+    paid_out_to_owners: await one("SELECT COALESCE(SUM(amount), 0) AS n FROM payouts WHERE status = 'completed'"),
+    being_paid_out: await one("SELECT COALESCE(SUM(amount), 0) AS n FROM payouts WHERE status IN ('processing', 'manual')"),
     owed_to_owners: owedNow,
-    refunds_to_take_back: one('SELECT COALESCE(SUM(amount), 0) AS n FROM owner_deductions WHERE payout_id IS NULL'),
-    mpesa_pending: one("SELECT COALESCE(SUM(amount), 0) AS n FROM mpesa_payments WHERE status = 'pending'"),
-    withdrawn_to_mpesa: one("SELECT COALESCE(SUM(amount), 0) AS n FROM withdrawals WHERE status = 'completed'"),
-    withdrawals_being_sent: one("SELECT COALESCE(SUM(amount), 0) AS n FROM withdrawals WHERE status IN ('processing', 'manual')"),
+    refunds_to_take_back: await one('SELECT COALESCE(SUM(amount), 0) AS n FROM owner_deductions WHERE payout_id IS NULL'),
+    mpesa_pending: await one("SELECT COALESCE(SUM(amount), 0) AS n FROM mpesa_payments WHERE status = 'pending'"),
+    withdrawn_to_mpesa: await one("SELECT COALESCE(SUM(amount), 0) AS n FROM withdrawals WHERE status = 'completed'"),
+    withdrawals_being_sent: await one("SELECT COALESCE(SUM(amount), 0) AS n FROM withdrawals WHERE status IN ('processing', 'manual')"),
   };
 
   const checks = [
@@ -116,18 +139,31 @@ export function reconcile() {
       ok: withdrawalMismatches === 0,
       detail: withdrawalMismatches ? `${withdrawalMismatches} withdrawals out of step with the wallet` : null,
     },
+    {
+      name: 'Free rides paid by the SACCO match the free rides taken',
+      ok: freeCredits === freeTaken + freeWaiting,
+      detail: freeCredits === freeTaken + freeWaiting ? null : `credited ${freeCredits}, taken ${freeTaken} + waiting ${freeWaiting}`,
+    },
+    {
+      name: 'Seat booking money is held until boarding, then released once',
+      ok: seatMismatches === 0 && seatTripMismatches === 0,
+      detail:
+        seatMismatches || seatTripMismatches
+          ? `${seatMismatches} bookings with held money out of step; ${seatTripMismatches} boarded bookings without a matching fare`
+          : null,
+    },
   ];
 
   return { checked_at: new Date().toISOString(), all_ok: checks.every((c) => c.ok), checks, totals };
 }
 
 /** The nightly check: records the result in the audit log and alerts the office only if something doesn't add up. */
-export function nightlyMoneyCheck() {
-  const result = reconcile();
+export async function nightlyMoneyCheck() {
+  const result = await reconcile();
   const failed = result.checks.filter((c) => !c.ok);
-  audit(null, 'money_check.nightly', null, null, { all_ok: result.all_ok, failed: failed.map((c) => c.name) });
+  await audit(null, 'money_check.nightly', null, null, { all_ok: result.all_ok, failed: failed.map((c) => c.name) });
   if (failed.length > 0) {
-    notifyOffice({
+    await notifyOffice({
       kind: 'money_check.failed',
       title: `Money check: ${failed.length} problem${failed.length === 1 ? '' : 's'} found`,
       body: `${failed.map((c) => c.name).join('; ')}. Open Money check and the Audit log to see what is out.`,

@@ -4,10 +4,12 @@ import { Text } from 'react-native';
 import { Button, Card, colors, ErrorBox, Field, KeyValue, Screen } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { dateTime, kes } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import type { Trip } from '@/lib/types';
 
 /** Type the ticket code a passenger shows to confirm they paid on this vehicle. */
 export function CheckTicket() {
+  const { t } = useT();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,21 +32,21 @@ export function CheckTicket() {
   return (
     <Screen>
       <Field
-        label="Ticket code"
-        placeholder="6 letters and numbers"
+        label={t('Ticket code')}
+        placeholder={t('6 letters and numbers')}
         autoCapitalize="characters"
         autoCorrect={false}
         maxLength={6}
         value={code}
-        onChangeText={(t) => {
-          setCode(t.toUpperCase());
+        onChangeText={(typed) => {
+          setCode(typed.toUpperCase());
           setResult(null);
           setError(null);
         }}
         onSubmitEditing={check}
         style={{ fontSize: 24, letterSpacing: 4, textAlign: 'center' }}
       />
-      <Button title="Check" icon="search" onPress={check} loading={busy} disabled={code.trim().length !== 6} />
+      <Button title={t('Check')} icon="search" onPress={check} loading={busy} disabled={code.trim().length !== 6} />
       {error && <ErrorBox message={error} />}
       {result && (
         <Card>
@@ -55,13 +57,13 @@ export function CheckTicket() {
             style={{ alignSelf: 'center' }}
           />
           <Text style={{ fontSize: 20, fontWeight: '700', textAlign: 'center', color: colors.text, marginVertical: 8 }}>
-            {result.refunded ? 'Refunded: not valid' : result.is_today ? 'Paid' : 'Paid, but not today'}
+            {result.refunded ? t('Refunded: not valid') : result.is_today ? t('Paid') : t('Paid, but not today')}
           </Text>
-          <KeyValue label="Passenger" value={result.payment.passenger_name ?? ''} />
-          <KeyValue label="Phone" value={result.payment.passenger_phone ?? ''} />
-          <KeyValue label="Getting off at" value={result.payment.stop_name ?? result.payment.route_name} />
-          <KeyValue label="Fare" value={kes(result.payment.fare)} />
-          <KeyValue label="Paid at" value={dateTime(result.payment.created_at)} />
+          <KeyValue label={t('Passenger')} value={result.payment.passenger_name ?? ''} />
+          <KeyValue label={t('Phone')} value={result.payment.passenger_phone ?? ''} />
+          <KeyValue label={t('Getting off at')} value={result.payment.stop_name ?? result.payment.route_name} />
+          <KeyValue label={t('Fare')} value={kes(result.payment.fare)} />
+          <KeyValue label={t('Paid at')} value={dateTime(result.payment.created_at)} />
         </Card>
       )}
     </Screen>
